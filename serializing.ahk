@@ -1,0 +1,223 @@
+﻿SerializeMap(map, filename) {
+    for k, v in map {
+        CleanFlatMap(v)
+    }
+    json := Dump(map)
+    try {
+        FileDelete("layers/" . filename . ".json")
+    }
+    FileAppend(json, "layers/" . filename . ".json", "UTF-8")
+}
+
+
+DeserializeMap(filename) {
+    json := FileRead("layers/" . filename . ".json")
+    return Load(json)
+}
+
+
+Load(json) {
+    pos := 1
+    return ParseValue(&pos, json)
+}
+
+
+ParseValue(&pos, s) {
+    SkipWhitespace(&pos, s)
+    ch := SubStr(s, pos, 1)
+
+    if ch == "{" {
+        return ParseObject(&pos, s)
+    } else if ch == "[" {
+        return ParseArray(&pos, s)
+    } else if ch == "`"" {
+        return ParseString(&pos, s)
+    } else if ch ~= "[-\d]" {
+        return ParseNumber(&pos, s)
+    } else if SubStr(s, pos, 4) == "true" {
+        pos += 4
+        return true
+    } else if SubStr(s, pos, 5) == "false" {
+        pos += 5
+        return false
+    } else if SubStr(s, pos, 4) == "null" {
+        pos += 4
+        return ""
+    } else {
+        throw Error("Unexpected value at position " . pos)
+    }
+}
+
+
+ParseObject(&pos, s) {
+    obj := Map()
+    pos++
+    SkipWhitespace(&pos, s)
+    if SubStr(s, pos, 1) == "}" {
+        pos++
+        return obj
+    }
+
+    loop {
+        SkipWhitespace(&pos, s)
+        key := ParseString(&pos, s)
+        SkipWhitespace(&pos, s)
+        if SubStr(s, pos, 1) != ":" {
+            throw Error("Expected ':' at " . pos)
+        }
+        pos++
+        value := ParseValue(&pos, s)
+        if StrLen(key) < 12 {
+            try {
+                key := Integer(key)
+            }
+        }
+        obj[key] := value
+        SkipWhitespace(&pos, s)
+        ch := SubStr(s, pos, 1)
+        if ch == "}" {
+            pos++
+            return obj
+        } else if ch != "," {
+            throw Error("Expected ',' or '}' at " . pos)
+        }
+        pos++
+    }
+}
+
+
+ParseArray(&pos, s) {
+    arr := []
+    pos++
+    SkipWhitespace(&pos, s)
+    if SubStr(s, pos, 1) == "]" {
+        pos++
+        return arr
+    }
+
+    loop {
+        arr.Push(ParseValue(&pos, s))
+        SkipWhitespace(&pos, s)
+        ch := SubStr(s, pos, 1)
+        if ch == "]" {
+            pos++
+            return arr
+        } else if ch != "," {
+            throw Error("Expected ',' or ']' at " . pos)
+        }
+        pos++
+    }
+}
+
+
+ParseString(&pos, s) {
+    if SubStr(s, pos, 1) != "`"" {
+        throw Error("Expected string at " . pos)
+    }
+    pos++
+    str := ""
+    while pos <= StrLen(s) {
+        ch := SubStr(s, pos, 1)
+        if ch == "`"" {
+            pos++
+            return str
+        } else if ch == "\" {
+            pos++
+            esc := SubStr(s, pos, 1)
+            pos++
+            str .= esc = "n"  ? "`n"
+                 : esc = "r"  ? "`r"
+                 : esc = "t"  ? "`t"
+                 : esc = '"'  ? '"'
+                 : esc = "\"  ? "\"
+                 : esc = "b"  ? "`b"
+                 : esc = "f"  ? "`f"
+                 : esc = "/"  ? "/"
+                 : esc = "u"  ? ParseUnicode(&pos, s)
+                 : esc
+        } else {
+            str .= ch
+            pos++
+        }
+    }
+    throw Error("Unterminated string at " . pos)
+}
+
+
+ParseUnicode(&pos, s) {
+    hex := SubStr(s, pos, 4)
+    pos += 4
+    return Chr("0x" . hex)
+}
+
+
+ParseNumber(&pos, s) {
+    start := pos
+    if SubStr(s, pos, 1) == "-" {
+        pos++
+    }
+    while SubStr(s, pos, 1) ~= "\d" {
+        pos++
+    }
+    if SubStr(s, pos, 1) == "." {
+        pos++
+        while SubStr(s, pos, 1) ~= "\d" {
+            pos++
+        }
+    }
+    if SubStr(s, pos, 1) ~= "[eE]" {
+        pos++
+        if SubStr(s, pos, 1) ~= "[-+]" {
+            pos++
+        }
+        while SubStr(s, pos, 1) ~= "\d" {
+            pos++
+        }
+    }
+    return Number(SubStr(s, start, pos - start))
+}
+
+
+SkipWhitespace(&pos, s) {
+    while SubStr(s, pos, 1) ~= "\s" {
+        pos++
+    }
+}
+
+
+Dump(obj, indent:="") {
+    if obj is Map {
+        out := "{"
+        for k, v in obj {
+            out .= "`n" . indent . "  " . "`"" . EscapeStr(k) . "`": " . Dump(v, indent . "  ") . ","
+        }
+        return out ~= ",$" ? SubStr(out, 1, -1) . "`n" . indent . "}" : out . "}"
+    } else if obj is Array {
+        out := "["
+        for v in obj {
+            out .= "`n" . indent . "  " . Dump(v, indent . "  ") . ","
+        }
+        return out ~= ",$" ? SubStr(out, 1, -1) . "`n" . indent . "]" : out . "]"
+    } else if obj is Number {
+        return obj
+    } else if obj == true {
+        return "true"
+    } else if obj == false {
+        return "false"
+    } else if obj == "" {
+        return "null"
+    } else {
+        return "`"" . EscapeStr(obj) . "`""
+    }
+}
+
+
+EscapeStr(str) {
+    str := str . ""
+    str := StrReplace(str, "\", "\\")
+    str := StrReplace(str, '"', '\"')
+    str := StrReplace(str, "`r", "\r")
+    str := StrReplace(str, "`n", "\n")
+    str := StrReplace(str, "`t", "\t")
+    return str
+}
