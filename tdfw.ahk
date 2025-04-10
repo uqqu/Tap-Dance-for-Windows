@@ -158,8 +158,6 @@ OnKeyDown(sc, extra_mod:=0) {
             } else {
                 if waiting {
                     GlobProc(key_hold)
-                } else {
-                    tooltip(2)  ; TODO?
                 }
             }
             waiting := false
