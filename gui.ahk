@@ -100,14 +100,6 @@ UpdateKeys() {
         "BtnDeleteSelectedLayer", "BtnMoveUpSelectedLayer", "BtnMoveDownSelectedLayer"
     ], 1)
 
-    keyboard_gui.SetFont("Italic", "Segoe UI")
-    root := keyboard_gui.Add("Button", "x265 y10", root_text)
-    for elem in keyboard_gui.path {
-        elem.Visible := false
-    }
-    keyboard_gui.path.Push(root)
-    root.OnEvent("Click", ChangePath.Bind(0))
-
     _FillPathline()
     _FillKeyboard()
     _FillLV()

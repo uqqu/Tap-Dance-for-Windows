@@ -1,5 +1,13 @@
 ﻿value_types := ["V", "S", "F", "M", "C"]
 
+USER_DPI := DllCall("user32\GetDpiForSystem", "uint") / 96
+
+
+Scale(x?, y?, w?, h?) {
+    return (IsSet(x) ? "x" . Round(x * CONF["gui_scale"]) : "") . (IsSet(y) ? " y" . Round(y * CONF["gui_scale"]) : "")
+        . (IsSet(w) ? " w" . Round(w * CONF["gui_scale"]) : "") . (IsSet(h) ? " h" . Round(h * CONF["gui_scale"]) : "")
+}
+
 
 DrawLayout() {
     global keyboard_gui
@@ -7,20 +15,22 @@ DrawLayout() {
     try {
         keyboard_gui.Destroy()
     }
+
     keyboard_gui := Gui(, "TapDance for Windows")
+    keyboard_gui.Opt("-DPIScale")
     keyboard_gui.OnEvent("Close", CloseEvent)
     keyboard_gui.Add("Edit", "x-999 y-999 w0 h0 vHidden")
     keyboard_gui.path := []
     keyboard_gui.current_values := []
     keyboard_gui.buttons := Map()
 
-    keyboard_gui.SetFont("Italic s7", "Segoe UI")
-    keyboard_gui.Add("DropDownList", "vLangs x1150 y195 w50", LANG_NAMES)
+    keyboard_gui.SetFont("Italic s" . Round(7 * CONF["font_scale"]), "Segoe UI")
+    keyboard_gui.Add("DropDownList", "vLangs " . Scale(1150, 195, 50), LANG_NAMES)
     keyboard_gui["Langs"].Text := LANG_NAMES[1]
     keyboard_gui["Langs"].OnEvent("Change", (*) => ChangeLang(keyboard_gui["Langs"].Value))
-    keyboard_gui.SetFont("Norm s8")
+    keyboard_gui.SetFont("Norm s" . Round(8 * CONF["font_scale"]))
 
-    keyboard_gui.Add("Text", "vSettings x1485 y320", "🔧")
+    keyboard_gui.Add("Text", "vSettings " . Scale(1480, 317), "🔧")
     keyboard_gui["Settings"].OnEvent("Click", ShowSettings)
 
     _DrawKeys()
@@ -29,7 +39,7 @@ DrawLayout() {
     _DrawCurrentValues()
 
     keyboard_gui.SetFont("Norm")
-    keyboard_gui.Show("w1755 h335")
+    keyboard_gui.Show(Scale(,, 1755, 335))
 
     Init()
 }
@@ -74,31 +84,42 @@ _DrawKeys() {
              [65, 0x11D], [5], [50, 0x14B], [50, 0x150], [50, 0x14D], [5], [105, 0x52], [50, 0x53]]
         ]
     )
-    current_layout := IniRead("config.ini", "Main", "LayoutFormat")
 
+    len := keyboard_layouts[CONF["layout_format"]].Length
     x_offset := 265
-    y_offset := 50
+    y_offset := 50 * CONF["gui_scale"]
     spacing := 5
-    height := 40
+    height := (314 * CONF["gui_scale"] - (spacing * (len - 1)) - y_offset) / len  ; 314 – LVs height
 
-    for row_idx, row in keyboard_layouts[current_layout] {
+    for row_idx, row in keyboard_layouts[CONF["layout_format"]] {
         y := y_offset + (row_idx - 1) * (height + spacing)
-        x := x_offset
+        x := x_offset * 1.0
 
-        for _, data in row {
-            w := data[1]
+        for data in row {
+            logical_w := data[1]
+            w := logical_w * CONF["gui_scale"]
+
             if data.Length > 1 {
                 sc := data[2]
-                h := (height + (sc == 0x11C || sc == 0x4E || sc == 0x1C && current_layout == "ISO" ? 45 : 0))
+                if sc == 0x11D {
+                    keyboard_gui["54"].GetPos(&shx, , &shw)
+                    w := shx + shw - x * CONF["gui_scale"] + 1
+                }
+
+                h := height + (sc == 0x11C || sc == 0x4E || sc == 0x1C && CONF["layout_format"] == "ISO"
+                    ? height + spacing : 0)
+
                 btn := keyboard_gui.Add("Button",
-                    "v" . sc . " x" . x . " y" . y . " w" . w . " h" . h . " +BackgroundSilver +0x8000",
+                    "v" . sc . " x" . x * CONF["gui_scale"] . " y" . y . " w" . w . " h" . h 
+                    . " +BackgroundSilver +0x8000",
                     _GetKeyName(sc)
                 )
                 keyboard_gui.buttons[sc] := btn
                 btn.OnEvent("Click", ButtonLBM.Bind(sc))
                 btn.OnEvent("ContextMenu", ButtonRBM.Bind(sc))
             }
-            x += w + spacing
+
+            x += logical_w + spacing
         }
     }
 }
@@ -106,36 +127,38 @@ _DrawKeys() {
 
 _DrawLV() {
     ; layers
-    keyboard_gui.AddListView("vLV_layers x0 y0 w255 h314 Checked", ["?", "P", "Layer", "Base", "→", "Hold", "→"])
+    keyboard_gui.AddListView(
+        "vLV_layers " . Scale(0, 0, 255, 314) . " Checked", ["?", "P", "Layer", "Base", "→", "Hold", "→"]
+    )
     keyboard_gui["LV_layers"].OnEvent("DoubleClick", LVLayerDoubleClick)
     keyboard_gui["LV_layers"].OnEvent("Click", LVLayerClick)
     keyboard_gui["LV_layers"].OnEvent("ItemCheck", LVLayerCheck)
-    for i, w in [18, 18, 75 + (ALL_LAYERS.Length < 18 ? 16 : 0), 40, 21, 40, 21] {
-        keyboard_gui["LV_layers"].ModifyCol(i, w)
+    for i, w in [15, 15, 75 + (ALL_LAYERS.Length < 18 ? 14 : 0), 40, 21, 40, 21] {
+        keyboard_gui["LV_layers"].ModifyCol(i, Max(w * CONF["gui_scale"], 16 * USER_DPI))
     }
 
-    keyboard_gui.Add("Button", "vBtnAddNewLayer x0 y314 w43 h20", "✨")
-    keyboard_gui.Add("Button", "vBtnViewSelectedLayer xp43 y314 w43 h20", "🔍")
-    keyboard_gui.Add("Button", "vBtnRenameSelectedLayer xp43 y314 w43 h20", "✏️")
-    keyboard_gui.Add("Button", "vBtnDeleteSelectedLayer xp43 y314 w43 h20", "🗑️")
-    keyboard_gui.Add("Button", "vBtnMoveUpSelectedLayer xp43 y314 w41 h20", "🔼")
-    keyboard_gui.Add("Button", "vBtnMoveDownSelectedLayer xp41 y314 w42 h20", "🔽")
-    keyboard_gui.Add("Button", "vBtnBackToRoot x0 y314 w256 h20", "🔙")
+    keyboard_gui.Add("Button", "vBtnAddNewLayer " . Scale(0, 314, 43, 20), "✨")
+    keyboard_gui.Add("Button", "vBtnViewSelectedLayer " . Scale(43, 314, 43, 20), "🔍")
+    keyboard_gui.Add("Button", "vBtnRenameSelectedLayer " . Scale(86, 314, 43, 20), "✏️")
+    keyboard_gui.Add("Button", "vBtnDeleteSelectedLayer " . Scale(129, 314, 43, 20), "🗑️")
+    keyboard_gui.Add("Button", "vBtnMoveUpSelectedLayer " . Scale(172, 314, 41, 20), "🔼")
+    keyboard_gui.Add("Button", "vBtnMoveDownSelectedLayer " . Scale(213, 314, 42, 20), "🔽")
+    keyboard_gui.Add("Button", "vBtnBackToRoot " . Scale(0, 314, 256, 20), "🔙")
 
     ; chords
-    keyboard_gui.AddListView("vLV_chords x1500 y0 w255 h314", ["Chord", "T", "Value", "Layer", ""])
+    keyboard_gui.AddListView("vLV_chords " . Scale(1500, 0, 255, 314), ["Chord", "T", "Value", "Layer", ""])
     keyboard_gui["LV_chords"].OnEvent("DoubleClick", LVChordDoubleClick)
     keyboard_gui["LV_chords"].OnEvent("Click", LVChordClick)
     for i, w in [100, 17, 63, 70, 0] {
-        keyboard_gui["LV_chords"].ModifyCol(i, w)
+        keyboard_gui["LV_chords"].ModifyCol(i, w * CONF["gui_scale"])
     }
 
-    keyboard_gui.Add("Button", "vBtnAddNewChord x1499 y314 w85 h20", "✨ New")
-    keyboard_gui.Add("Button", "vBtnChangeSelectedChord x1584 y314 w85 h20", "✏️ Change")
-    keyboard_gui.Add("Button", "vBtnDeleteSelectedChord x1669 y314 w85 h20", "🗑️ Delete")
-    keyboard_gui.Add("Button", "vBtnSaveEditedChord x1499 y314 w85 h20", "✔ Save")
-    keyboard_gui.Add("Button", "vBtnDiscardChordEditing x1584 y314 w85 h20", "↩ Discard")
-    keyboard_gui.Add("Button", "vBtnCancelChordEditing x1669 y314 w85 h20", "❌ Cancel")
+    keyboard_gui.Add("Button", "vBtnAddNewChord " . Scale(1499, 314, 85, 20), "✨ New")
+    keyboard_gui.Add("Button", "vBtnChangeSelectedChord " . Scale(1584, 314, 85, 20), "✏️ Change")
+    keyboard_gui.Add("Button", "vBtnDeleteSelectedChord " . Scale(1669, 314, 85, 20), "🗑️ Delete")
+    keyboard_gui.Add("Button", "vBtnSaveEditedChord " . Scale(1499, 314, 85, 20), "✔ Save")
+    keyboard_gui.Add("Button", "vBtnDiscardChordEditing " . Scale(1584, 314, 85, 20), "↩ Discard")
+    keyboard_gui.Add("Button", "vBtnCancelChordEditing " . Scale(1669, 314, 85, 20), "❌ Cancel")
 
     for name in [
         "AddNewLayer", "ViewSelectedLayer", "RenameSelectedLayer", "DeleteSelectedLayer", "MoveUpSelectedLayer",
@@ -152,13 +175,13 @@ _DrawLV() {
 
 
 _DrawCurrentValues() {
-    keyboard_gui.current_values.Push(keyboard_gui.Add("Text", "x1370 y6 w45 vTextBase"))
-    keyboard_gui.current_values.Push(keyboard_gui.Add("Text", "x1370 y28 w45 vTextHold"))
-    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", "x1420 y0 w45 vBtnBase"))
-    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", "x1420 y22 w45 vBtnHold"))
+    keyboard_gui.current_values.Push(keyboard_gui.Add("Text", Scale(1370, 6, 45) . " vTextBase"))
+    keyboard_gui.current_values.Push(keyboard_gui.Add("Text", Scale(1370, 28, 45) . " vTextHold"))
+    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", Scale(1420, 0, 45) . " vBtnBase"))
+    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", Scale(1420, 22, 45) . " vBtnHold"))
     keyboard_gui.SetFont("Norm")
-    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", "x1465 y0 w20 vBtnBaseClear", "✕"))
-    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", "x1465 y22 w20 vBtnHoldClear", "✕"))
+    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", Scale(1465, 0, 20) . " vBtnBaseClear", "✕"))
+    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", Scale(1465, 22, 20) . " vBtnHoldClear", "✕"))
     keyboard_gui["BtnBase"].OnEvent("Click", OpenForm.Bind(0))
     keyboard_gui["BtnHold"].OnEvent("Click", OpenForm.Bind(1))
     keyboard_gui["BtnBaseClear"].OnEvent("Click", ClearCurrentValue.Bind(0))
@@ -177,38 +200,51 @@ _AddHelpText(font_opt, pos, text) {
 
 
 _DrawHelp() {
-    if !IniRead("config.ini", "Main", "HelpTexts") {
+    if !CONF["help_texts"] {
         return
     }
-    _AddHelpText("Italic c888888", "x265 y317", "Borders (hold behavior): ")
-    _AddHelpText("Italic Bold c7777AA", "xp111", "modifier;")
-    _AddHelpText("Italic Bold c222222", "xp47", "active modifier;")
-    _AddHelpText("Italic Bold cAAAA11", "xp81", "chord part;")
-    _AddHelpText("Italic Bold cGreen", "xp57", "child transitions.")
+    _AddHelpText("Italic c888888", Scale(265, 317), "Borders (hold behavior): ")
+    _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
+    _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")
+    _AddHelpText("Italic Bold cAAAA11", "x+5 yp0", "chord part;")
+    _AddHelpText("Italic Bold cGreen", "x+5 yp0", "next map.")
 
-    _AddHelpText("Italic c888888", "xp160", "Font: ")
-    _AddHelpText("Italic Underline", "xp25", "base child transitions;")
-    _AddHelpText("Bold", "xp100 yp1", "¤")
-    _AddHelpText("Italic", "xp8 yp-1", "– dummy symbol for empty values.")
+    _AddHelpText("Italic c888888", "x+" . 50 / USER_DPI . " yp0", "Font: ")
+    _AddHelpText("Italic Underline", "x+5 yp0", "base next map;")
+    _AddHelpText("Bold", "x+5 yp1", "¤")
+    _AddHelpText("Italic", "x+5 yp-1", "– dummy symbol for empty values.")
 
-    _AddHelpText("Italic", "xp247",
-        "Interaction: LBM – base transition map, RBM – hold transition map/activate modifier."
+    _AddHelpText("Italic", "x+" . 50 / USER_DPI . " yp0",
+        "LBM – base next map, RBM – hold next map/activate modifier."
+    )
+
+    _AddHelpText("Italic c888888", Scale(265, 30),
+        "The arrows indicate the type of transition: ➤ – base, ▲ – hold, ▼ – chord; "
+        . "if it's with a number, that's the used modifier's designation."
     )
 }
 
 
 _FillPathline() {
     static dirs := ["▼", "➤", "▲"]
+
+    keyboard_gui.SetFont("Italic", "Segoe UI")
+    root := keyboard_gui.Add("Button", Scale(265, 5), root_text)
+    for elem in keyboard_gui.path {
+        elem.Visible := false
+    }
+    keyboard_gui.path.Push(root)
+    root.OnEvent("Click", ChangePath.Bind(0))
+
     keyboard_gui.SetFont("Norm", "Segoe UI")
     if current_path.Length {
         prev := keyboard_gui.path[1]
         for i, val in current_path {
-            prev.GetPos(&x, &y, &w, &h)
             pref := val[2] > 1 ? String(val[2] - Mod(val[2], 2)) : ""
-            dir_text := keyboard_gui.Add("Text", "x" . (x + w) . " yp5",
+            dir_text := keyboard_gui.Add("Text", "x+3 yp" . (6 * CONF["gui_scale"]),
                 pref . (val[3] ? "▼" : ["➤", "▲"][Mod(val[2], 2) + 1])
             )
-            prev := keyboard_gui.Add("Button", "x" . (x + w + 12 + 5 * StrLen(pref)) . " yp-5",
+            prev := keyboard_gui.Add("Button", "x+3 yp-" . (6 * CONF["gui_scale"]),
                 val[3] ? val[3] : _GetKeyName(val[1], 1)
             )
             keyboard_gui.path.Push(dir_text)
@@ -406,12 +442,11 @@ _FillLV() {
 
 
 _GetKeyName(sc, to_short:=false) {
-    static keyname_type := Integer(IniRead("config.ini", "Main", "KeynameType"))
     static fixed_names := Map("PrintScreen", "Print`nScreen", "ScrollLock", "Scroll`nLock", "Numlock", "Num`nLock")
     static short_names := Map("PrintScreen", "PrtSc", "ScrollLock", "ScrLk", "Numlock", "NumLk",
         "Backspace", "BS", "LControl", "LCtrl", "RControl", "RCtrl", "AppsKey", "Menu")
 
-    if keyname_type != 1 {
+    if CONF["keyname_type"] != 1 {
         return sc
     }
 

@@ -29,22 +29,31 @@ ReadLayers()
 
 
 CheckConfig() {
-    global MS, T
+    global MS, T, CONF
     if !FileExist("config.ini") {
         FileAppend(
             "[Main]`n"
             . "LayoutFormat=ANSI`n"
             . "HelpTexts=1`n"
+            . "GuiScale=1.25`n"
+            . "FontScale=1`n"
             . "KeynameType=1`n"
             . "ActiveLayers=`n"
-            . "LongPressDuration=170`n"
+            . "LongPressDuration=150`n"
             . "UserLayouts=",
             "config.ini"
         )
     }
 
-    MS := Integer(IniRead("config.ini", "Main", "LongPressDuration"))
+    MS := Integer(IniRead("config.ini", "Main", "LongPressDuration", 150))
     T := "T" . MS / 1000
+
+    CONF := Map()
+    CONF["layout_format"] := IniRead("config.ini", "Main", "LayoutFormat", "ANSI")
+    CONF["help_texts"] := Integer(IniRead("config.ini", "Main", "HelpTexts", 1))
+    CONF["gui_scale"] := Float(IniRead("config.ini", "Main", "GuiScale", 1.25))
+    CONF["font_scale"] := Float(IniRead("config.ini", "Main", "FontScale", 1))
+    CONF["keyname_type"] := Integer(IniRead("config.ini", "Main", "KeynameType", 1))
 
     if !IniRead("config.ini", "Main", "UserLayouts") {
         TrackLayouts()
@@ -201,18 +210,22 @@ ShowSettings(*) {
 
     settings_gui := Gui(, "Settings")
     settings_gui.SetFont("s10")
-    settings_gui.Add("CheckBox", "x20 y15 w140 vHelpTexts", "Show help texts")
-        .Value := IniRead("config.ini", "Main", "HelpTexts", 1)
+    settings_gui.Add("CheckBox", "x20 y15 w140 vHelpTexts", "Show help texts").Value := CONF["help_texts"]
     settings_gui.Add("Button", "Center x+30 yp-2 w160 h20 Default", "Re-read langs").OnEvent("Click", TrackLayouts)
 
     settings_gui.Add("Text", "xp-170 y+10 w160", "Layout format:")
     settings_gui.Add("DropDownList", "Center x+10 yp-2 w160 vLayoutFormat", ["ANSI", "ISO"])
-    settings_gui["LayoutFormat"].Text := IniRead("config.ini", "Main", "LayoutFormat", "ANSI")
+    settings_gui["LayoutFormat"].Text := CONF["layout_format"]
 
     settings_gui.Add("Text", "xp-170 y+10 w160", "Longpress duration (ms):")
-    settings_gui.Add("Edit", "Center x+10 yp-2 w160 vLongPressDuration",
-        IniRead("config.ini", "Main", "LongPressDuration", 150)
-    )
+    settings_gui.Add("Edit", "Center x+10 yp-2 w160 vLongPressDuration", MS)
+
+    settings_gui.Add("Text", "xp-170 y+10 w160", "Gui scale:")
+    settings_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiScale", Round(CONF["gui_scale"], 2))
+
+    settings_gui.Add("Text", "xp-170 y+10 w160", "Font scale:")
+    settings_gui.Add("Edit", "Center x+10 yp-2 w160 vFontScale", Round(CONF["font_scale"], 2))
+
     settings_gui.Add("Button", "Center xp-170 y+15 h20 w320 vApply", "✔ Apply").OnEvent("Click", SaveConfig)
 
     settings_gui.Show()
@@ -222,7 +235,10 @@ ShowSettings(*) {
 SaveConfig(*) {
     IniWrite(settings_gui["HelpTexts"].Value, "config.ini", "Main", "HelpTexts")
     IniWrite(settings_gui["LayoutFormat"].Text, "config.ini", "Main", "LayoutFormat")
-    IniWrite(Integer(settings_gui["LongPressDuration"].Text), "config.ini", "Main", "LongPressDuration")
+    IniWrite(settings_gui["LongPressDuration"].Text, "config.ini", "Main", "LongPressDuration")
+    IniWrite(settings_gui["GuiScale"].Text, "config.ini", "Main", "GuiScale")
+    IniWrite(settings_gui["FontScale"].Text, "config.ini", "Main", "FontScale")
     settings_gui.Destroy()
+    CheckConfig()
     DrawLayout()
 }
