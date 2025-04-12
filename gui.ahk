@@ -123,6 +123,9 @@ HandleKeyPress(SC) {
 
     if temp_chord {
         btn := keyboard_gui.buttons[SC]
+        if !btn.Enabled {
+            return
+        }
         if temp_chord.Has(SC) {
             temp_chord.Delete(SC)
             btn.Opt("+BackgroundSilver")
@@ -134,10 +137,13 @@ HandleKeyPress(SC) {
         return
     }
 
-    if KeyWait(SC_STR[sc], T) {
-        ButtonLBM(sc, "")
-    } else {
-        ButtonRBM(sc, "")
+    b := KeyWait(SC_STR[sc], T)
+    if WinActive("A") == keyboard_gui.Hwnd {  ; with postcheck
+        if sc == 0x038 || sc == 0x138 {  ; unfocus hidden menubar
+            Send("{Alt}")
+        }
+
+        b ? ButtonLBM(sc) : ButtonRBM(sc)
     }
 
 }
