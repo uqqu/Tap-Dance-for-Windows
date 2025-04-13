@@ -4,7 +4,7 @@ USER_DPI := DllCall("user32\GetDpiForSystem", "uint") / 96
 
 
 Scale(x?, y?, w?, h?) {
-    return (IsSet(x) ? "x" . Round(x * CONF["gui_scale"]) : "") . (IsSet(y) ? " y" . Round(y * CONF["gui_scale"]) : "")
+    return (IsSet(x) ? " x" . Round(x * CONF["gui_scale"]) : "") . (IsSet(y) ? " y" . Round(y * CONF["gui_scale"]) : "")
         . (IsSet(w) ? " w" . Round(w * CONF["gui_scale"]) : "") . (IsSet(h) ? " h" . Round(h * CONF["gui_scale"]) : "")
 }
 
@@ -25,12 +25,16 @@ DrawLayout() {
     keyboard_gui.buttons := Map()
 
     keyboard_gui.SetFont("Italic s" . Round(7 * CONF["font_scale"]), "Segoe UI")
-    keyboard_gui.Add("DropDownList", "vLangs " . Scale(1150, 195, 50), LANG_NAMES)
-    keyboard_gui["Langs"].Text := LANG_NAMES[1]
+    keyboard_gui.Add("DropDownList", "vLangs " . Scale(CONF["wide_mode"] ? 1150 : 895, 195, 50), LANG_NAMES)
+    for i, code in LANG_CODES {
+        if code == gui_lang {
+            keyboard_gui["Langs"].Value := i
+        }
+    }
     keyboard_gui["Langs"].OnEvent("Change", (*) => ChangeLang(keyboard_gui["Langs"].Value))
     keyboard_gui.SetFont("Norm s" . Round(8 * CONF["font_scale"]))
 
-    keyboard_gui.Add("Text", "vSettings " . Scale(1480, 317), "🔧")
+    keyboard_gui.Add("Text", "vSettings " . Scale(CONF["wide_mode"] ? 1470 : 1215, 317), "🔧")
     keyboard_gui["Settings"].OnEvent("Click", ShowSettings)
 
     _DrawKeys()
@@ -39,7 +43,7 @@ DrawLayout() {
     _DrawCurrentValues()
 
     keyboard_gui.SetFont("Norm")
-    keyboard_gui.Show(Scale(,, 1755, 335))
+    keyboard_gui.Show(CONF["wide_mode"] ? Scale(,, 1745, 335) : Scale(,, 1240, 675))
 
     Init()
 }
@@ -86,7 +90,7 @@ _DrawKeys() {
     )
 
     len := keyboard_layouts[CONF["layout_format"]].Length
-    x_offset := 265
+    x_offset := CONF["wide_mode"] ? 263 : 10
     y_offset := 50 * CONF["gui_scale"]
     spacing := 5
     height := (314 * CONF["gui_scale"] - (spacing * (len - 1)) - y_offset) / len  ; 314 – LVs height
@@ -128,37 +132,57 @@ _DrawKeys() {
 _DrawLV() {
     ; layers
     keyboard_gui.AddListView(
-        "vLV_layers " . Scale(0, 0, 255, 314) . " Checked", ["?", "P", "Layer", "Base", "→", "Hold", "→"]
+        "vLV_layers " . (CONF["wide_mode"] ? Scale(0, 0, 255, 314) : Scale(10, 340, 610, 314)) . " Checked",
+        ["?", "P", "Layer", "Base", "→", "Hold", "→"]
     )
     keyboard_gui["LV_layers"].OnEvent("DoubleClick", LVLayerDoubleClick)
     keyboard_gui["LV_layers"].OnEvent("Click", LVLayerClick)
     keyboard_gui["LV_layers"].OnEvent("ItemCheck", LVLayerCheck)
-    for i, w in [15, 15, 75 + (ALL_LAYERS.Length < 18 ? 14 : 0), 40, 21, 40, 21] {
+    cols := CONF["wide_mode"] 
+        ? [15, 15, 75, 40, 21, 40, 21]
+        : [24, 30, 200, 135, 30, 135, 30]
+    for i, w in cols {
         keyboard_gui["LV_layers"].ModifyCol(i, Max(w * CONF["gui_scale"], 16 * USER_DPI))
     }
-
-    keyboard_gui.Add("Button", "vBtnAddNewLayer " . Scale(0, 314, 43, 20), "✨")
-    keyboard_gui.Add("Button", "vBtnViewSelectedLayer " . Scale(43, 314, 43, 20), "🔍")
-    keyboard_gui.Add("Button", "vBtnRenameSelectedLayer " . Scale(86, 314, 43, 20), "✏️")
-    keyboard_gui.Add("Button", "vBtnDeleteSelectedLayer " . Scale(129, 314, 43, 20), "🗑️")
-    keyboard_gui.Add("Button", "vBtnMoveUpSelectedLayer " . Scale(172, 314, 41, 20), "🔼")
-    keyboard_gui.Add("Button", "vBtnMoveDownSelectedLayer " . Scale(213, 314, 42, 20), "🔽")
-    keyboard_gui.Add("Button", "vBtnBackToRoot " . Scale(0, 314, 256, 20), "🔙")
+    btns_wh := "w" . ((CONF["wide_mode"] ? 256 : 610) * CONF["gui_scale"] / 6) . " h" . (20 * CONF["gui_scale"])
+    keyboard_gui.Add("Button", "vBtnAddNewLayer xp-1 y+0 " . btns_wh, CONF["wide_mode"] ? "✨" : "✨ New layer")
+    keyboard_gui.Add("Button", "vBtnViewSelectedLayer x+0 yp0 " . btns_wh, CONF["wide_mode"] ? "🔍" : "🔍 View")
+    keyboard_gui.Add("Button", "vBtnRenameSelectedLayer x+0 yp0 " . btns_wh, CONF["wide_mode"] ? "✏️" : "✏️ Rename")
+    keyboard_gui.Add("Button", "vBtnDeleteSelectedLayer x+0 yp0 " . btns_wh, CONF["wide_mode"] ? "🗑️" : "🗑️ Delete")
+    keyboard_gui.Add("Button", "vBtnMoveUpSelectedLayer x+0 yp0 " . btns_wh, CONF["wide_mode"] ? "🔼" : "🔼 Move up")
+    keyboard_gui.Add("Button", "vBtnMoveDownSelectedLayer x+0 yp0 " . btns_wh, CONF["wide_mode"] ? "🔽" : "🔽 Move down")
+    keyboard_gui.Add("Button", "vBtnBackToRoot "
+        . (CONF["wide_mode"] ? Scale(0, 314, 256, 20)
+        : ("x" . (10 * CONF["gui_scale"]) . " yp0"
+            . " w" . (610 * CONF["gui_scale"]) . " h" . (20 * CONF["gui_scale"]))
+        ),
+        (CONF["wide_mode"] ? "🔙" : "🔙 Back to all active layers")
+    )
 
     ; chords
-    keyboard_gui.AddListView("vLV_chords " . Scale(1500, 0, 255, 314), ["Chord", "T", "Value", "Layer", ""])
+    keyboard_gui.AddListView(
+        "vLV_chords " . (CONF["wide_mode"] ? Scale(1490, 0, 255, 314) : Scale(619, 340, 610, 314)),
+        ["Chord", "T", "Value", "Layer", ""]
+    )
     keyboard_gui["LV_chords"].OnEvent("DoubleClick", LVChordDoubleClick)
     keyboard_gui["LV_chords"].OnEvent("Click", LVChordClick)
-    for i, w in [100, 17, 63, 70, 0] {
+    cols := CONF["wide_mode"]
+        ? [100, 17, 63, 70, 0]
+        : [200, 24, 260, 100, 0]
+    for i, w in cols {
         keyboard_gui["LV_chords"].ModifyCol(i, w * CONF["gui_scale"])
     }
 
-    keyboard_gui.Add("Button", "vBtnAddNewChord " . Scale(1499, 314, 85, 20), "✨ New")
-    keyboard_gui.Add("Button", "vBtnChangeSelectedChord " . Scale(1584, 314, 85, 20), "✏️ Change")
-    keyboard_gui.Add("Button", "vBtnDeleteSelectedChord " . Scale(1669, 314, 85, 20), "🗑️ Delete")
-    keyboard_gui.Add("Button", "vBtnSaveEditedChord " . Scale(1499, 314, 85, 20), "✔ Save")
-    keyboard_gui.Add("Button", "vBtnDiscardChordEditing " . Scale(1584, 314, 85, 20), "↩ Discard")
-    keyboard_gui.Add("Button", "vBtnCancelChordEditing " . Scale(1669, 314, 85, 20), "❌ Cancel")
+    btns_wh := "w" . ((CONF["wide_mode"] ? 256 : 610) * CONF["gui_scale"] / 3) . " h" . (20 * CONF["gui_scale"])
+    keyboard_gui.Add("Button", "vBtnAddNewChord xp0 y+0 " . btns_wh, "✨ New")
+    keyboard_gui.Add("Button", "vBtnChangeSelectedChord x+0 yp0 " . btns_wh, "✏️ Change")
+    keyboard_gui.Add("Button", "vBtnDeleteSelectedChord x+0 yp0 " . btns_wh, "🗑️ Delete")
+    keyboard_gui.Add("Button",
+        "vBtnSaveEditedChord xp-" . ((CONF["wide_mode"] ? 256 : 610) * CONF["gui_scale"] / 3 * 2) . " yp0 " . btns_wh,
+        "✔ Save"
+    )
+    keyboard_gui.Add("Button", "vBtnDiscardChordEditing x+0 yp0 " . btns_wh, "↩ Discard")
+    keyboard_gui.Add("Button", "vBtnCancelChordEditing x+0 yp0 " . btns_wh, "❌ Cancel")
 
     for name in [
         "AddNewLayer", "ViewSelectedLayer", "RenameSelectedLayer", "DeleteSelectedLayer", "MoveUpSelectedLayer",
@@ -175,13 +199,14 @@ _DrawLV() {
 
 
 _DrawCurrentValues() {
-    keyboard_gui.current_values.Push(keyboard_gui.Add("Text", Scale(1370, 6, 45) . " vTextBase"))
-    keyboard_gui.current_values.Push(keyboard_gui.Add("Text", Scale(1370, 28, 45) . " vTextHold"))
-    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", Scale(1420, 0, 45) . " vBtnBase"))
-    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", Scale(1420, 22, 45) . " vBtnHold"))
+    sh := CONF["wide_mode"] ? 0 : 255
+    keyboard_gui.current_values.Push(keyboard_gui.Add("Text", Scale(1370 - sh, 6, 45) . " vTextBase"))
+    keyboard_gui.current_values.Push(keyboard_gui.Add("Text", Scale(1370 - sh, 28, 45) . " vTextHold"))
+    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", Scale(1420 - sh, 0, 45) . " vBtnBase"))
+    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", Scale(1420 - sh, 22, 45) . " vBtnHold"))
     keyboard_gui.SetFont("Norm")
-    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", Scale(1465, 0, 20) . " vBtnBaseClear", "✕"))
-    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", Scale(1465, 22, 20) . " vBtnHoldClear", "✕"))
+    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", Scale(1465 - sh, 0, 20) . " vBtnBaseClear", "✕"))
+    keyboard_gui.current_values.Push(keyboard_gui.Add("Button", Scale(1465 - sh, 22, 20) . " vBtnHoldClear", "✕"))
     keyboard_gui["BtnBase"].OnEvent("Click", OpenForm.Bind(0))
     keyboard_gui["BtnHold"].OnEvent("Click", OpenForm.Bind(1))
     keyboard_gui["BtnBaseClear"].OnEvent("Click", ClearCurrentValue.Bind(0))
@@ -203,7 +228,7 @@ _DrawHelp() {
     if !CONF["help_texts"] {
         return
     }
-    _AddHelpText("Italic c888888", Scale(265, 317), "Borders (hold behavior): ")
+    _AddHelpText("Italic c888888", Scale(CONF["wide_mode"] ? 265 : 10, 317), "Borders (hold behavior): ")
     _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
     _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")
     _AddHelpText("Italic Bold cAAAA11", "x+5 yp0", "chord part;")
@@ -218,7 +243,7 @@ _DrawHelp() {
         "LBM – base next map, RBM – hold next map/activate modifier."
     )
 
-    _AddHelpText("Italic c888888", Scale(265, 30),
+    _AddHelpText("Italic c888888", Scale(CONF["wide_mode"] ? 265 : 11, 31),
         "The arrows indicate the type of transition: ➤ – base, ▲ – hold, ▼ – chord; "
         . "if it's with a number, that's the used modifier's designation."
     )
@@ -229,7 +254,7 @@ _FillPathline() {
     static dirs := ["▼", "➤", "▲"]
 
     keyboard_gui.SetFont("Italic", "Segoe UI")
-    root := keyboard_gui.Add("Button", Scale(265, 5), root_text)
+    root := keyboard_gui.Add("Button", Scale(CONF["wide_mode"] ? 265 : 10, 5), root_text)
     for elem in keyboard_gui.path {
         elem.Visible := false
     }

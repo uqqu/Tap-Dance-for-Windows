@@ -51,9 +51,28 @@ CheckConfig() {
     CONF := Map()
     CONF["layout_format"] := IniRead("config.ini", "Main", "LayoutFormat", "ANSI")
     CONF["help_texts"] := Integer(IniRead("config.ini", "Main", "HelpTexts", 1))
-    CONF["gui_scale"] := Float(IniRead("config.ini", "Main", "GuiScale", 1.25))
     CONF["font_scale"] := Float(IniRead("config.ini", "Main", "FontScale", 1))
     CONF["keyname_type"] := Integer(IniRead("config.ini", "Main", "KeynameType", 1))
+    if A_ScreenWidth < 1920 {
+        CONF["wide_mode"] := Integer(IniRead("config.ini", "Main", "WideMode", 0))
+    } else {
+        CONF["wide_mode"] := Integer(IniRead("config.ini", "Main", "WideMode", 1))
+    }
+
+    switch A_ScreenWidth {
+        case 1366, 1920:
+            CONF["gui_scale"] := Float(IniRead("config.ini", "Main", "GuiScale", 1.1))
+        case 1440:
+            CONF["gui_scale"] := Float(IniRead("config.ini", "Main", "GuiScale", 1.15))
+        case 1536:
+            CONF["gui_scale"] := Float(IniRead("config.ini", "Main", "GuiScale", 1.2))
+        case 1600, 2560:
+            CONF["gui_scale"] := Float(IniRead("config.ini", "Main", "GuiScale", 1.25))
+        case 3840:
+            CONF["gui_scale"] := Float(IniRead("config.ini", "Main", "GuiScale", 1.5))
+        default:
+            CONF["gui_scale"] := Float(IniRead("config.ini", "Main", "GuiScale", 1.0))
+    }
 
     if !IniRead("config.ini", "Main", "UserLayouts") {
         TrackLayouts()
@@ -211,7 +230,7 @@ ShowSettings(*) {
     settings_gui := Gui(, "Settings")
     settings_gui.SetFont("s10")
     settings_gui.Add("CheckBox", "x20 y15 w140 vHelpTexts", "Show help texts").Value := CONF["help_texts"]
-    settings_gui.Add("Button", "Center x+30 yp-2 w160 h20 Default", "Re-read langs").OnEvent("Click", TrackLayouts)
+    settings_gui.Add("CheckBox", "x+30 yp-2 w140 vWideMode", "Enable wide mode").Value := CONF["wide_mode"]
 
     settings_gui.Add("Text", "xp-170 y+10 w160", "Layout format:")
     settings_gui.Add("DropDownList", "Center x+10 yp-2 w160 vLayoutFormat", ["ANSI", "ISO"])
@@ -226,7 +245,9 @@ ShowSettings(*) {
     settings_gui.Add("Text", "xp-170 y+10 w160", "Font scale:")
     settings_gui.Add("Edit", "Center x+10 yp-2 w160 vFontScale", Round(CONF["font_scale"], 2))
 
-    settings_gui.Add("Button", "Center xp-170 y+15 h20 w320 vApply", "✔ Apply").OnEvent("Click", SaveConfig)
+    settings_gui.Add("Button", "Center x20 y+15 w320 h20", "Re-read langs").OnEvent("Click", TrackLayouts)
+
+    settings_gui.Add("Button", "Center x20 y+10 w320 h20 Default vApply", "✔ Apply").OnEvent("Click", SaveConfig)
 
     settings_gui.Show()
 }
@@ -238,6 +259,7 @@ SaveConfig(*) {
     IniWrite(settings_gui["LongPressDuration"].Text, "config.ini", "Main", "LongPressDuration")
     IniWrite(settings_gui["GuiScale"].Text, "config.ini", "Main", "GuiScale")
     IniWrite(settings_gui["FontScale"].Text, "config.ini", "Main", "FontScale")
+    IniWrite(settings_gui["WideMode"].Value, "config.ini", "Main", "WideMode")
     settings_gui.Destroy()
     CheckConfig()
     DrawLayout()

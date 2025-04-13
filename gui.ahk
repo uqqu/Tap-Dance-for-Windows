@@ -137,7 +137,6 @@ HandleKeyPress(SC) {
 
         b ? ButtonLBM(sc) : ButtonRBM(sc)
     }
-
 }
 
 
