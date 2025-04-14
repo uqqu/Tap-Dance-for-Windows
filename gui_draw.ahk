@@ -50,6 +50,7 @@ DrawLayout() {
 
 
 _DrawKeys() {
+    global ALL_SCANCODES
     static keyboard_layouts := Map(
         "ANSI", [
             [[50, 0x01], [30], [50, 0x3B], [50, 0x3C], [50, 0x3D], [50, 0x3E], [30], [50, 0x3F], [50, 0x40],
@@ -89,6 +90,7 @@ _DrawKeys() {
         ]
     )
 
+    ALL_SCANCODES := []
     len := keyboard_layouts[CONF["layout_format"]].Length
     x_offset := CONF["wide_mode"] ? 263 : 10
     y_offset := 50 * CONF["gui_scale"]
@@ -105,6 +107,7 @@ _DrawKeys() {
 
             if data.Length > 1 {
                 sc := data[2]
+                ALL_SCANCODES.Push(sc)
                 if sc == 0x11D {
                     keyboard_gui["54"].GetPos(&shx, , &shw)
                     w := shx + shw - x * CONF["gui_scale"] + 1
@@ -373,7 +376,11 @@ _FillKeyboard() {
 
             hv := _GetVal(key_hold)
             if hv {
-                btn.Text .= "`n" . (InStr(hv, "{Text}") ? SubStr(hv, 7) : hv)
+                if _GetType(key_hold) == 2 {
+                    btn.Text .= "`n" . _GetKeyName(hv)
+                } else {
+                    btn.Text .= "`n" . (InStr(hv, "{Text}") ? SubStr(hv, 7) : hv)
+                }
             }
         } else {
             btn.SetFont("Norm")

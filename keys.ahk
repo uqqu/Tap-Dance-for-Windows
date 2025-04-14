@@ -1,5 +1,4 @@
-﻿loop 511 {
-    sc := A_Index
+﻿for sc in ALL_SCANCODES {
     if SYS_MODIFIERS.Has(sc) {
         continue
     }

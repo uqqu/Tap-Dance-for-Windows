@@ -305,6 +305,9 @@ CleanFlatMap(validated) {
     for sc, v in validated {
         if sc == -1 {
             CleanFlatMap(v)
+            if !v.Count {
+                to_del.Push(-1)
+            }
             continue
         }
 

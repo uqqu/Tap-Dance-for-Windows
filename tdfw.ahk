@@ -65,6 +65,10 @@ OnKeyDown(sc, extra_mod:=0) {
         return
     }
 
+    if SYS_MODIFIERS.Has(sc) {
+        return
+    }
+
     if extra_mod {
         current_mod |= extra_mod
     }
@@ -163,25 +167,20 @@ OnKeyDown(sc, extra_mod:=0) {
             waiting := false
 
         case 5:  ; chord part
-            last_val := key_base
-            b := true
-            try {
-                temp_current_presses := CopyBuffer(current_presses)
-                RemoveBits(temp_current_presses, [current_presses_mods])
-                current_hex := BufferToHex(temp_current_presses)
-                if glob[-1].Has(current_hex) && glob[-1][current_hex].Has(current_mod) {
-                    GlobProc(glob[-1][current_hex][current_mod])
-                    ;b := false  ; TODO !!
-                }
-            } catch {  ; TODO
-                msgbox("alarma")
+            if key_base && (key_base[2] != "" || key_base[3].Count) {
+                last_val := key_base
+            } else {
+                last_val := [2, sc, Map()]
             }
 
-            if b {
-                SetTimer(TimerResetBase, -MS)
-            } else {
-                TimerResetBase()
+            temp_current_presses := CopyBuffer(current_presses)
+            RemoveBits(temp_current_presses, [current_presses_mods])
+            current_hex := BufferToHex(temp_current_presses)
+            if glob[-1].Has(current_hex) && glob[-1][current_hex].Has(current_mod) {
+                GlobProc(glob[-1][current_hex][current_mod])
             }
+
+            SetTimer(TimerResetBase, -MS)
     }
 }
 
@@ -212,8 +211,11 @@ SendKbd(arr) {
         case 1:
             SendInput(arr[2])
         case 2:
-            SendInput("{" . SC_STR[arr[2]] . "}")  ; TODO
-            ;DllCall("keybd_event", "UInt", GetKeyVK(SC_STR[arr[2]]), "UInt", 0, "UInt", 0, "UPtr", 0)
+            SendInput("{Blind}{" . SC_STR[arr[2]] . "}")
+            ;Suspend
+            ;DllCall("keybd_event", "UInt", GetCachedVK(arr[2]), "UInt", 0, "UInt", 0, "UPtr", 0)
+            ;Suspend
+            ;DllCall("keybd_event", "UInt", GetCachedVK(arr[2]), "UInt", 0, "UInt", 2, "UPtr", 0)
         case 3:
             if !RegExMatch(arr[2], "^(?<name>\w+)(?:\((?<args>.*)\))?$", &m) {
                 throw Error("Wrong function value: " . arr[2])
@@ -221,6 +223,18 @@ SendKbd(arr) {
 
             raw_args := Trim(m["args"])
             %m["name"]%.Call(raw_args == "" ? [] : StrSplit(raw_args, ",", " `t"))
+    }
+}
+
+
+GetCachedVK(sc) {
+    static cached := Map()
+
+    try {
+        return cached[sc]
+    } catch {
+        cached[sc] := GetKeyVK(SC_STR[sc])
+        return cached[sc]
     }
 }
 
