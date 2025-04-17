@@ -1,8 +1,8 @@
-﻿SerializeMap(map, filename) {
+﻿SerializeMap(map, filename, conv:=false) {
     for k, v in map {
         CleanFlatMap(v)
     }
-    json := Dump(map)
+    json := Dump(map, "", conv)
     try {
         FileDelete("layers/" . filename . ".json")
     }
@@ -185,34 +185,48 @@ SkipWhitespace(&pos, s) {
 }
 
 
-Dump(obj, indent:="") {
+Dump(obj, indent:="", conv:=false) {
     if obj is Map {
         out := "{"
         for k, v in obj {
-            out .= "`n" . indent . "  " . "`"" . EscapeStr(k) . "`": " . Dump(v, indent . "  ") . ","
+            out .= "`n" . indent . "  " . "`"" . EscapeStr(k) . "`": " . Dump(v, indent . "  ", conv) . ","
         }
         return out ~= ",$" ? SubStr(out, 1, -1) . "`n" . indent . "}" : out . "}"
-    } else if obj is Array {
+    }
+    if obj is Array {
         out := "["
         for v in obj {
-            out .= "`n" . indent . "  " . Dump(v, indent . "  ") . ","
+            out .= "`n" . indent . "  " . Dump(v, indent . "  ", conv) . ","
         }
         return out ~= ",$" ? SubStr(out, 1, -1) . "`n" . indent . "]" : out . "]"
-    } else if obj is Number {
-        return obj
-    } else if obj == true {
-        return "true"
-    } else if obj == false {
-        return "false"
-    } else if obj == "" {
-        return "null"
-    } else {
-        return "`"" . EscapeStr(obj) . "`""
     }
+    if obj is Number {
+        return obj
+    }
+    if obj == true {
+        return "true"
+    }
+    if obj == false {
+        return "false"
+    } 
+    if obj == "" {
+        return "null"
+    }
+    return "`"" . EscapeStr(obj, conv) . "`""
 }
 
 
-EscapeStr(str) {
+EscapeStr(str, conv:=false) {
+    if conv {
+        pref := SubStr(str, 1, 6)
+        str := pref == "{Text}" ? SubStr(str, 7) : pref == "{Blind" ? SubStr(str, 8) : str
+        if RegExMatch(str, "^([\^+!#]*)\{(.+)\}$", &m) {
+            sc := GetKeySC(m[2])
+            if sc {
+                return m[1] . sc
+            }
+        }
+    }
     str := str . ""
     str := StrReplace(str, "\", "\\")
     str := StrReplace(str, '"', '\"')

@@ -232,17 +232,15 @@ _DrawHelp() {
         return
     }
     _AddHelpText("Italic c888888", Scale(CONF["wide_mode"] ? 265 : 10, 317), "Borders (hold behavior): ")
-    _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
-    _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")
-    _AddHelpText("Italic Bold cAAAA11", "x+5 yp0", "chord part;")
-    _AddHelpText("Italic Bold cGreen", "x+5 yp0", "next map.")
+    _AddHelpText("Italic Bold c7777AA", "x+3 yp0", "modifier;")
+    _AddHelpText("Italic Bold c222222", "x+3 yp0", "active modifier;")
+    _AddHelpText("Italic Bold cAAAA11", "x+3 yp0", "chord part;")
+    _AddHelpText("Italic Bold cGreen", "x+3 yp0", "next map.")
 
-    _AddHelpText("Italic c888888", "x+" . 50 / USER_DPI . " yp0", "Font: ")
-    _AddHelpText("Italic Underline", "x+5 yp0", "base next map;")
-    _AddHelpText("Bold", "x+5 yp1", "¤")
-    _AddHelpText("Italic", "x+5 yp-1", "– dummy symbol for empty values.")
+    _AddHelpText("Italic c888888", "x+" . 100 / USER_DPI . " yp0", "Font: ")
+    _AddHelpText("Italic Underline", "x+3 yp0", "with next map from base tap;")
 
-    _AddHelpText("Italic", "x+" . 50 / USER_DPI . " yp0",
+    _AddHelpText("Italic", "x+" . 100 / USER_DPI . " yp0",
         "LBM – base next map, RBM – hold next map/activate modifier."
     )
 
@@ -293,7 +291,11 @@ _FillPathline() {
         keyboard_gui["BtnBaseClear"].Opt("-Disabled")
         if base_type {
             keyboard_gui["TextBase"].Text := "Base (" . value_types[base_type] . "):"
-            keyboard_gui["BtnBase"].Text := _GetVal(current_base)
+            if base_type == 2 {
+                keyboard_gui["BtnBase"].Text := _GetKeyName(false, 1, _GetVal(current_base))
+            } else {
+                keyboard_gui["BtnBase"].Text := _GetVal(current_base)
+            }
         } else {
             keyboard_gui["TextBase"].Text := "Base:"
             keyboard_gui["BtnBase"].Text := ""
@@ -309,8 +311,10 @@ _FillPathline() {
         if hold_type {
             keyboard_gui["TextHold"].Text := "Hold (" . value_types[hold_type] . "):"
             switch hold_type {
+                case 2:
+                    keyboard_gui["BtnHold"].Text := _GetKeyName(false, 1, _GetVal(current_hold))
                 case 4:
-                    keyboard_gui["BtnHold"].Text := "Modifier"
+                    keyboard_gui["BtnHold"].Text := "Mod " . _GetVal(current_hold)
                 case 5:
                     keyboard_gui["BtnHold"].Text := "Chord"
                     keyboard_gui["BtnHold"].Opt("+Disabled")
@@ -369,21 +373,20 @@ _FillKeyboard() {
             bv := _GetVal(key_base)
             if _GetType(key_base) == 2 && bv {
                 btn.SetFont("Italic", "Segoe UI")
-                btn.Text := _GetKeyName(bv)
+                btn.Text := _GetKeyName(sc, 0, bv)
             } else {
-                btn.Text := bv != "" ? (InStr(bv, "{Text}") ? SubStr(bv, 7) : bv) : "¤"
+                btn.Text := bv
             }
 
             hv := _GetVal(key_hold)
             if hv {
-                if _GetType(key_hold) == 2 {
-                    btn.Text .= "`n" . _GetKeyName(hv)
-                } else {
-                    btn.Text .= "`n" . (InStr(hv, "{Text}") ? SubStr(hv, 7) : hv)
-                }
+                btn.Text .= _GetType(key_hold) == 2 ? "`n" . _GetKeyName(hv, 0, hv) : "`n" . hv
             }
         } else {
             btn.SetFont("Norm")
+            btn.Text := _GetKeyName(sc)
+        }
+        if btn.Text == "" {
             btn.Text := _GetKeyName(sc)
         }
     }
@@ -429,11 +432,11 @@ _FillLV() {
                     case 1:
                         txt[i] := "'" . vals[i][k][2] . "'"
                     case 2:
-                        txt[i] := _GetKeyName(vals[i][k][2], 1)
+                        txt[i] := _GetKeyName(false, 1, vals[i][k][2])
                     case 3:
                         txt[i] := "(" . vals[i][k][2] . ")"
                     case 4:
-                        txt[i] := "{M}"
+                        txt[i] := "{M" . vals[i][k][2] . "}"
                     case 5:
                         txt[i] := "{C}"
                 }
@@ -473,7 +476,7 @@ _FillLV() {
 }
 
 
-_GetKeyName(sc, to_short:=false) {
+_GetKeyName(sc, to_short:=false, from_sc_str:=false) {
     static fixed_names := Map("PrintScreen", "Print`nScreen", "ScrollLock", "Scroll`nLock", "Numlock", "Num`nLock")
     static short_names := Map("PrintScreen", "PrtSc", "ScrollLock", "ScrLk", "Numlock", "NumLk",
         "Backspace", "BS", "LControl", "LCtrl", "RControl", "RCtrl", "AppsKey", "Menu")
@@ -481,8 +484,19 @@ _GetKeyName(sc, to_short:=false) {
     if CONF["keyname_type"] != 1 {
         return sc
     }
+    
+    if from_sc_str {
+        res := GetKeyName(SubStr(from_sc_str, 2, StrLen(from_sc_str) - 2))
+        if !res {
+            if !sc || GetKeyName(SC_STR[sc]) {
+                return from_sc_str
+            }
+            res := GetKeyName(SC_STR[sc])
+        }
+    } else {
+        res := GetKeyName(SC_STR[sc])
+    }
 
-    res := GetKeyName(SC_STR[sc])
     if to_short && short_names.Has(res) {
         return short_names[res]
     }

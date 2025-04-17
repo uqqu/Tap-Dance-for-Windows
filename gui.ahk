@@ -110,19 +110,19 @@ UpdateKeys() {
 }
 
 
-HandleKeyPress(SC) {
+HandleKeyPress(sc) {
     global temp_chord
 
     if temp_chord {
-        btn := keyboard_gui.buttons[SC]
+        btn := keyboard_gui.buttons[sc]
         if !btn.Enabled {
             return
         }
-        if temp_chord.Has(SC) {
-            temp_chord.Delete(SC)
+        if temp_chord.Has(sc) {
+            temp_chord.Delete(sc)
             btn.Opt("+BackgroundSilver")
         } else {
-            temp_chord[SC] := true
+            temp_chord[sc] := true
             btn.Opt("+BackgroundBBBB22")
         }
         btn.Text := btn.Text
@@ -346,7 +346,10 @@ ClearCurrentValue(is_hold, *) {
 
 ChangeFormPlaceholder(layer_vals, *) {
     static placeholders := [
-        "Value (can be in ahk syntax like +{SC010})", "+16 ^2C", "Function name", "Modifier number"
+        "Value (just raw text)",
+        "Key simulation in ahk syntax like '+{SC010}', '{Volume_up}'",
+        "Function name",
+        "Modifier number"
     ]
 
     val := 4

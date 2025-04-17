@@ -11,10 +11,12 @@
 )
 
 SC_STR := []
+SC_STR_BR := []
 SC_MAP := Map()
 loop 511 {
     cur := Format("SC{:03X}", A_Index)
     SC_STR.Push(cur)
+    SC_STR_BR.Push("`{" . cur . "`}")
     SC_MAP[cur] := A_Index
 }
 
@@ -105,7 +107,9 @@ ReadLayers() {
 
     ALL_LAYERS := []
     loop Files, "layers\*.json" {
-        ALL_LAYERS.Push(SubStr(A_LoopFileName, 1, -5))
+        if A_LoopFileName != "c_test.json" {
+            ALL_LAYERS.Push(SubStr(A_LoopFileName, 1, -5))
+        }
     }
 
     seen_layers := Map()
@@ -137,6 +141,7 @@ ReadLayers() {
     for lang, mp in combined_keys {
         KEYS[lang] := GetPriorKeys(mp)
     }
+    SerializeMap(KEYS, "c_test", true)
     glob := KEYS[current_lang]
     SetSysModHotkeys()
 }

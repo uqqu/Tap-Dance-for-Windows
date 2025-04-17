@@ -109,7 +109,7 @@ _WalkPath(start, path, merged:=true) {
         }
         for md in [arr[2] - rem, arr[2] - rem + 1] {  ; pure mod, mod+hold
             if !curr_map[arr[1]].Has(md) {
-                core := md || arr[3] ? [0, "", Map()] : [2, String(arr[1]), Map()]
+                core := md || arr[3] ? [0, "", Map()] : [2, SC_STR_BR[arr[1]], Map()]
                 if merged {
                     core.Push([])  ; names
                     curr_map[arr[1]][md] := [core]
@@ -268,7 +268,7 @@ CleanMergedMap(validated, level:=1, in_path:=true) {
                     to_del_opts.Push(i)
                 } else {
                     CleanMergedMap(opt[3], level + 1, t_in_path)
-                    if ((md && (!opt[1] || opt[1] < 4 && !opt[2])) || (!md && opt[1] == 2 && opt[2] == sc))
+                    if ((md && (!opt[1] || opt[1] < 4 && !opt[2])) || (!md && opt[1] == 2 && opt[2] == SC_STR_BR[sc]))
                         && !opt[3].Count && !t_in_path {  ; TODO opt[1] != 5 && !opt[2]
                         to_del_opts.Push(i)
                     }
@@ -320,7 +320,7 @@ CleanFlatMap(validated) {
             h := v[mod_k + 1]
             CleanFlatMap(mod_v[3])
             CleanFlatMap(h[3])
-            if ((!mod_k && mod_v[1] == 2 && mod_v[2] == sc) || (mod_k && mod_v[1] == 0 && mod_v[2] == ""))
+            if ((!mod_k && mod_v[1] == 2 && mod_v[2] == SC_STR_BR[sc]) || (mod_k && mod_v[1] == 0 && mod_v[2] == ""))
                 && h[1] == 0 && h[2] == "" && !h[3].Count && !mod_v[3].Count {
                 to_del_mods.Push(mod_k)
             }

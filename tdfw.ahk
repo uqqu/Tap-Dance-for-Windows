@@ -89,8 +89,6 @@ OnKeyDown(sc, extra_mod:=0) {
     }
 
     ; save current press for further CheckBit and chord checking
-    SetBit(sc, current_presses)
-
     SetTimer(TimerSendCurrent, 0)
 
     ; continue the chain of transitions, if the previous unsent push had a table of transitions
@@ -100,12 +98,8 @@ OnKeyDown(sc, extra_mod:=0) {
         waiting := false
     }
 
-    if last_val && current_mod {  ; ?
-        last_val := false
-    }
-
     ; if the scancode is missing in the current transition table
-    if !glob.Has(sc) {
+    if (!glob.Has(sc) || !glob[sc].Has(current_mod)) {
         ; force the sending of the last_val
         TimerSendCurrent()
 
@@ -118,26 +112,13 @@ OnKeyDown(sc, extra_mod:=0) {
         glob := KEYS[CURRENT_LANG]
 
         ; if sc is missing even in the root table, send default value and break processing
-        if !glob.Has(sc) {
-            SendKbd([2, sc])
-            ClearBit(sc, current_presses)
+        if (!glob.Has(sc) || !glob[sc].Has(current_mod)) {
+            SendKbd([2, SC_STR_BR[sc]])
             return
         }
     }
 
-    ;same for modifiers level
-    if !glob[sc].Has(current_mod) {
-        TimerSendCurrent()
-        if current_mod {
-            return
-        }
-        glob := KEYS[CURRENT_LANG]
-        if !glob[sc].Has(current_mod) {
-            SendKbd([2, sc])
-            ClearBit(sc, current_presses)
-            return
-        }
-    }
+    SetBit(sc, current_presses)
 
     ; main path
     key_base := glob[sc][current_mod]
@@ -154,7 +135,6 @@ OnKeyDown(sc, extra_mod:=0) {
         case 1, 2, 3:  ; any value to sending/processing (with or without transition table)
             ; set base press value to waiting
             waiting := key_base
-            ;ClearBit(sc, current_presses)  ; TODO!
             if KeyWait(SC_STR[sc], T) {
                 if waiting {  ; might change while we wait
                     GlobProc(key_base)
@@ -170,12 +150,10 @@ OnKeyDown(sc, extra_mod:=0) {
             if key_base && (key_base[2] != "" || key_base[3].Count) {
                 last_val := key_base
             } else {
-                last_val := [2, sc, Map()]
+                last_val := [2, SC_STR_BR[sc], Map()]
             }
 
-            temp_current_presses := CopyBuffer(current_presses)
-            RemoveBits(temp_current_presses, [current_presses_mods])
-            current_hex := BufferToHex(temp_current_presses)
+            current_hex := BufferToHex(current_presses)
             if glob[-1].Has(current_hex) && glob[-1][current_hex].Has(current_mod) {
                 GlobProc(glob[-1][current_hex][current_mod])
             }
@@ -209,13 +187,9 @@ OnKeyUp(sc, extra_mod:=0) {
 SendKbd(arr) {
     switch arr[1] {
         case 1:
-            SendInput(arr[2])
+            SendInput("{Text}" . arr[2])
         case 2:
-            SendInput("{Blind}{" . SC_STR[arr[2]] . "}")
-            ;Suspend
-            ;DllCall("keybd_event", "UInt", GetCachedVK(arr[2]), "UInt", 0, "UInt", 0, "UPtr", 0)
-            ;Suspend
-            ;DllCall("keybd_event", "UInt", GetCachedVK(arr[2]), "UInt", 0, "UInt", 2, "UPtr", 0)
+            SendInput(arr[2])
         case 3:
             if !RegExMatch(arr[2], "^(?<name>\w+)(?:\((?<args>.*)\))?$", &m) {
                 throw Error("Wrong function value: " . arr[2])
