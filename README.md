@@ -18,7 +18,7 @@ Welcome to **Tap-Dance-for-Windows**, your playground for remapping keys and cra
   - Designate any key, be it the space bar, CapsLock, Q, or any other key, as a modifier for new assignments and chords.
 
 - **Multipresses**
- - Each press is not just the execution of an assigned action, it is a path to new unique assignments. Add an action to any sequence of taps.
+  - Each press is not just the execution of an assigned action, it is a path to new unique assignments. Add an action to any sequence of taps.
 
 - **Infinite depth of nested assignments**
   - Want to use your Space bar to input Morse code? Or add autocorrect for a long word? Every tap is a new level, and a new field for assignments, with no length limit.
