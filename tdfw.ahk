@@ -73,6 +73,12 @@ OnKeyDown(sc, extra_mod:=0) {
         current_mod |= extra_mod
     }
 
+    ; continue the chain of transitions, if the previous unsent push had a table of transitions
+    if waiting {
+        GlobProc(waiting)
+        waiting := false
+    }
+
     lang := GetCurrentLayout()
     if lang != CURRENT_LANG {
         TimerSendCurrent()
@@ -81,24 +87,16 @@ OnKeyDown(sc, extra_mod:=0) {
     }
 
     if glob.Has(sc) && glob[sc].Has(1) && glob[sc][1][1] == 4 {  ; modifier on basehold
-        last_val := glob[sc].Has(current_mod) ? glob[sc][current_mod] : false
+        last_val := glob[sc].Has(current_mod) ? glob[sc][current_mod] : GetCachedDefault(sc)
         SetBit(sc, current_presses_mods)
         current_mod |= 1 << glob[sc][1][2]
         SetTimer(TimerResetBase, -MS)
         return
     }
 
-    ; save current press for further CheckBit and chord checking
     SetTimer(TimerSendCurrent, 0)
 
-    ; continue the chain of transitions, if the previous unsent push had a table of transitions
-    if waiting {
-        last_val := waiting
-        glob := waiting[3]
-        waiting := false
-    }
-
-    ; if the scancode is missing in the current transition table
+    ; if the scancode or modifier is missing in the current transition table
     if (!glob.Has(sc) || !glob[sc].Has(current_mod)) {
         ; force the sending of the last_val
         TimerSendCurrent()
@@ -108,17 +106,21 @@ OnKeyDown(sc, extra_mod:=0) {
             return
         }
 
-        ; in other case back to root table and continue processing
-        glob := KEYS[CURRENT_LANG]
+        if glob != KEYS[CURRENT_LANG] {
+            ; in other case back to root table and continue processing
+            glob := KEYS[CURRENT_LANG]
 
-        ; if sc is missing even in the root table, send default value and break processing
-        if (!glob.Has(sc) || !glob[sc].Has(current_mod)) {
-            SendKbd([2, SC_STR_BR[sc]])
+            ; if sc is missing even in the root table, send default value and break processing
+            if (!glob.Has(sc) || !glob[sc].Has(current_mod)) {
+                SendKbd(GetCachedDefault(sc))
+                return
+            }
+        } else {
+            SendKbd(GetCachedDefault(sc))
             return
         }
     }
 
-    SetBit(sc, current_presses)
 
     ; main path
     key_base := glob[sc][current_mod]
@@ -130,9 +132,9 @@ OnKeyDown(sc, extra_mod:=0) {
         case 0:  ; empty / unset
             ; immediately process base press and reset its press count
             GlobProc(key_base)
-            ClearBit(sc, current_presses)
 
         case 1, 2, 3:  ; any value to sending/processing (with or without transition table)
+            SetBit(sc, current_presses)
             ; set base press value to waiting
             waiting := key_base
             if KeyWait(SC_STR[sc], T) {
@@ -147,11 +149,8 @@ OnKeyDown(sc, extra_mod:=0) {
             waiting := false
 
         case 5:  ; chord part
-            if key_base && (key_base[2] != "" || key_base[3].Count) {
-                last_val := key_base
-            } else {
-                last_val := [2, SC_STR_BR[sc], Map()]
-            }
+            SetBit(sc, current_presses)
+            last_val := (key_base && (key_base[2] != "" || key_base[3].Count)) ? key_base : GetCachedDefault(sc)
 
             current_hex := BufferToHex(current_presses)
             if glob[-1].Has(current_hex) && glob[-1][current_hex].Has(current_mod) {
@@ -201,13 +200,13 @@ SendKbd(arr) {
 }
 
 
-GetCachedVK(sc) {
+GetCachedDefault(sc) {
     static cached := Map()
 
     try {
         return cached[sc]
     } catch {
-        cached[sc] := GetKeyVK(SC_STR[sc])
+        cached[sc] := [2, SC_STR_BR[sc], Map()]
         return cached[sc]
     }
 }

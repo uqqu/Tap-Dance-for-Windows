@@ -16,7 +16,7 @@ SC_MAP := Map()
 loop 511 {
     cur := Format("SC{:03X}", A_Index)
     SC_STR.Push(cur)
-    SC_STR_BR.Push("`{" . cur . "`}")
+    SC_STR_BR.Push("{" . cur . "}")
     SC_MAP[cur] := A_Index
 }
 

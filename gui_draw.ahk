@@ -109,7 +109,7 @@ _DrawKeys() {
                 sc := data[2]
                 ALL_SCANCODES.Push(sc)
                 if sc == 0x11D {
-                    keyboard_gui["54"].GetPos(&shx, , &shw)
+                    keyboard_gui[CONF["layout_format"] == "ISO" ? "54" : "310"].GetPos(&shx, , &shw)
                     w := shx + shw - x * CONF["gui_scale"] + 1
                 }
 
