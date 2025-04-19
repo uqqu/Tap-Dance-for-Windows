@@ -16,12 +16,12 @@ current_mod := 0
 TimerSendCurrent() {
     global glob, last_val
 
-    if last_val {
-        SendKbd(last_val)
-    }
-
     if !current_mod {
         glob := KEYS[CURRENT_LANG]
+    }
+
+    if last_val {
+        SendKbd(last_val)
     }
     last_val := false
 }
@@ -41,10 +41,10 @@ GlobProc(arr) {
         glob := arr[3]
         SetTimer(TimerSendCurrent, -MS)
     } else {
-        SendKbd(arr)
         if !current_mod {
             glob := KEYS[CURRENT_LANG]
         }
+        SendKbd(arr)
         last_val := false
     }
 }

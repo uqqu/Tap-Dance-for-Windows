@@ -92,9 +92,30 @@ Reminder(*) {
 }
 
 
+DelayedMediaPlayPause(*) {
+    inp := InputBox("Trigger the play/pause after ... minutes", "", "h100 w170")
+    if inp.Result == "OK" {
+        try {
+            delay := inp.Value * 60000
+            SetTimer(_MPPTimer, delay)
+        } catch {
+            if MsgBox("The input must be a number!", "Incorrect value", 53) == "Retry" {
+                DelayedMediaPlayPause()
+            }
+        }
+    }
+}
+
+
 _Alarma() {
     MsgBox("Reminder", "Reminder", 48)
     SetTimer(_Alarma, 0)
+}
+
+
+_MPPTimer() {
+    SendInput("{Media_Play_Pause}")
+    SetTimer(_MPPTimer, 0)
 }
 
 

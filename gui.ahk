@@ -318,7 +318,7 @@ SaveValue(is_hold, type, val, layer:=0) {
 ClearCurrentValue(is_hold, *) {
     if !current_path[current_path.Length][2] && !is_hold {
         new_type := 2
-        new_val := current_path[current_path.Length][1]
+        new_val := SC_STR_BR[current_path[current_path.Length][1]]
     } else {
         new_type := 0
         new_val := ""
