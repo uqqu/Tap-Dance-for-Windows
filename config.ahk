@@ -1,4 +1,4 @@
-﻿SYS_MODIFIERS := Map(
+SYS_MODIFIERS := Map(
     0x02A, "<+",
     0x136, ">+",
     0x036, ">+",
@@ -31,7 +31,7 @@ ReadLayers()
 
 
 CheckConfig() {
-    global MS, T, CONF
+    global MS_LP, MS, T, CONF
     if !FileExist("config.ini") {
         FileAppend(
             "[Main]`n"
@@ -42,13 +42,15 @@ CheckConfig() {
             . "KeynameType=1`n"
             . "ActiveLayers=`n"
             . "LongPressDuration=150`n"
+            . "NextKeyWaitDuration=250`n"
             . "UserLayouts=",
             "config.ini"
         )
     }
 
-    MS := Integer(IniRead("config.ini", "Main", "LongPressDuration", 150))
-    T := "T" . MS / 1000
+    MS := Integer(IniRead("config.ini", "Main", "NextKeyWaitDuration", 150))
+    MS_LP := Integer(IniRead("config.ini", "Main", "LongPressDuration", 150))
+    T := "T" . MS_LP / 1000
 
     CONF := Map()
     CONF["layout_format"] := IniRead("config.ini", "Main", "LayoutFormat", "ANSI")
@@ -242,7 +244,10 @@ ShowSettings(*) {
     settings_gui["LayoutFormat"].Text := CONF["layout_format"]
 
     settings_gui.Add("Text", "xp-170 y+10 w160", "Longpress duration (ms):")
-    settings_gui.Add("Edit", "Center x+10 yp-2 w160 vLongPressDuration", MS)
+    settings_gui.Add("Edit", "Center x+10 yp-2 w160 vLongPressDuration", MS_LP)
+
+    settings_gui.Add("Text", "xp-170 y+10 w160", "Next key wait dur. (ms):")
+    settings_gui.Add("Edit", "Center x+10 yp-2 w160 vNextKeyWaitDuration", MS)
 
     settings_gui.Add("Text", "xp-170 y+10 w160", "Gui scale:")
     settings_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiScale", Round(CONF["gui_scale"], 2))
@@ -262,6 +267,7 @@ SaveConfig(*) {
     IniWrite(settings_gui["HelpTexts"].Value, "config.ini", "Main", "HelpTexts")
     IniWrite(settings_gui["LayoutFormat"].Text, "config.ini", "Main", "LayoutFormat")
     IniWrite(settings_gui["LongPressDuration"].Text, "config.ini", "Main", "LongPressDuration")
+    IniWrite(settings_gui["NextKeyWaitDuration"].Text, "config.ini", "Main", "NextKeyWaitDuration")
     IniWrite(settings_gui["GuiScale"].Text, "config.ini", "Main", "GuiScale")
     IniWrite(settings_gui["FontScale"].Text, "config.ini", "Main", "FontScale")
     IniWrite(settings_gui["WideMode"].Value, "config.ini", "Main", "WideMode")
