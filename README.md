@@ -107,7 +107,7 @@ When assigning a new action, choose its type from the dropdown:
   - Strings go in the box *without* quotes; if your function takes no parameters, you can drop the parentheses entirely.
 
 ### 📂 Modifiers
-- **Fourth type**: any key can act as a modifier on hold. Assign its hold value as a numeric “modifier ID” – the engine sums IDs when you hold multiple, so ⚠ two “1” mods behave like a one “2” mod.
+- **Fourth type**: any key can act as a modifier on hold. Assign its hold value as a numeric “modifier ID” – the engine sums IDs when you hold multiple.
 - **Mod Behavior**: every time you reach the last value in the transition table, you return to the root table. But not in the case of modifiers – presses through them keeps you at the current level, allowing you to call any number of assignments along the given path. Even pressing assignments that don’t exist at the level doesn’t reset you. Returning will happen when you release all modifiers. But you can still go to a deeper level if the local assignments have a non-empty transition table, in which case a previously active modifier will no longer serve as a reset protection.
 - **Visuals**: modifier keys get a **blue** border; active mods are **black**. Hold‑held mod value is shown on the key.
 - **Levels**: pressing modifiers are not separate transitions with their own tables, they only change a unite value within one level, which will be taken into account for other presses.
