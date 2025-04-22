@@ -1,4 +1,4 @@
-﻿SetActiveLayers(args) {
+SetActiveLayers(args) {
     global ACTIVE_LAYERS
     ACTIVE_LAYERS := args
     _WriteActiveLayersToConfig()
@@ -21,6 +21,20 @@ ToggleLayers(args) {
         }
     }
     _WriteActiveLayersToConfig()
+}
+
+
+ActivateApp(args){
+    ; args == [path, process_name?]
+    try {
+        if WinActive("ahk_exe " . args[2]) {
+            WinMinimize("ahk_exe " . args[2])
+        } else {
+            WinActivate("ahk_exe " . args[2])
+        }
+    } catch {
+        Run(args[1])
+    }
 }
 
 
