@@ -193,7 +193,7 @@ SaveEditedChord(*) {
 WriteChord(*) {
     global form, gui_keys
 
-    temp_buf := Buffer(64, 0)
+    temp_buf := Buffer(BUFFER_SIZE, 0)
     for sc, _ in temp_chord {
         SetBit(sc, temp_buf)
     }

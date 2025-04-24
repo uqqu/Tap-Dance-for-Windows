@@ -10,6 +10,8 @@ SYS_MODIFIERS := Map(
     0x15C, ">#"
 )
 
+BUFFER_SIZE := 48
+
 SC_STR := []
 SC_STR_BR := []
 SC_MAP := Map()

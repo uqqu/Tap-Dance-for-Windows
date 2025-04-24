@@ -67,7 +67,9 @@ ParseObject(&pos, s) {
         }
         pos++
         value := ParseValue(&pos, s)
-        if StrLen(key) < 12 {
+        if StrLen(key) == 128 {
+            key := SubStr(key, 1, 96)  ; for saved with previous buffer size
+        } else if StrLen(key) != 96 {
             try {
                 key := Integer(key)
             }

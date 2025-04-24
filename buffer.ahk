@@ -1,18 +1,15 @@
 ﻿SetBit(sc, buffer) {
-    idx := sc // 8
-    NumPut("UChar", NumGet(buffer, idx, "UChar") | (1 << Mod(sc, 8)), buffer, idx)
+    NumPut("UChar", NumGet(buffer, sc // 8, "UChar") | (1 << (sc & 7)), buffer, sc // 8)
 }
 
 
 ClearBit(sc, buffer) {
-    idx := sc // 8
-    NumPut("UChar", NumGet(buffer, idx, "UChar") & ~(1 << Mod(sc, 8)), buffer, idx)
+    NumPut("UChar", NumGet(buffer, sc // 8, "UChar") & ~(1 << (sc & 7)), buffer, sc // 8)
 }
 
 
 CheckBit(sc, buffer) {
-    idx := sc // 8
-    return (NumGet(buffer, idx, "UChar") & (1 << Mod(sc, 8))) != 0
+    return (NumGet(buffer, sc // 8, "UChar") & (1 << (sc & 7))) != 0
 }
 
 
@@ -23,8 +20,7 @@ RemoveBits(main, buffers) {
         for b in buffers {
             union |= NumGet(b, i, "UChar")
         }
-        current := NumGet(main, i, "UChar")
-        NumPut("UChar", current & ~union, main, i)
+        NumPut("UChar", NumGet(main, i, "UChar") & ~union, main, i)
     }
 }
 
@@ -40,13 +36,12 @@ BufferToHex(buf) {
 
 BufferFromHex(hex) {
     len := StrLen(hex)
-    if Mod(len, 2) != 0 {
+    if (len & 1) != 0 {
         return false
     }
     buf := Buffer(len // 2, 0)
     loop len // 2 {
-        byte := Integer("0x" . SubStr(hex, 2 * A_Index - 1, 2))
-        NumPut("UChar", byte, buf, A_Index - 1)
+        NumPut("UChar", Integer("0x" . SubStr(hex, 2 * A_Index - 1, 2)), buf, A_Index - 1)
     }
     return buf
 }
@@ -60,10 +55,13 @@ HexToScancodes(hex) {
 BufferToScancodes(buf) {
     scs := []
     loop buf.Size {
-        i := A_Index - 1
-        loop 8 {
-            if (NumGet(buf, i, "UChar") & (1 << (A_Index - 1))) {
-                scs.Push(i * 8 + (A_Index - 1))
+        byte := NumGet(buf, A_Index - 1, "UChar")
+        base := (A_Index - 1) * 8
+        if byte {
+            loop 8 {
+                if byte & (1 << (A_Index - 1)) {
+                    scs.Push(base + A_Index - 1)
+                }
             }
         }
     }
