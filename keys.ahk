@@ -12,22 +12,21 @@ for sc in SYS_MODIFIERS {
     Hotkey("~" . SC_STR[sc] . " up", ((sc) => (*) => OnKeyUp(sc))(sc))
 }
 
-SetSysModHotkeys()
-
 
 SetSysModHotkeys() {
     stack := []
-    for lang, mp in KEYS {
-        stack.Push(mp)
+    for _, root in ROOTS {
+        stack.Push(root)
     }
 
     while stack.Length {
-        mp := stack.Pop()
+        unode := stack.Pop()
 
         bit_modifiers := Map()
         for key, ch in SYS_MODIFIERS {
-            if mp.Has(key) && mp[key][1][1] == 4 {
-                bit := Integer(mp[key][1][2])
+            m_node := unode.GetModFin(key)
+            if m_node {
+                bit := Integer(m_node.down_val)
                 if !bit_modifiers.Has(bit) {
                     bit_modifiers[bit] := []
                 }
@@ -36,25 +35,16 @@ SetSysModHotkeys() {
         }
 
         hks := []
-        for sc, mods in mp {
-            if sc == -1 {
-                stack.Push(mods)
-                continue
-            }
-            for md, val in mods {
-                if Mod(md, 2) {
-                    continue
-                }
+        for sc, mods in unode.active_scancodes {
+            for md, next_unode in mods {
                 chs := []
                 bt := 0
                 seen_ch := Map()
                 for bit, ch in bit_modifiers {
-                    if (md & (1 << bit)) {
-                        if !seen_ch.Has(ch) {
-                            chs.Push(ch)
-                            bt += 1 << bit
-                            seen_ch[ch] := 1
-                        }
+                    if (md & (1 << bit)) && !seen_ch.Has(ch) {
+                        chs.Push(ch)
+                        bt += 1 << bit
+                        seen_ch[ch] := 1
                     }
                 }
                 if chs.Length {
@@ -63,13 +53,13 @@ SetSysModHotkeys() {
                     }
                 }
 
-                if val[3].Count {
-                    stack.Push(val[3])
+                if next_unode.scancodes.Count {
+                    stack.Push(next_unode)
                 }
             }
         }
 
-        HotIf(_CompareGlob.Bind(mp))
+        HotIf(_CompareGlob.Bind(unode, version))
         for sc in hks {
             Hotkey(sc[1], ((sc, extra_mod) => (*) => OnKeyDown(sc, extra_mod))(sc[2], sc[3]))
             Hotkey(sc[1] . " up", ((sc, extra_mod) => (*) => OnKeyUp(sc, extra_mod))(sc[2], sc[3]))
@@ -79,8 +69,8 @@ SetSysModHotkeys() {
 }
 
 
-_CompareGlob(mem, *) {
-    return glob == mem
+_CompareGlob(mem_unode, mem_version, *) {
+    return version == mem_version && curr_unode == mem_unode
 }
 
 
@@ -93,9 +83,7 @@ CombineGroups(groups, index:=1, pref:="") {
     }
 
     for val in groups[index] {
-        for r in CombineGroups(groups, index + 1, pref . val) {
-            result.Push(r)
-        }
+        result.Push(CombineGroups(groups, index+1, pref . val)*)
     }
 
     return result

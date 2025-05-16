@@ -1,0 +1,22 @@
+﻿{
+  "0": [
+    {
+      "57": {
+        "0": [
+          4,
+          "{Blind}{CapsLock}{Space}",
+          5,
+          "ToggleLayers([1, One word caps])",
+          0,
+          0,
+          0,
+          0,
+          null,
+          {},
+          {}
+        ]
+      }
+    },
+    {}
+  ]
+}

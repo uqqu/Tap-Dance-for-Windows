@@ -1,63 +1,103 @@
-SetActiveLayers(args) {
-    global ACTIVE_LAYERS
-    ACTIVE_LAYERS := args
+outs := Map(
+    "Output: SendText", (txt) => Send(txt),
+    "Output: Clipboard", (txt) => (A_Clipboard := txt, 0),
+    "Ouptut: Tooltip", (txt) => (Tooltip(txt), SetTimer(() => Tooltip(), -3000)),
+    "Output: MessageBox", (txt) => MsgBox(txt)
+)
+
+inps := Map(
+    "Input: Clipboard", (main_func) => main_func.Call(A_Clipboard),
+    "Input: InputBox", (main_func) => main_func.Call(InputBox("Write text to processing").Value),
+    "Input: Selected", (main_func) => _FromSelected(main_func)
+)
+
+_FromSelected(main_func) {
+    saved := ClipboardAll()
+    A_Clipboard := ""
+    SendInput("^{SC02E}")
+
+    ClipWait(1)
+    if A_Clipboard == "" {
+        return
+    }
+    res := main_func.Call(A_Clipboard)
+    A_Clipboard := saved
+    return res
+}
+
+
+SetActiveLayers(layers*) {
+    global ActiveLayers
+
+    ActiveLayers := OrderedMap()
+    for layer in layers {
+        ActiveLayers.Add(layer)
+    }
     _WriteActiveLayersToConfig()
 }
 
 
-ToggleLayers(args) {
-    global ACTIVE_LAYERS
-    for layer in args {
-        b := false
-        for i, v in ACTIVE_LAYERS {
-            if v == layer {
-                ACTIVE_LAYERS.RemoveAt(i)
-                b := true
-                break
+ToggleLayers(layers*) {
+    global ActiveLayers
+
+    for layer in layers {
+        layer_pos := layer[1]
+        layer_name := layer[2]
+        if ActiveLayers.map.Has(layer_name) {
+            ActiveLayers.Remove(layer_name)
+        } else {
+            ActiveLayers.Add(layer_name, , layer_pos)
+            if AllLayers.map[layer_name] is Integer {
+                _MergeLayer(layer_name)
             }
         }
-        if !b {
-            ACTIVE_LAYERS.Push(layer)
-        }
     }
     _WriteActiveLayersToConfig()
 }
 
 
-ActivateApp(args){
-    ; args == [path, process_name?]
-    try {
-        if WinActive("ahk_exe " . args[2]) {
-            WinMinimize("ahk_exe " . args[2])
-        } else {
-            WinActivate("ahk_exe " . args[2])
-        }
-    } catch {
-        Run(args[1])
+ActivateApp(path, process_name:="") {
+    if process_name {
+        name := "ahk_exe" . process_name
+        WinActive(name) ? WinMinimize(name) : WinActivate(name)
+    } else {
+        Run(path)
     }
 }
 
 
-SendCurrentDate(*) {
-    Send(FormatTime(, "dddd, d MMMM yyyy"))
+ToggleMod(md) {
+    global current_mod
+
+    current_mod ^= 1 << md
 }
 
 
-SendCurrentDateTime(*) {
-    Send(FormatTime(, "dddd, d MMMM yyyy HH:mm"))
+GetDateTime(val, out) {
+    outs[out](FormatTime(, val))
 }
 
 
-GetWeather(args) {
-    ;args == [city_name]
+GetCustomDateTime(val, out) {
+    outs[out](FormatTime(, val))
+}
+
+
+GetWeather(city_name, out) {
     static weather_key := RegRead("HKEY_CURRENT_USER\Environment", "OPENWEATHERMAP", 0)
+
     if !weather_key {
         MsgBox("The api key was not found in the environment variables.", "OPENWEATHERMAP")
     }
 
+    if !city_name {
+        city_name := InputBox("City name", "Get weather", "h100 w170").Value
+    }
+
     web_request := ComObject("WinHttp.WinHttpRequest.5.1")
     web_request.Open("GET",
-        "https://api.openweathermap.org/data/2.5/weather?q=" . args[1] . "&appid=" . weather_key . "&units=metric"
+        "https://api.openweathermap.org/data/2.5/weather?q=" . city_name
+        . "&appid=" . weather_key . "&units=metric"
     )
     web_request.Send()
 
@@ -66,13 +106,13 @@ GetWeather(args) {
     feel := RegExReplace(web_request.ResponseText, '.+"feels_like":(-?\d+\.\d+).+', "$1")
     wind := RegExReplace(web_request.ResponseText, '.+"speed":(\d+\.\d+|\d+).+', "$1")
 
-    MsgBox(stat . "`n" . temp . "° (" . feel . "°)`n" . wind . "m/s", args[1])
+    outs[out](city_name . ":`n" . stat . "`n" . temp . "° (" . feel . "°)`n" . wind . "m/s")
 }
 
 
-ExchRates(args) {
-    ;args == [from_currency, to_currency]
+ExchRates(from_currency, to_currency, out) {
     static currency_key := RegRead("HKEY_CURRENT_USER\Environment", "GETGEOAPI", 0)
+
     if !currency_key {
         MsgBox("The api key was not found in the environment variables.", "GETGEOAPI")
     }
@@ -80,22 +120,24 @@ ExchRates(args) {
     web_request := ComObject("WinHttp.WinHttpRequest.5.1")
     web_request.Open("GET",
         "https://api.getgeoapi.com/api/v2/currency/convert?api_key="
-        . currency_key . "&from=" . args[1] . "&to=" . args[2] . "&amount=1&format=json"
+        . currency_key . "&from=" . from_currency . "&to=" . to_currency . "&amount=1&format=json"
     )
     web_request.Send()
 
-    MsgBox(
-        Round(RegExMatch(web_request.ResponseText, '"rate_for_amount":"(\d+\.\d+)"', &m) ? m[1] : 0, 2),
-        args[1] . "–" . args[2]
-    )
+    res := RegExMatch(web_request.ResponseText, '"rate_for_amount":"(\d+\.\d+)"', &m) ? m[1] : 0
+    outs[out](from_currency . "–" . to_currency . ": " . Round(res, 2))
 }
 
 
-Reminder(*) {
-    inp := InputBox("Remind me in ... minutes", "Reminder", "h100 w170")
-    if inp.Result == "OK" {
+Reminder(given_minutes:=0) {
+    if given_minutes {
+        SetTimer(_Alarma, given_minutes * 60000)
+        return
+    }
+    res := InputBox("Remind me in ... minutes", "Reminder", "h100 w250")
+    if res.Result == "OK" {
         try {
-            delay := inp.Value * 60000
+            delay := res.Value * 60000
             SetTimer(_Alarma, delay)
         } catch {
             if MsgBox("The input must be a number!", "Incorrect value", 53) == "Retry" {
@@ -105,12 +147,21 @@ Reminder(*) {
     }
 }
 
+_Alarma() {
+    MsgBox("Reminder", "Reminder", 48)
+    SetTimer(_Alarma, 0)
+}
 
-DelayedMediaPlayPause(*) {
-    inp := InputBox("Trigger the play/pause after ... minutes", "", "h100 w170")
-    if inp.Result == "OK" {
+
+DelayedMediaPlayPause(given_minutes:=0) {
+    if given_minutes {
+        SetTimer(_MPPTimer, given_minutes * 60000)
+        return
+    }
+    res := InputBox("Trigger the play/pause after ... minutes", "", "h100 w250")
+    if res.Result == "OK" {
         try {
-            delay := inp.Value * 60000
+            delay := res.Value * 60000
             SetTimer(_MPPTimer, delay)
         } catch {
             if MsgBox("The input must be a number!", "Incorrect value", 53) == "Retry" {
@@ -120,104 +171,83 @@ DelayedMediaPlayPause(*) {
     }
 }
 
-
-_Alarma() {
-    MsgBox("Reminder", "Reminder", 48)
-    SetTimer(_Alarma, 0)
-}
-
-
 _MPPTimer() {
     SendInput("{Media_Play_Pause}")
     SetTimer(_MPPTimer, 0)
 }
 
 
-NormalizeSelectedText(*) {
-    saved := ClipboardAll()
-    A_Clipboard := ""
-    SendInput("^{SC02E}")
+ChangeTextCase(change_name, inp, out) {
+    outs[out](inps[inp](_ChangeTextCase.Bind(change_name)))
+}
 
-    ClipWait(1)
-    if A_Clipboard == "" {
-        return
+_ChangeTextCase(change_name, txt) {
+    switch change_name {
+        case "Normalize":
+            result := Trim(RegExReplace(StrLower(txt), "[ \t]+", " "))
+            result := RegExReplace(result, " ?([.,!?;]+) ?", "$1 ")
+            result := RegExReplace(result, "((^|[.!?]\s|^[–—]\s)([a-zа-яё]))", "$U1")
+            return RegExReplace(result, "\bi(['’])\b", "I$1")
+        case "Title":
+            return StrTitle(txt)
+        case "Lower":
+            return StrLower(txt)
+        case "Upper":
+            return StrUpper(txt)
+        case "Invert":
+            result := ""
+            for char in StrSplit(txt) {
+                is_upper := char ~= "^[A-ZА-ЯЁ]$"
+                is_lower := char ~= "^[a-zа-яё]$"
+
+                if is_upper {
+                    result .= StrLower(char)
+                } else if is_lower {
+                    result .= StrUpper(char)
+                } else {
+                    result .= char
+                }
+            }
+            return result
     }
-
-    result := StrLower(A_Clipboard)
-    result := RegExReplace(result, "[ \t]+", " ")
-    result := Trim(result)
-    result := RegExReplace(result, " ?([.,!?;]+) ?", "$1 ")
-    result := RegExReplace(result, "((^|[.!?]\s|^[–—]\s)([a-zа-яё]))", "$U1")
-    result := RegExReplace(result, "\bi(['’])\b", "I$1")
-
-    A_Clipboard := Trim(result)
-    SendInput("^{SC02F}")
-    Sleep(100)
-    A_Clipboard := saved
 }
 
 
-LowercaseSelectedText(*) {
-    saved := ClipboardAll()
-    A_Clipboard := ""
-    SendInput("^{SC02E}")
-
-    ClipWait(1)
-    if A_Clipboard == "" {
-        return
-    }
-
-    result := StrLower(A_Clipboard)
-
-    A_Clipboard := Trim(result)
-    SendInput("^{SC02F}")
-    Sleep(100)
-    A_Clipboard := saved
+SmartTranslit(txt, inp, out) {
+    outs[out](inps[inp](_SmartTranslit.Bind(txt)))
 }
 
-
-SmartTranslit(*) {
+_SmartTranslit(txt) {
     static to_cyr := Map(
-        "shch", "щ", "yo", "ё", "zh", "ж", "kh", "х", "ts", "ц",
-        "ch", "ч", "sh", "ш", "yu", "ю", "ya", "я",
-        "a", "а", "b", "б", "v", "в", "g", "г", "d", "д", "e", "е",
-        "z", "з", "i", "и", "y", "й", "k", "к", "l", "л", "m", "м",
-        "n", "н", "o", "о", "p", "п", "r", "р", "s", "с", "t", "т",
-        "u", "у", "f", "ф", "h", "х", "c", "ц", "'", "ь", "``", "ъ"
+        "shch", "щ", "yo", "ё", "zh", "ж", "kh", "х", "ts", "ц", "ch", "ч", "sh", "ш", "yu", "ю",
+        "ya", "я", "a", "а", "b", "б", "v", "в", "g", "г", "d", "д", "e", "е", "z", "з", "i", "и",
+        "y", "й", "k", "к", "l", "л", "m", "м", "n", "н", "o", "о", "p", "п", "r", "р", "s", "с",
+        "t", "т", "u", "у", "f", "ф", "h", "х", "c", "ц", "'", "ь", "``", "ъ"
     )
     static to_lat := Map()
     for k, v in to_cyr {
-        if !to_lat.Has(v)
+        if !to_lat.Has(v) {
             to_lat[v] := k
+        }
     }
 
-    saved := ClipboardAll()
-    A_Clipboard := ""
-    SendInput("^{SC02E}")
-    ClipWait(1)
-    text := A_Clipboard
-
-    if text == "" {
-        return
-    }
-
-    reverse := !RegExMatch(text, "[а-яА-ЯёЁ]")
-
+    reverse := !RegExMatch(txt, "[а-яА-ЯёЁ]")
     keys := []
 
     table := reverse ? to_cyr : to_lat
-    for k in table
+    for k in table {
         keys.Push(k)
+    }
     _SortByLengthDesc(keys)
 
     result := ""
     i := 1
 
-    while i <= StrLen(text) {
+    while i <= StrLen(txt) {
         matched := false
         for k in keys {
             len := StrLen(k)
-            chunk := SubStr(text, i, len)
+            chunk := SubStr(txt, i, len)
             if StrLower(chunk) == k {
                 repl := table[k]
                 result .= _PreserveCase(chunk, repl)
@@ -227,17 +257,12 @@ SmartTranslit(*) {
             }
         }
         if !matched {
-            result .= SubStr(text, i, 1)
+            result .= SubStr(txt, i, 1)
             i++
         }
     }
-
-    A_Clipboard := result
-    SendInput("^{SC02F}")
-    Sleep(100)
-    A_Clipboard := saved
+    return result
 }
-
 
 _PreserveCase(from, to) {
     if from == "" || to == ""
@@ -253,7 +278,6 @@ _PreserveCase(from, to) {
     }
 }
 
-
 _SortByLengthDesc(arr) {
     loop arr.Length {
         loop arr.Length - 1 {
@@ -267,8 +291,7 @@ _SortByLengthDesc(arr) {
 }
 
 
-IncrDecr(args){
-    n := Integer(args[0])
+IncrDecr(n) {
     saved := ClipboardAll()
     A_Clipboard := ""
     SendInput("^{SC02E}")
@@ -278,23 +301,24 @@ IncrDecr(args){
         return
     }
 
-    inp := A_Clipboard
+    val := A_Clipboard
+    try val := Integer(val)
 
-    if inp is Number {
-        if inp is Float {
-            inp := Round(inp + 1*n, StrLen(inp) - InStr(inp, "."))
+    if val is Number {
+        if val is Float {
+            val := Round(val + 1*n, StrLen(val) - InStr(val, "."))
         } else {
-            inp := inp + 1*n
+            val := val + 1*n
         }
-        new_value_len := StrLen(inp)
-        Send(inp . "{Left " . new_value_len . "}" . "+{Right " . new_value_len . "}")
-        Sleep(100)
+        new_value_len := StrLen(val)
+        Send(val . "{Left " . new_value_len . "}" . "+{Right " . new_value_len . "}")
+        Sleep(10)
         A_Clipboard := saved
         return
-    } else if StrLen(inp) == 1 {
-        order := Ord(inp) + 1*n
+    } else if StrLen(val) == 1 {
+        order := Ord(val) + 1*n
     } else {
-        order := Ord(SubStr(inp, 0)) + 1*n
+        order := Ord(SubStr(val, 0)) + 1*n
         Send("{Right}+{Left}")
     }
 
@@ -310,10 +334,124 @@ IncrDecr(args){
         order := order + 1*n
     }
 
-    try {
-        SendEvent("{Text}" . Chr(order))
-    }
+    try SendEvent("{Text}" . Chr(order))
     Send("{Left}")
     Send("+{Right}")
     A_Clipboard := saved
+}
+
+
+CustomString(txt, out) {
+    outs[out](txt)
+}
+
+
+; don't look here
+custom_funcs := Map(
+    "SetActiveLayers", ["Set specified layers as current active layers. Multifield.",
+        ["Layer name"]
+    ],
+    "ToggleLayers", ["Toggle the activity of specified layers. Multifield.",
+        ["Priority", "Layer name"]],
+    "TreatAsOtherNode", [
+        "Go to assignment by given path (both in terms of value and transitions). "
+        . "Set path step by step (multifield) from root node. You can use shortnames "
+        . "%sc% and %md% for autocomplete.",
+        ["Scancode (integer) or hexbuffer. '%sc%' is short for current one.",
+        "Modifier value. 0/1/…, or '%md%' for autocomplete with current.",
+        "Is chord? false/true / 0/1"]
+    ],
+    "ActivateApp", ["Run app by given path or switch to it process, if specified.",
+        "Path to app", "Process name (can be ommited)"
+    ],
+    "ToggleMod", ["Toggle specified mod value (in script terms, not system modifiers).",
+        "Mod value"
+    ],
+    "GetDateTime", ["Get the current date(time) with selected format.", 3, 2],
+    "GetCustomDateTime", ["Get the current datetime with your own format. Without commas!",
+        "i.e. 'dddd d MMMM yyyy HH:mm'", 2
+    ],
+    "GetWeather", ["Get the current weather in specified city "
+        . "(requires API key OPENWEATHERMAP in the environment variables).",
+        "City name", 2
+    ],
+    "ExchRates", ["Get the current currency rate for specified pair "
+        . "(requires API key GETGEOAPI in the environment variables).",
+        "From currency", "To currency", 2
+    ],
+    "Reminder", ["Set a reminder after a specified number of minutes. "
+        . "If value is ommited you will be asked for input when you call the function",
+        "Number of minutes"
+    ],
+    "DelayedMediaPlayPause", ["Start or stop music after a specified number of minutes. "
+        . "If value is ommited you will be asked for input when you call the function",
+        "Number of minutes"
+    ],
+    "ChangeTextCase", ["Align the case and spaces of the specified text.", 4, 1, 2],
+    "SmartTranslit", ["Транслэйт фром зэ вронг скрипт. `nРаугли, бат андерстэндэйбл."
+        . "`nI naoborot, konechno.", 1, 2
+    ],
+    "IncrDecr", ["Increase/decrease number or symbol (by unicode table) under the cursor",
+        "Increase/decrease value (int). 1, -1, 42, …"],
+    "CustomString", ["Just return custom text to chosen output.", "Text", 2]
+)
+
+custom_func_keys := ["SetActiveLayers", "ToggleLayers", "TreatAsOtherNode", "ActivateApp",
+    "ToggleMod", "GetDateTime", "GetCustomDateTime", "GetWeather", "ExchRates", "Reminder",
+    "DelayedMediaPlayPause", "ChangeTextCase", "SmartTranslit", "IncrDecr", "CustomString"
+]
+
+custom_func_ddls := [
+    ["Input: Selected", "Input: Clipboard", "Input: InputBox"],
+    ["Output: SendText", "Output: Clipboard", "Ouptut: Tooltip", "Output: MessageBox"],
+    ["dddd d MMMM yyyy HH:mm", "dd.MM.yyyy HH:mm", "dd.MM.yyyy HH:mm:ss", "MM/dd/yyyy h:mm tt",
+    "yyyy-MM-ddTHH:mm:ss", "yyyy-MM-dd_HH-mm-ss", "HH:mm:ss", "d MMMM yyyy",
+    "dd MMMM yyyy", "dd.MM.yy"],
+    ["Normalize", "Title", "Lower", "Upper", "Invert"]
+]
+
+
+_ParseFuncArgs(s) {
+    args := []
+    buffer := ""
+    in_array := false
+    arr_buf := []
+
+    i := 1
+    len := StrLen(s)
+
+    while i <= len {
+        ch := SubStr(s, i, 1)
+
+        if ch == "[" {
+            in_array := true
+            arr_buf := []
+            buffer := ""
+        } else if ch == "]" {
+            if Trim(buffer) !== "" {
+                arr_buf.Push(Trim(buffer))
+            }
+            args.Push(arr_buf)
+            in_array := false
+            buffer := ""
+        } else if ch == "," && SubStr(s, i+1, 1) == " " {
+            if in_array {
+                arr_buf.Push(Trim(buffer))
+            } else {
+                args.Push(Trim(buffer))
+            }
+            buffer := ""
+            i += 1
+        } else {
+            buffer .= ch
+        }
+
+        i += 1
+    }
+
+    if Trim(buffer) != "" {
+        in_array ? arr_buf.Push(Trim(buffer)) : args.Push(Trim(buffer))
+    }
+
+    return args
 }

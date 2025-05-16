@@ -1,188 +1,211 @@
-﻿SerializeMap(map, filename, conv:=false) {
-    for k, v in map {
-        CleanFlatMap(v)
+﻿SerializeMap(mp, filename, conv:=false) {
+    for lang, values in mp {
+        _CleanMap(values)
     }
-    json := Dump(map, "", conv)
-    try {
-        FileDelete("layers/" . filename . ".json")
-    }
+    json := Dump(mp, "", conv)
+    try FileDelete("layers/" . filename . ".json")
     FileAppend(json, "layers/" . filename . ".json", "UTF-8")
 }
 
 
+_CleanMap(mp, parent_md:=0) {
+    for opt in [mp[-1], mp[-2]] {
+        to_del_sc := []
+        for schex, mods in opt {
+            to_del_md := []
+            for md, val in mods {
+                if !_CleanMap(val, md) {
+                    to_del_md.Push(md)
+                }
+            }
+            for md in to_del_md {
+                mods.Delete(md)
+            }
+            if !mods.Count {
+                to_del_sc.Push(schex)
+            }
+        }
+        for schex in to_del_sc {
+            opt.Delete(schex)
+        }
+    }
+    ref := parent_md ? TYPES.Disabled : TYPES.Default
+    if mp.Length > 2 && !mp[-1].Count && !mp[-2].Count && mp[1] == ref && !mp[2]
+        && mp[3] == TYPES.Disabled && !mp[4] && !mp[5] && !mp[6] && !mp[7] && !mp[8] {
+        return false
+    }
+    return true
+}
+
+
 DeserializeMap(filename) {
-    json := FileRead("layers/" . filename . ".json")
-    return Load(json)
+    return Load(FileRead("layers/" . filename . ".json"))
 }
 
 
 Load(json) {
-    pos := 1
-    return ParseValue(&pos, json)
+    p := 1
+    return ParseValue(&p, json)
 }
 
 
-ParseValue(&pos, s) {
-    SkipWhitespace(&pos, s)
-    ch := SubStr(s, pos, 1)
+ParseValue(&p, s) {
+    SkipWhitespace(&p, s)
+    ch := SubStr(s, p, 1)
 
     if ch == "{" {
-        return ParseObject(&pos, s)
-    } else if ch == "[" {
-        return ParseArray(&pos, s)
-    } else if ch == "`"" {
-        return ParseString(&pos, s)
-    } else if ch ~= "[-\d]" {
-        return ParseNumber(&pos, s)
-    } else if SubStr(s, pos, 4) == "true" {
-        pos += 4
-        return true
-    } else if SubStr(s, pos, 5) == "false" {
-        pos += 5
-        return false
-    } else if SubStr(s, pos, 4) == "null" {
-        pos += 4
-        return ""
-    } else {
-        throw Error("Unexpected value at position " . pos)
+        return ParseObject(&p, s)
     }
+    if ch == "[" {
+        return ParseArray(&p, s)
+    }
+    if ch == "`"" {
+        return ParseString(&p, s)
+    }
+    if ch ~= "[-\d]" {
+        return ParseNumber(&p, s)
+    }
+    if SubStr(s, p, 4) == "null" {
+        p += 4
+        return ""
+    }
+    throw Error("Unexpected value at position " . p)
 }
 
 
-ParseObject(&pos, s) {
+ParseObject(&p, s) {
     obj := Map()
-    pos++
-    SkipWhitespace(&pos, s)
-    if SubStr(s, pos, 1) == "}" {
-        pos++
+    p++
+    SkipWhitespace(&p, s)
+    if SubStr(s, p, 1) == "}" {
+        p++
         return obj
     }
 
     loop {
-        SkipWhitespace(&pos, s)
-        key := ParseString(&pos, s)
-        SkipWhitespace(&pos, s)
-        if SubStr(s, pos, 1) != ":" {
-            throw Error("Expected ':' at " . pos)
+        SkipWhitespace(&p, s)
+        key := ParseString(&p, s)
+        SkipWhitespace(&p, s)
+        if SubStr(s, p, 1) !== ":" {
+            throw Error("Expected ':' at " . p)
         }
-        pos++
-        value := ParseValue(&pos, s)
-        if StrLen(key) == 128 {
-            key := SubStr(key, 1, 96)  ; for saved with previous buffer size
-        } else if StrLen(key) != 96 {
-            try {
-                key := Integer(key)
-            }
+        p++
+        value := ParseValue(&p, s)
+        if StrLen(key) !== 96 {
+            try key := Integer(key)
         }
         obj[key] := value
-        SkipWhitespace(&pos, s)
-        ch := SubStr(s, pos, 1)
+        SkipWhitespace(&p, s)
+        ch := SubStr(s, p, 1)
         if ch == "}" {
-            pos++
+            p++
             return obj
-        } else if ch != "," {
-            throw Error("Expected ',' or '}' at " . pos)
         }
-        pos++
+        if ch !== "," {
+            throw Error("Expected ',' or '}' at " . p)
+        }
+        p++
     }
 }
 
 
-ParseArray(&pos, s) {
+ParseArray(&p, s) {
     arr := []
-    pos++
-    SkipWhitespace(&pos, s)
-    if SubStr(s, pos, 1) == "]" {
-        pos++
+    p++
+    SkipWhitespace(&p, s)
+    if SubStr(s, p, 1) == "]" {
+        p++
         return arr
     }
 
     loop {
-        arr.Push(ParseValue(&pos, s))
-        SkipWhitespace(&pos, s)
-        ch := SubStr(s, pos, 1)
+        arr.Push(ParseValue(&p, s))
+        SkipWhitespace(&p, s)
+        ch := SubStr(s, p, 1)
         if ch == "]" {
-            pos++
+            p++
             return arr
-        } else if ch != "," {
-            throw Error("Expected ',' or ']' at " . pos)
         }
-        pos++
+        if ch !== "," {
+            throw Error("Expected ',' or ']' at " . p)
+        }
+        p++
     }
 }
 
 
-ParseString(&pos, s) {
-    if SubStr(s, pos, 1) != "`"" {
-        throw Error("Expected string at " . pos)
+ParseString(&p, s) {
+    if SubStr(s, p, 1) !== "`"" {
+        throw Error("Expected string at " . p)
     }
-    pos++
+    p++
     str := ""
-    while pos <= StrLen(s) {
-        ch := SubStr(s, pos, 1)
+    while p <= StrLen(s) {
+        ch := SubStr(s, p, 1)
         if ch == "`"" {
-            pos++
+            p++
             return str
-        } else if ch == "\" {
-            pos++
-            esc := SubStr(s, pos, 1)
-            pos++
-            str .= esc = "n"  ? "`n"
-                 : esc = "r"  ? "`r"
-                 : esc = "t"  ? "`t"
-                 : esc = '"'  ? '"'
-                 : esc = "\"  ? "\"
-                 : esc = "b"  ? "`b"
-                 : esc = "f"  ? "`f"
-                 : esc = "/"  ? "/"
-                 : esc = "u"  ? ParseUnicode(&pos, s)
-                 : esc
-        } else {
-            str .= ch
-            pos++
         }
+        if ch == "\" {
+            p++
+            esc := SubStr(s, p, 1)
+            p++
+            str .= esc = "n" ? "`n"
+                 : esc = "r" ? "`r"
+                 : esc = "t" ? "`t"
+                 : esc = '"' ? '"'
+                 : esc = "\" ? "\"
+                 : esc = "b" ? "`b"
+                 : esc = "f" ? "`f"
+                 : esc = "/" ? "/"
+                 : esc = "u" ? ParseUnicode(&p, s)
+                 : esc
+            continue
+        }
+        str .= ch
+        p++
     }
-    throw Error("Unterminated string at " . pos)
+    throw Error("Unterminated string at " . p)
 }
 
 
-ParseUnicode(&pos, s) {
-    hex := SubStr(s, pos, 4)
-    pos += 4
+ParseUnicode(&p, s) {
+    hex := SubStr(s, p, 4)
+    p += 4
     return Chr("0x" . hex)
 }
 
 
-ParseNumber(&pos, s) {
-    start := pos
-    if SubStr(s, pos, 1) == "-" {
-        pos++
+ParseNumber(&p, s) {
+    start := p
+    if SubStr(s, p, 1) == "-" {
+        p++
     }
-    while SubStr(s, pos, 1) ~= "\d" {
-        pos++
+    while SubStr(s, p, 1) ~= "\d" {
+        p++
     }
-    if SubStr(s, pos, 1) == "." {
-        pos++
-        while SubStr(s, pos, 1) ~= "\d" {
-            pos++
+    if SubStr(s, p, 1) == "." {
+        p++
+        while SubStr(s, p, 1) ~= "\d" {
+            p++
         }
     }
-    if SubStr(s, pos, 1) ~= "[eE]" {
-        pos++
-        if SubStr(s, pos, 1) ~= "[-+]" {
-            pos++
+    if SubStr(s, p, 1) ~= "[eE]" {
+        p++
+        if SubStr(s, p, 1) ~= "[-+]" {
+            p++
         }
-        while SubStr(s, pos, 1) ~= "\d" {
-            pos++
+        while SubStr(s, p, 1) ~= "\d" {
+            p++
         }
     }
-    return Number(SubStr(s, start, pos - start))
+    return Number(SubStr(s, start, p - start))
 }
 
 
-SkipWhitespace(&pos, s) {
-    while SubStr(s, pos, 1) ~= "\s" {
-        pos++
+SkipWhitespace(&p, s) {
+    while SubStr(s, p, 1) ~= "\s" {
+        p++
     }
 }
 
@@ -191,7 +214,8 @@ Dump(obj, indent:="", conv:=false) {
     if obj is Map {
         out := "{"
         for k, v in obj {
-            out .= "`n" . indent . "  " . "`"" . EscapeStr(k) . "`": " . Dump(v, indent . "  ", conv) . ","
+            out .= "`n" . indent . "  " . "`"" . EscapeStr(k) . "`": "
+                . Dump(v, indent . "  ", conv) . ","
         }
         return out ~= ",$" ? SubStr(out, 1, -1) . "`n" . indent . "}" : out . "}"
     }
@@ -205,12 +229,6 @@ Dump(obj, indent:="", conv:=false) {
     if obj is Number {
         return obj
     }
-    if obj == true {
-        return "true"
-    }
-    if obj == false {
-        return "false"
-    } 
     if obj == "" {
         return "null"
     }
@@ -229,7 +247,7 @@ EscapeStr(str, conv:=false) {
             }
         }
     }
-    str := str . ""
+    str .= ""
     str := StrReplace(str, "\", "\\")
     str := StrReplace(str, '"', '\"')
     str := StrReplace(str, "`r", "\r")

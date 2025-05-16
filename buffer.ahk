@@ -9,7 +9,7 @@ ClearBit(sc, buffer) {
 
 
 CheckBit(sc, buffer) {
-    return (NumGet(buffer, sc // 8, "UChar") & (1 << (sc & 7))) != 0
+    return (NumGet(buffer, sc // 8, "UChar") & (1 << (sc & 7))) !== 0
 }
 
 
@@ -36,7 +36,7 @@ BufferToHex(buf) {
 
 BufferFromHex(hex) {
     len := StrLen(hex)
-    if (len & 1) != 0 {
+    if (len & 1) !== 0 {
         return false
     }
     buf := Buffer(len // 2, 0)
@@ -66,11 +66,4 @@ BufferToScancodes(buf) {
         }
     }
     return scs
-}
-
-
-CopyBuffer(buf) {
-    copy := Buffer(buf.Size)
-    DllCall("RtlMoveMemory", "ptr", copy.Ptr, "ptr", buf.Ptr, "uptr", buf.Size)
-    return copy
 }
