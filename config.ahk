@@ -106,7 +106,8 @@ CheckConfig() {
 TrackLayouts(*) {
     global start_hkl, last_hkl, layout_gui
 
-    layout_gui := Gui("+AlwaysOnTop -SysMenu", "Layout Detector").SetFont("s10")
+    layout_gui := Gui("+AlwaysOnTop -SysMenu", "Layout Detector")
+    layout_gui.SetFont("s10")
     layout_gui.Add(
         "Text", "Center w400", "Initial setup. Switch between all your language layouts."
     )
