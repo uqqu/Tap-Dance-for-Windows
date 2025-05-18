@@ -143,7 +143,12 @@ _FillKeyboard() {
             }
         } else if m_node && m_node.down_type == TYPES.Modifier {
             v := 1 << m_node.down_val
-            btn.Opt("+Background" . (gui_mod_val && gui_mod_val & v == v ? "Black" : "7777AA"))
+            if gui_mod_val && gui_mod_val & v == v {
+                btn.Opt("+BackgroundBlack")
+            } else {
+                _AddIndicators(res.umod, btn, [28, 43], true)
+                btn.Opt("+Background7777AA")
+            }
             htxt := "`n" . (m_node.gui_shortname ? m_node.gui_shortname : m_node.down_val)
         }
         btn.Text := btxt . htxt
@@ -152,34 +157,40 @@ _FillKeyboard() {
 
 
 _AddIndicators(unode, btn, ay, ah:=false) {
+    if CONF.overlay_type == 1 {
+        return
+    }
     btn.GetPos(&x, &y, &w, &h)
     node := _GetFirst(unode)
-    if CONF.overlay_type !== 1 {
-        cnt := _CountChild("", 0, unode.scancodes, unode.chords)
-        if cnt {
-            l := (StrLen(String(cnt)) - 1) * 6
-            (CONF.overlay_type == 3)
-                ? _AddOverlayItem(x + w - 3 - l, y + ay[1] + (ah ? h : 0), "", cnt)
-                : _AddOverlayItem(x + w + 3, y + ay[2] + (ah ? h : 0), "Red")
-        }
-        if node.gui_shortname {
-            _AddOverlayItem(x + 14, y + ay[2] + (ah ? h : 0), "Silver")
-        }
-        if node.is_irrevocable {
-            _AddOverlayItem(x + 20, y + ay[2] + (ah ? h : 0), "Gray")
-        }
-        if node.is_instant {
-            _AddOverlayItem(x + 26, y + ay[2] + (ah ? h : 0), "Teal")
-        }
-        if node.up_type !== TYPES.Disabled {
-            _AddOverlayItem(x + 32, y + ay[2] + (ah ? h : 0), "Blue")
-        }
-        if node.custom_lp_time {
-            _AddOverlayItem(x + 38, y + ay[2] + (ah ? h : 0), "Purple")
-        }
-        if node.custom_nk_time {
-            _AddOverlayItem(x + 44, y + ay[2] + (ah ? h : 0), "Fuchsia")
-        }
+    if node.down_type == TYPES.Modifier {
+        cnt := _CountChild("", 0, gui_mod_val + (1 << node.down_val),
+            gui_entries.ubase.scancodes, gui_entries.ubase.chords)
+    } else {
+        cnt := _CountChild("", 0, 0, unode.scancodes, unode.chords)
+    }
+    if cnt {
+        l := (StrLen(String(cnt)) - 1) * 7
+        (CONF.overlay_type == 3)
+            ? _AddOverlayItem(x + w - 3 - l, y + ay[1] + (ah ? h : 0), "", cnt)
+            : _AddOverlayItem(x + w + 3, y + ay[2] + (ah ? h : 0), "Red")
+    }
+    if node.gui_shortname {
+        _AddOverlayItem(x + 14, y + ay[2] + (ah ? h : 0), "Silver")
+    }
+    if node.is_irrevocable {
+        _AddOverlayItem(x + 20, y + ay[2] + (ah ? h : 0), "Gray")
+    }
+    if node.is_instant {
+        _AddOverlayItem(x + 26, y + ay[2] + (ah ? h : 0), "Teal")
+    }
+    if node.up_type !== TYPES.Disabled {
+        _AddOverlayItem(x + 32, y + ay[2] + (ah ? h : 0), "Blue")
+    }
+    if node.custom_lp_time {
+        _AddOverlayItem(x + 38, y + ay[2] + (ah ? h : 0), "Purple")
+    }
+    if node.custom_nk_time {
+        _AddOverlayItem(x + 44, y + ay[2] + (ah ? h : 0), "Fuchsia")
     }
 }
 
@@ -221,7 +232,7 @@ _FillLayers() {
         txt := ["", ""]
         for i, unode in [gui_entries.ubase, gui_entries.uhold] {
             if unode {
-                cnt[i] := _CountChild(name, 0, unode.scancodes, unode.chords)
+                cnt[i] := _CountChild(name, 0, 0, unode.scancodes, unode.chords)
             }
             node := _GetFirst(unode, name)
             if !node {
@@ -261,7 +272,7 @@ _FillLayers() {
 }
 
 
-_CountChild(layer, levels, arrs*) {
+_CountChild(layer, levels, mod_val, arrs*) {
     cnt := 0
     if !layer && layer_editing {
         layer := selected_layer
@@ -269,6 +280,9 @@ _CountChild(layer, levels, arrs*) {
     for scs in arrs {
         for sc, mods in scs {
             for md, unode in mods {
+                if mod_val && mod_val !== md {
+                    continue
+                }
                 if layer && unode.layers.Has(layer) && _IsCounted(unode.layers[layer][0]) {
                     cnt += 1
                 }
@@ -281,7 +295,7 @@ _CountChild(layer, levels, arrs*) {
                     }
                 }
                 if levels {
-                    cnt += _CountChild(layer, levels-1, unode.scancodes, unode.chords)
+                    cnt += _CountChild(layer, levels-1, mod_val, unode.scancodes, unode.chords)
                 }
             }
         }
@@ -306,7 +320,7 @@ _FillChords() {
         }
 
         hl := start_temp_chord && start_temp_chord.Count && hex == selected_chord ? "👉 " : ""
-        cnt := ubase ? _CountChild("", 0, ubase.scancodes, ubase.chords) : 0
+        cnt := ubase ? _CountChild("", 0, 0, ubase.scancodes, ubase.chords) : 0
 
         layer_text := ""
         for layer in checked_layers {

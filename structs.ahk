@@ -163,16 +163,24 @@ class UnifiedNode {
     BuildActives(prior_layers, sc:=0, md:=0) {
         this.active_scancodes := Map()
         this.active_chords := Map()
+        this.fin := false
 
         next_priors := []
         for layer in prior_layers {
             if this.layers.Has(layer) {
                 node := this.layers[layer][0] || this.layers[layer][1]
-                if !this.fin || this.fin.down_type == TYPES.Default
-                    && node.down_type !== TYPES.Default {
+                if !this.fin {
                     this.fin := node
                     next_priors.Push(layer)
-                } else if _EqualNodes(this.fin, node) {
+                    continue
+                }
+                n_def := (node.down_type == TYPES.Default)
+                t_def := (this.fin.down_type == TYPES.Default)
+
+                if t_def && !n_def {
+                    this.fin := node
+                    next_priors.Push(layer)
+                } else if !t_def && n_def || _EqualNodes(this.fin, node) {
                     next_priors.Push(layer)
                 }
             }

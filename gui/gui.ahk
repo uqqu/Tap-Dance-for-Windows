@@ -65,6 +65,7 @@ OneNodeDeeper(schex, md:=-1, is_chord:=false) {
     current_path.Push([schex, md, is_chord])
     gui_mod_val := 0
     gui_entries := gui_entries.ubase.GetBaseHoldMod(schex, md, is_chord)
+    CloseForm()
     UpdateKeys()
 }
 
@@ -79,6 +80,8 @@ ChangePath(len:=-1, *) {
 
     if len == -1 {
         len := current_path.Length
+    } else {
+        CloseForm()
     }
 
     ToggleVisibility(0, UI.path)

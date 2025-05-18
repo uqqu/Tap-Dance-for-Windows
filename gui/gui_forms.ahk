@@ -31,7 +31,7 @@ OpenForm(save_type, *) {
     if layers.Length > 1 {
         form.Add("DropDownList", "x10 y+10 w320 vLayersDDL Choose1", layers)
         form["LayersDDL"].OnEvent(
-            "Change", ChangeFormPlaceholder.Bind(save_type, display_type == 2 ? 0 : 2)
+            "Change", ChangeFormPlaceholder.Bind(save_type, (display_type == 2 ? 0 : 2), 1)
         )
         try form["LayersDDL"].Text := prior_layer
     }
@@ -90,7 +90,7 @@ OpenForm(save_type, *) {
         form.Add("Button", "x10 y+20 w320 vUpToggle", "+Additional up action")
         form.Add("DropDownList", "x10 y+10 w320 vUpDDL", ddl_list).Visible := false
         form.Add("Edit", "x10 y+10 w320 vUpInput").Visible := false
-        form["UpDDL"].OnEvent("Change", ChangeFormPlaceholder.Bind(save_type, 1))
+        form["UpDDL"].OnEvent("Change", ChangeFormPlaceholder.Bind(save_type, 1, 0))
         form["UpDDL"].Text := curr_val ? TYPES_R[curr_val.up_type] : "Disabled"
         form["UpToggle"].OnEvent("Click", ShowHideUpVals)
         if curr_val && curr_val.up_type !== TYPES.Disabled {
@@ -104,10 +104,10 @@ OpenForm(save_type, *) {
     form.Add("Button", "x170 yp+0 h20 w160 Default vSave", "✔ Save")
         .OnEvent("Click", (save_type == 2 ? WriteChord : WriteValue.Bind(save_type)))
 
-    form["DDL"].OnEvent("Change", ChangeFormPlaceholder.Bind(save_type, 0))
+    form["DDL"].OnEvent("Change", ChangeFormPlaceholder.Bind(save_type, 0, 0))
     form["DDL"].Text := curr_val ? TYPES_R[curr_val.down_type] : "Text"
     form.Show("w340")
-    ChangeFormPlaceholder(save_type, display_type == 2 ? 0 : 2)
+    ChangeFormPlaceholder(save_type, (display_type == 2 ? 0 : 2))
 }
 
 
@@ -131,7 +131,7 @@ ShowHideUpVals(*) {
 }
 
 
-ChangeFormPlaceholder(save_type:=0, is_up:=0, *) {
+ChangeFormPlaceholder(save_type:=0, is_up:=0, is_layer_editing:=0, *) {
     static placeholders := [
         "Disabled",
         "Default key value",
@@ -163,36 +163,55 @@ ChangeFormPlaceholder(save_type:=0, is_up:=0, *) {
     }
 
     inp := is_up ? form["UpInput"] : form["Input"]
-    curr_type := (is_up ? form["UpDDL"] : form["DDL"]).Text
+    ddl_field := is_up ? form["UpDDL"] : form["DDL"]
+    curr_type := ddl_field.Text
 
     SendMessage(0x1501, true, StrPtr(placeholders[TYPES.%curr_type%]), inp.Hwnd)
-    inp.Opt((curr_type == "Disabled" || curr_type == "Default" ? "+" : "-") . "Disabled")
 
     if unode && unode.layers.Length && unode.layers.Has(layer) && unode.layers[layer][0] {
         val := unode.layers[layer][0]
-        form["CBIrrevocable"].Value := val.is_irrevocable
-        form["CBInstant"].Value := val.is_instant
-        form["Shortname"].Text := val.gui_shortname || ""
+        irrevoc := val.is_irrevocable
+        instant := val.is_instant
+        gui_name := val.gui_shortname
+        lp := val.custom_lp_time
+        nk := val.custom_nk_time
 
+        if is_layer_editing {
+            curr_type := TYPES_R[(is_up ? val.up_type : val.down_type)]
+            form["DDL"].Text := curr_type
+        }
         if TYPES.%curr_type% == (is_up ? val.up_type : val.down_type) {
             inp.Text := is_up ? val.up_val : val.down_val
         }
-        if val.custom_lp_time {
-            form["CustomLP"].Text := val.custom_lp_time
-            form["BtnLP"].Visible := false
-            form["CustomLP"].Visible := true
-        }
-        if val.custom_nk_time {
-            form["CustomNK"].Text := val.custom_nk_time
-            form["BtnNK"].Visible := false
-            form["CustomNK"].Visible := true
-        }
+
+        title := "Existing value on layer '" . layer . "'"
     }
 
+    form.Title := title ?? "New value for layer '" . layer . "'"
+    form["CustomLP"].Text := lp ?? 0
+    form["BtnLP"].Visible := !(lp ?? 1)
+    form["CustomLP"].Visible := lp ?? 0
+    form["CustomNK"].Text := nk ?? 0
+    form["BtnNK"].Visible := !(nk ?? 1)
+    form["CustomNK"].Visible := nk ?? 0
+    form["CBIrrevocable"].Value := irrevoc ?? 0
+    form["CBInstant"].Value := instant ?? 0
+    form["Shortname"].Text := gui_name ?? ""
 
     curr_type == "Function" ? SetUpFunction(is_up) : inp.Focus()
+    if curr_type == "Default" || curr_type == "Disabled" {
+        inp.Text := ""
+        inp.Opt("+Disabled")
+    } else {
+        inp.Opt("-Disabled")
+    }
+
+    if is_up && curr_type !== "Disabled" && !form["UpDDL"].Visible {
+        ShowHideUpVals()
+    }
+
     if is_up == 2 {
-        ChangeFormPlaceholder(save_type, 0)
+        ChangeFormPlaceholder(save_type, 0, is_layer_editing)
     }
 }
 
@@ -200,7 +219,9 @@ ChangeFormPlaceholder(save_type:=0, is_up:=0, *) {
 SetUpFunction(is_up) {
     global func_form, func_fields, func_params
 
-    try func_form.Destroy()
+    if func_form {
+        return
+    }
     func_form := Gui(, "Function Selector (" . (is_up ? "up" : "down") . ")")
 
     func_form.Add("Button", "x10 y10 w160 h19 vBtnPrev", "-")
@@ -218,7 +239,7 @@ SetUpFunction(is_up) {
         .OnEvent("Click", SaveAssignedFunction.Bind(is_up))
     func_form.Add("Text", "x10 y+10 w320 h42 vDescription +0x1000", "")
     WinGetPos(&x, &y, &w, &h, "ahk_id " . form.Hwnd)
-    _FillFuncFields(is_up ? form["UpInput"].Text : form["Input"].Text)
+    try _FillFuncFields(is_up ? form["UpInput"].Text : form["Input"].Text)
     func_form.Show("w340 h" . 291 + (layer_editing ? 0 : 28) . " x" . x + w . " y" . y)
     RefreshFields()
 }
@@ -321,8 +342,11 @@ RefreshFields(*) {
 PasteToInput(is_up:=false) {
     global func_form
 
+    form[is_up ? "UpDDL" : "DDL"].Text := "Function"
+    inp := form[is_up ? "UpInput" : "Input"]
+    inp.Opt("-Disabled")
     if !func_params.Length {
-        form[is_up ? "UpInput" : "Input"].Text := func_form["FuncDDL"].Text
+        inp.Text := func_form["FuncDDL"].Text
     } else {
         str_val := "("
         for val in func_params {
@@ -341,8 +365,7 @@ PasteToInput(is_up:=false) {
             }
         }
         str_val := SubStr(str_val, 1, -2) . ")"
-        form[is_up ? "UpInput" : "Input"].Text := func_form["FuncDDL"].Text
-            . (str_val !== "()" ? str_val : "")
+        inp.Text := func_form["FuncDDL"].Text . (str_val !== "()" ? str_val : "")
     }
 }
 

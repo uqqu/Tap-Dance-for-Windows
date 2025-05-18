@@ -58,6 +58,9 @@ LVLayerCheck(lv, row, is_checked) {
         }
     } else {
         ActiveLayers.Remove(layer_name)
+        for i, name in ActiveLayers.order {
+            ActiveLayers.map[name] := i
+        }
     }
 
     _WriteActiveLayersToConfig()
