@@ -298,8 +298,11 @@ TrayClick(*) {
 
 
 CloseEvent(*) {
+    global overlay
+
     SetTimer(UpdateOverlayPos, 0)
     try overlay.Destroy()
+    overlay := false
 }
 
 
@@ -349,7 +352,8 @@ UpdateOverlayPos() {
     }
     WinGetPos &x, &y, , , "ahk_id " . UI.Hwnd
 
-    if overlay_x !== x || overlay_y !== y || !DllCall("IsWindowVisible", "Ptr", overlay.Hwnd) {
+    if overlay && (overlay_x !== x || overlay_y !== y
+        || !DllCall("IsWindowVisible", "Ptr", overlay.Hwnd)) {
         overlay.Show("x" . x . " y" . y)
         overlay_x := x
         overlay_y := y
