@@ -1,11 +1,10 @@
-﻿#Requires AutoHotkey v2.0
+#Requires AutoHotkey v2.0
 #SingleInstance Force
 #Include "buffer.ahk"
 #Include "serializing.ahk"
 #Include "structs.ahk"
 #Include "config.ahk"
 #Include "gui/gui.ahk"
-#Include "keys.ahk"
 #Include "user_functions.ahk"
 
 skip_once := false
@@ -16,6 +15,8 @@ pressed_mod_sc := Map()
 pressed_mod_val := Map()
 up_actions := Map()
 current_mod := 0
+
+#Include "keys.ahk"
 
 
 TimerSendCurrent() {
@@ -181,6 +182,9 @@ CheckReturns(sc) {
     if UI.Hwnd && (WinActive("A") == UI.Hwnd) {
         SetBit(sc, current_presses)
         HandleKeyPress(sc)  ; gui func
+        return true
+    } else if s_gui && s_gui.Hwnd && (WinActive("A") == s_gui.Hwnd) && PasteSCToInput(sc) {
+        SetBit(sc, current_presses)
         return true
     }
 

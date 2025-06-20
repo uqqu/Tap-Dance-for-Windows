@@ -70,6 +70,7 @@ _FillSetButtons() {
     UI.SetFont("Norm")
 }
 
+
 _FillKeyboard() {
     for sc, btn in UI.buttons {
         btn.Opt("-Disabled +BackgroundSilver")
@@ -90,9 +91,6 @@ _FillKeyboard() {
         }
 
         btxt := _GetKeyName(sc, true)
-        if !(btxt is String) {
-            msgbox("!!")
-        }
         if b_node {
             _AddIndicators(res.ubase, btn, [54, 54])
             switch b_node.down_type {
@@ -107,14 +105,8 @@ _FillKeyboard() {
                 default:
                     btxt := _CheckDiacr(b_node.down_val)
             }
-            if !(btxt is String) {
-                msgbox("!!v")
-            }
             if b_node.gui_shortname {
                 btxt := b_node.gui_shortname
-            }
-            if !(btxt is String) {
-                msgbox(type(b_node.gui_shortname))
             }
         }
 

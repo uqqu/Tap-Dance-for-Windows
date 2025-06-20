@@ -35,7 +35,7 @@ DrawLayout() {
     UI["Langs"].OnEvent("Change", (*) => ChangeLang(UI["Langs"].Value))
     UI.SetFont("Norm s" . Round(8 * CONF.font_scale))
 
-    UI.Add("Text", "vSettings " . Scale(CONF.wide_mode ? 1470 : 1215, 317), "🔧")
+    UI.Add("Text", "vSettings " . Scale(CONF.wide_mode ? 1470 : 1215, CONF.ref_height + 3), "🔧")
     UI["Settings"].OnEvent("Click", ShowSettings)
 
     _DrawKeys()
@@ -55,7 +55,7 @@ DrawLayout() {
     ToggleVisibility(0, UI.chs_back, UI["BtnBackToRoot"])
 
     UI.SetFont("Norm")
-    UI.Show(CONF.wide_mode ? Scale(,, 1745, 335) : Scale(,, 1240, 675))
+    UI.Show(CONF.wide_mode ? Scale(,, 1745) : Scale(,, 1240))
 
     ChangePath()
 }
@@ -70,7 +70,7 @@ _DrawKeys() {
     x_offset := CONF.wide_mode ? 263 : 10
     y_offset := 50 * CONF.gui_scale
     spacing := 5
-    height := (314 * CONF.gui_scale - (spacing * (len - 1)) - y_offset) / len  ; 314 – LVs height
+    height := (CONF.ref_height * CONF.gui_scale - (spacing * (len - 1)) - y_offset) / len
 
     for row_idx, row in keyboard_layouts[CONF.layout_format] {
         y := y_offset + (row_idx - 1) * (height + spacing)
@@ -105,11 +105,15 @@ _DrawKeys() {
             x += logical_w + spacing
         }
     }
+    UI["328"].GetPos(, &y)
+    UI["Langs"].Move(, y - height)
 }
 
 
 _DrawLayersLV() {
-    p := CONF.wide_mode ? Scale(0, 0, 255, 314) : Scale(10, 340, 610, 314)
+    p := CONF.wide_mode
+        ? Scale(0, 0, 255, CONF.ref_height)
+        : Scale(10, CONF.ref_height + 25, 610, CONF.ref_height)
     UI.AddListView("vLV_layers " . p . " Checked", ["?", "P", "Layer", "Base", "→", "Hold", "→"])
     UI["LV_layers"].OnEvent("DoubleClick", LVLayerDoubleClick)
     UI["LV_layers"].OnEvent("Click", LVLayerClick)
@@ -131,7 +135,7 @@ _DrawLayersLV() {
         p := i == 1 ? " xp-1 y+0 " : " x+0 yp0 "
         UI.Add("Button", arr[1] . p . btns_wh, CONF.wide_mode ? SubStr(arr[2], 1, 2) : arr[2])
     }
-    UI.Add("Button", "vBtnBackToRoot " . (CONF.wide_mode ? Scale(0, 314, 256, 20)
+    UI.Add("Button", "vBtnBackToRoot " . (CONF.wide_mode ? Scale(0, CONF.ref_height, 256, 20)
         : ("x" . (10 * CONF.gui_scale) . " yp0"
         . " w" . (610 * CONF.gui_scale)
         . " h" . (20 * CONF.gui_scale))
@@ -147,7 +151,9 @@ _DrawLayersLV() {
 
 
 _DrawChordsLV() {
-    p := CONF.wide_mode ? Scale(1490, 0, 255, 314) : Scale(619, 340, 610, 314)
+    p := CONF.wide_mode
+        ? Scale(1490, 0, 255, CONF.ref_height)
+        : Scale(619, CONF.ref_height + 25, 610, CONF.ref_height)
     UI.AddListView("vLV_chords " . p, ["Chord", "Value", "→", "Layer", ""])
     UI["LV_chords"].OnEvent("DoubleClick", LVChordDoubleClick)
     UI["LV_chords"].OnEvent("Click", LVChordClick)
@@ -271,7 +277,13 @@ _AddOverlayItem(x, y, colour, txt:="") {
 
 _GetKeyName(sc, with_keytype:=false, to_short:=false, from_sc_str:=false) {
     static fixed_names := Map(
-        "PrintScreen", "Print`nScreen", "ScrollLock", "Scroll`nLock", "Numlock", "Num`nLock"
+        "PrintScreen", "Print`nScreen", "ScrollLock", "Scroll`nLock", "Numlock", "Num`nLock",
+        "Volume_Mute", "Mute", "Volume_Down", "VolD", "Volume_Up", "VolU", "Media_Next", "Next",
+        "Media_Prev", "Prev", "Media_Stop", "Stop", "Media_Play_Pause", "Play",
+        "Browser_Back", "Back", "Browser_Forward", "Forw", "Browser_Refresh", "Refr",
+        "Browser_Stop", "Stop", "Browser_Search", "Srch", "Browser_Favorites", "Fav",
+        "Browser_Home", "Home", "Launch_Mail", "Mail", "Launch_Media", "Media",
+        "Launch_App1", "App1", "Launch_App2", "App2"
     )
     static short_names := Map(
         "PrintScreen", "PrtSc", "ScrollLock", "ScrLk", "Numlock", "NumLk",
@@ -300,22 +312,49 @@ _GetKeyName(sc, with_keytype:=false, to_short:=false, from_sc_str:=false) {
 
 
 _BuildLayout(layout) {
-    return layout == "ANSI" ?
-    [
+    w := 42
+    res := []
+    if CONF.extra_k_row {
+        res.Push(R(
+            [85], [w, GetKeySC("Volume_Mute")], [w, GetKeySC("Volume_Down")],
+            [w, GetKeySC("Volume_Up")], [w, GetKeySC("Media_Next")], [w, GetKeySC("Media_Prev")],
+            [w, GetKeySC("Media_Stop")], [w, GetKeySC("Media_Play_Pause")],
+            [25], [w, GetKeySC("Browser_Back")], [w, GetKeySC("Browser_Forward")],
+            [w, GetKeySC("Browser_Refresh")], [w, GetKeySC("Browser_Stop")],
+            [w, GetKeySC("Browser_Search")], [w, GetKeySC("Browser_Favorites")],
+            [w, GetKeySC("Browser_Home")],
+            [25], [w, GetKeySC("Launch_Mail")], [w, GetKeySC("Launch_Media")],
+            [w, GetKeySC("Launch_App1")], [w, GetKeySC("Launch_App2")]
+        ))
+    }
+    if CONF.extra_f_row {  ; f13-f24
+        res.Push(R([85], 100, 101, 102, 103, [30], 104, 105, 106, 107, [30], 108, 109, 110, 118))
+    }
+
+    res.Push([  ; f-row, numrow
         R(1, [30], 59, 60, 61, 62, [30], 63, 64, 65, 66, [30], 67, 68, 87, 88, [5], 311, 70, 69),
-        R(41, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, [100, 14], [5], 338, 327, 329, [5], 325, 309, 55, 74),
-        R([75, 15], 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, [75, 43], [5], 339, 335, 337, [5], 71, 72, 73, 78),
-        R([90, 58], 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, [115, 28], [180], 75, 76, 77),
-        R([120, 42], 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, [140, 310], [60], 328, [60], 79, 80, 81, 284),
+        R(41, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, [100, 14], [5], 338, 327, 329, [5], 325, 309, 55, 74)
+    ]*)
+
+    if layout == "ANSI" {  ; tab…, caps…, shift…
+        res.Push([
+            R([75, 15], 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, [75, 43], [5], 339, 335, 337, [5], 71, 72, 73, 78),
+            R([90, 58], 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, [115, 28], [180], 75, 76, 77),
+            R([120, 42], 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, [140, 310], [60], 328, [60], 79, 80, 81, 284)
+        ]*)
+    } else {
+        res.Push([
+            R([75, 15], 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, [10], [60, 28], [5], 339, 335, 337, [5], 71, 72, 73, 78),
+            R([90, 58], 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 43, [245], 75, 76, 77),
+            R([70, 42], 86, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, [135, 54], [60], 328, [60], 79, 80, 81, 284)
+        ]*)
+    }
+
+    res.Push(  ; ctrl…
         R([70, 29], [70, 347], [70, 56], [325, 57], [60, 312], [60, 348], [60, 349], [65, 285], [5], 331, 336, 333, [5], [105, 82], 83)
-    ] : [
-        R(1, [30], 59, 60, 61, 62, [30], 63, 64, 65, 66, [30], 67, 68, 87, 88, [5], 311, 70, 69),
-        R(41, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, [100, 14], [5], 338, 327, 329, [5], 325, 309, 55, 74),
-        R([75, 15], 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, [10], [60, 28], [5], 339, 335, 337, [5], 71, 72, 73, 78),
-        R([90, 58], 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 43, [245], 75, 76, 77),
-        R([70, 42], 86, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, [135, 54], [60], 328, [60], 79, 80, 81, 284),
-        R([70, 29], [70, 347], [70, 56], [325, 57], [60, 312], [60, 348], [60, 349], [65, 285], [5], 331, 336, 333, [5], [105, 82], 83)
-    ]
+    )
+
+    return res
 }
 
 

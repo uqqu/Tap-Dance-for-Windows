@@ -1,8 +1,9 @@
 version := 0
+s_gui := false
 SYS_MODIFIERS := Map(
     0x02A, "<+",
-    0x136, ">+",
-    0x036, ">+",
+    0x036, ">+",  ; ASCII
+    0x136, ">+",  ; ISO
     0x01D, "<^",
     0x11D, ">^",
     0x038, "<!",
@@ -47,10 +48,13 @@ CheckConfig() {
         FileAppend(
             "[Main]"
             . "`nLayoutFormat=ANSI"
+            . "`nExtraFRow=0"
+            . "`nExtraKRow=0"
             . "`nHelpTexts=1"
             . "`nGuiAltIgnore=1"
             . "`nGuiScale=1.25"
             . "`nFontScale=1"
+            . "`nReferenceHeight=314"
             . "`nKeynameType=1"
             . "`nActiveLayers="  ; TODO?
             . "`nLongPressDuration=150"
@@ -72,20 +76,23 @@ CheckConfig() {
     CONF.MS_LP := Integer(IniRead("config.ini", "Main", "LongPressDuration", 150))
     CONF.T := "T" . CONF.MS_LP / 1000
     CONF.layout_format := IniRead("config.ini", "Main", "LayoutFormat", "ANSI")
+    CONF.extra_k_row := Integer(IniRead("config.ini", "Main", "ExtraKRow", 0))
+    CONF.extra_f_row := Integer(IniRead("config.ini", "Main", "ExtraFRow", 0))
     CONF.help_texts := Integer(IniRead("config.ini", "Main", "HelpTexts", 1))
     CONF.gui_alt_ignore := Integer(IniRead("config.ini", "Main", "GuiAltIgnore", 1))
-    CONF.font_scale := Float(IniRead("config.ini", "Main", "FontScale", 1))
     CONF.keyname_type := Integer(IniRead("config.ini", "Main", "KeynameType", 1))
+    CONF.ref_height := Integer(IniRead("config.ini", "Main", "ReferenceHeight", 314))
     CONF.wide_mode := Integer(IniRead("config.ini", "Main", "WideMode", 0))
+    CONF.font_scale := Float(IniRead("config.ini", "Main", "FontScale", 1))
     CONF.gui_scale := Float(IniRead(
         "config.ini", "Main", "GuiScale", scale_defaults.Get(A_ScreenWidth, 1.0)
     ))
-    CONF.gui_back_sc := Integer(IniRead("config.ini", "Main", "GuiBackScancode", "74"))
-    CONF.gui_set_sc := Integer(IniRead("config.ini", "Main", "GuiSetScancode", "78"))
-    CONF.gui_set_hold_sc := Integer(IniRead("config.ini", "Main", "GuiSetHoldScancode", "284"))
-    CONF.overlay_type := Integer(IniRead("config.ini", "Main", "OverlayType", "3"))
-    CONF.unfam_layouts := Integer(IniRead("config.ini", "Main", "CollectUnfamiliarLayouts", "0"))
-    CONF.ignore_inactive := Integer(IniRead("config.ini", "Main", "IgnoreInactiveLayers", "0"))
+    CONF.gui_back_sc := Integer(IniRead("config.ini", "Main", "GuiBack", 74))
+    CONF.gui_set_sc := Integer(IniRead("config.ini", "Main", "GuiSet", 78))
+    CONF.gui_set_hold_sc := Integer(IniRead("config.ini", "Main", "GuiSetHold", 284))
+    CONF.overlay_type := Integer(IniRead("config.ini", "Main", "OverlayType", 3))
+    CONF.unfam_layouts := Integer(IniRead("config.ini", "Main", "CollectUnfamiliarLayouts", 0))
+    CONF.ignore_inactive := Integer(IniRead("config.ini", "Main", "IgnoreInactiveLayers", 0))
 
     if !IniRead("config.ini", "Main", "UserLayouts") {
         TrackLayouts()
@@ -137,9 +144,11 @@ Watch() {
         SetTimer(Watch, 0)
         str_value := ""
         for lang in LANGS.map {
-            str_value .= lang . ","
+            if lang {
+                str_value .= lang . ","
+            }
         }
-        IniWrite(SubStr(str_value, 3, -1), "config.ini", "Main", "UserLayouts")
+        IniWrite(SubStr(str_value, 1, -1), "config.ini", "Main", "UserLayouts")
         Sleep(1000)
         layout_gui.Destroy()
     }
@@ -152,6 +161,8 @@ ShowSettings(*) {
     try s_gui.Destroy()
 
     s_gui := Gui(, "Settings")
+    s_gui.OnEvent("Close", CloseSettingsEvent)
+    s_gui.OnEvent("Escape", CloseSettingsEvent)
     s_gui.SetFont("s10")
 
     s_gui.Add("CheckBox", "x20 y15 w140 vHelpTexts", "Show help texts").Value := CONF.help_texts
@@ -169,9 +180,15 @@ ShowSettings(*) {
         "Ignore inactive layers")
         .Value := CONF.ignore_inactive
     s_gui.Add("Button", "x+10 yp-5", "?").OnEvent("Click",
-        (*) => (MsgBox("Don’t parse inactive layer values into a structure. "
+        (*) => (MsgBox("With this option, the program doesn’t parse inactive layer values "
+            . "into a core structure. "
             . "`nTurn off only temporarily for work with GUI to view cross-values for all layers. "
-            . "`nTurn on after adjusting the layers", "IgnoreInactiveLayers", )))
+            . "`n⚠Turn on after adjusting the layers.", "IgnoreInactiveLayers")))
+
+    s_gui.Add("CheckBox", "x20 y+1 w280 vExtraKRow", "Show extra keys (media, browser, apps)")
+        .Value := CONF.extra_k_row
+    s_gui.Add("CheckBox", "x20 y+0 w280 vExtraFRow", "Show extra f-row (13-24)")
+        .Value := CONF.extra_f_row
 
     s_gui.Add("Text", "x20 y+10 w160", "Layout format:")
     s_gui.Add("DropDownList", "Center x+10 yp-2 w160 vLayoutFormat", ["ANSI", "ISO"])
@@ -188,10 +205,10 @@ ShowSettings(*) {
         .Value := CONF.overlay_type
 
     s_gui.Add("Text", "x20 y+10 w160", "Longpress duration (ms):")
-    s_gui.Add("Edit", "Center x+10 yp-2 w160 vLongPressDuration", CONF.MS_LP)
+    s_gui.Add("Edit", "Center Number x+10 yp-2 w160 vLongPressDuration", CONF.MS_LP)
 
     s_gui.Add("Text", "x20 y+10 w160", "Next key wait dur. (ms):")
-    s_gui.Add("Edit", "Center x+10 yp-2 w160 vNextKeyWaitDuration", CONF.MS_NK)
+    s_gui.Add("Edit", "Center Number x+10 yp-2 w160 vNextKeyWaitDuration", CONF.MS_NK)
 
     s_gui.Add("Text", "x20 y+10 w160", "Gui scale:")
     s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiScale", Round(CONF.gui_scale, 2))
@@ -199,35 +216,64 @@ ShowSettings(*) {
     s_gui.Add("Text", "x20 y+10 w160", "Font scale:")
     s_gui.Add("Edit", "Center x+10 yp-2 w160 vFontScale", Round(CONF.font_scale, 2))
 
-    s_gui.Add("Text", "x20 y+10 w160", "GUI 'Back' scancode:")
-    s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiBack", CONF.gui_back_sc)
+    s_gui.Add("Text", "x20 y+10 w160", "Reference height:")
+    s_gui.Add("Edit", "Center Number x+10 yp-2 w160 vReferenceHeight", CONF.ref_height)
 
-    s_gui.Add("Text", "x20 y+10 w160", "GUI 'Set' scancode:")
-    s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiSet", CONF.gui_set_sc)
+    s_gui.Add("Text", "x20 y+10 w160", "'Back' action GUI hotkey:")
+    s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiBackEdit", _GetKeyName(CONF.gui_back_sc))
 
-    s_gui.Add("Text", "x20 y+10 w160", "GUI 'Set hold' scancode:")
-    s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiSetHold", CONF.gui_set_hold_sc)
+    s_gui.Add("Text", "x20 y+10 w160", "…'Set tap' action:")
+    s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiSetEdit", _GetKeyName(CONF.gui_set_sc))
 
-    s_gui.Add("Button", "Center x20 y+15 w320 h20", "Re-read langs").OnEvent("Click", TrackLayouts)
+    s_gui.Add("Text", "x20 y+10 w160", "…'Set hold' action:")
+    s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiSetHoldEdit", _GetKeyName(CONF.gui_set_hold_sc))
+
+    s_gui.Add("Button", "Center x20 y+15 w320 h20", "Reread system langs")
+        .OnEvent("Click", TrackLayouts)
 
     s_gui.Add("Button", "Center x20 y+10 w320 h20 Default vApply", "✔ Apply")
         .OnEvent("Click", SaveConfig)
+
+    s_gui.Add("Edit", "Center x-1000 y-1000 w0 h0 vGuiBack", CONF.gui_back_sc)
+    s_gui.Add("Edit", "Center x-1000 y-1000 w0 h0 vGuiSet", CONF.gui_set_sc)
+    s_gui.Add("Edit", "Center x-1000 y-1000 w0 h0 vGuiSetHold", CONF.gui_set_hold_sc)
 
     s_gui.Show()
 }
 
 
+PasteSCToInput(sc) {
+    switch ControlGetFocus("A") {
+        case s_gui["GuiBackEdit"].Hwnd:
+            s_gui["GuiBackEdit"].Text := _GetKeyName(sc)
+            s_gui["GuiBack"].Text := sc
+        case s_gui["GuiSetEdit"].Hwnd:
+            s_gui["GuiSetEdit"].Text := _GetKeyName(sc)
+            s_gui["GuiSet"].Text := sc
+        case s_gui["GuiSetHoldEdit"].Hwnd:
+            s_gui["GuiSetHoldEdit"].Text := _GetKeyName(sc)
+            s_gui["GuiSetHold"].Text := sc
+        default:
+            return false
+    }
+    return true
+}
+
+
 SaveConfig(*) {
-    for name in [  ; texts
+    old_extra_f := CONF.extra_f_row
+    old_extra_k := CONF.extra_k_row
+
+    for name in [  ; texts/numbers
         "LayoutFormat", "LongPressDuration", "NextKeyWaitDuration", "GuiScale", "FontScale",
-        "GuiBack", "GuiSet", "GuiSetHold"
+        "ReferenceHeight", "GuiBack", "GuiSet", "GuiSetHold"
     ] {
         IniWrite(s_gui[name].Text, "config.ini", "Main", name)
     }
 
     for name in [  ; checkboxes
         "HelpTexts", "WideMode", "KeynameType", "OverlayType", "GuiAltIgnore",
-        "CollectUnfamiliarLayouts", "IgnoreInactiveLayers"
+        "ExtraKRow", "ExtraFRow", "CollectUnfamiliarLayouts", "IgnoreInactiveLayers"
     ] {
         IniWrite(s_gui[name].Value, "config.ini", "Main", name)
     }
@@ -240,8 +286,21 @@ SaveConfig(*) {
     }
 
     s_gui.Destroy()
+    s_gui := false
     CheckConfig()
+
+    if old_extra_f !== CONF.extra_f_row || old_extra_k !== CONF.extra_k_row {
+        Run(A_ScriptFullPath)  ; rerun with new keys
+    }
     DrawLayout()
+}
+
+
+CloseSettingsEvent(*) {
+    global s_gui
+
+    try s_gui.Destroy()
+    s_gui := false
 }
 
 
