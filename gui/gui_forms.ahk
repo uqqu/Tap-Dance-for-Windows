@@ -188,9 +188,11 @@ ChangeFormPlaceholder(save_type:=0, is_up:=0, is_layer_editing:=0, *) {
     }
 
     form.Title := title ?? "New value for layer '" . layer . "'"
-    form["CustomLP"].Text := lp ?? 0
-    form["BtnLP"].Visible := !(lp ?? 1)
-    form["CustomLP"].Visible := lp ?? 0
+    if save_type !== 2 {
+        form["CustomLP"].Text := lp ?? 0
+        form["BtnLP"].Visible := !(lp ?? 1)
+        form["CustomLP"].Visible := lp ?? 0
+    }
     form["CustomNK"].Text := nk ?? 0
     form["BtnNK"].Visible := !(nk ?? 1)
     form["CustomNK"].Visible := nk ?? 0
