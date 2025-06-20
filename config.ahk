@@ -261,6 +261,8 @@ PasteSCToInput(sc) {
 
 
 SaveConfig(*) {
+    global s_gui
+    
     old_extra_f := CONF.extra_f_row
     old_extra_k := CONF.extra_k_row
 
