@@ -1,15 +1,22 @@
 ﻿for sc in ALL_SCANCODES {
-    if SYS_MODIFIERS.Has(sc) {
-        continue
+    if !SYS_MODIFIERS.Has(sc) {
+        HotIf CheckSC.Bind(sc)
+            Hotkey(SC_STR[sc], ((sc) => (*) => OnKeyDown(sc))(sc))
+            Hotkey(SC_STR[sc] . " up", ((sc) => (*) => OnKeyUp(sc))(sc))
     }
-
-    Hotkey(SC_STR[sc], ((sc) => (*) => OnKeyDown(sc))(sc))
-    Hotkey(SC_STR[sc] . " up", ((sc) => (*) => OnKeyUp(sc))(sc))
 }
+HotIf
 
-for sc in SYS_MODIFIERS {
-    Hotkey("~" . SC_STR[sc], ((sc) => (*) => OnKeyDown(sc))(sc))
-    Hotkey("~" . SC_STR[sc] . " up", ((sc) => (*) => OnKeyUp(sc))(sc))
+
+CheckSC(sc, *) {
+    entries := curr_unode.GetBaseHoldMod(sc, current_mod, false, true)
+    if last_val
+        || (entries.ubase || entries.uhold || entries.umod)
+        || (UI.Hwnd && (WinActive("A") == UI.Hwnd))
+        || (s_gui && s_gui.Hwnd && (WinActive("A") == s_gui.Hwnd) && PasteSCToInput(sc)) {
+        return true
+    }
+    return false
 }
 
 
