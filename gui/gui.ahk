@@ -88,9 +88,7 @@ ChangePath(len:=-1, *) {
     UI.path := []
 
     gui_entries := {ubase: ROOTS[gui_lang], uhold: false, umod: false}
-
     gui_mod_val := len < current_path.Length ? current_path[len + 1][2] & ~1 : 0
-
     current_path.Length := len
 
     for arr in current_path {
@@ -113,8 +111,6 @@ UpdateKeys() {
     }
 
     ToggleEnabled(1, UI.layer_ctrl_btns, UI.layer_move_btns, UI.chs_toggles)
-
-    UI["CurrMod"].Text := gui_mod_val ? "Current mod: " . gui_mod_val : ""
 
     _CreateOverlay()
     _FillPathline()
@@ -155,13 +151,14 @@ HandleKeyPress(sc) {
             btn.Opt("+BackgroundBBBB22")
         }
         btn.Text := btn.Text
-    } else if CONF.gui_alt_ignore && sc == 0x038 || sc == 0x138 {
+    } else if CONF.gui_alt_ignore && (sc == 0x038 || sc == 0x138) {
         return
+    } else if SubStr(sc, 1, 5) == "Wheel" {
+        ButtonLBM(sc)
     } else {
         bnode := _GetFirst(gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val).ubase)
-        b := KeyWait(SC_STR[sc],
-            (bnode && bnode.custom_lp_time ? "T" . bnode.custom_lp_time / 1000 : CONF.T)
-        )
+        b := KeyWait((sc is Number ? SC_STR[sc] : sc),
+            (bnode && bnode.custom_lp_time ? "T" . bnode.custom_lp_time / 1000 : CONF.T))
         if WinActive("A") == UI.Hwnd {  ; with postcheck
             if sc == 0x038 || sc == 0x138 {  ; unfocus hidden menubar
                 Send("{Alt}")
@@ -183,6 +180,10 @@ ButtonRBM(sc, *) {
     global gui_mod_val
 
     UI["Hidden"].Focus()
+
+    if sc == "WheelUp" || sc == "WheelDown" {
+        return
+    }
 
     res := gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val)
 
@@ -255,7 +256,7 @@ ClearCurrentValue(is_hold, layer:="", *) {
     }
 
     if ActiveLayers.Length == 1 {
-        selected_layers := ActiveLayers.GetAll()
+        selected_layers := ActiveLayers.order
     } else {
         layers := []
         checked_node := _GetFirst(is_hold ? gui_entries.uhold : gui_entries.ubase)
@@ -273,6 +274,53 @@ ClearCurrentValue(is_hold, layer:="", *) {
     for layer in selected_layers {
         SaveValue(is_hold, layer, new_dtype)
     }
+}
+
+
+ClearNested(is_hold, layer:="", *) {
+    if MsgBox("Do you want to delete all nested assignments?",
+        "Confirmation", "YesNo Icon?"
+    ) == "No" {
+        return
+    }
+
+    if layer_editing {
+        selected_layers := [selected_layer]
+    } else if ActiveLayers.Length == 1 {
+        selected_layers := ActiveLayers.GetAll()
+    } else {
+        layers := []
+        checked_node := _GetFirst(is_hold ? gui_entries.uhold : gui_entries.ubase)
+        for comb_node in (is_hold ? gui_entries.uhold : gui_entries.ubase).layers.GetAll() {
+            if _EqualNodes(comb_node[0], checked_node) {
+                layers.Push(comb_node[0].layer_name)
+            }
+        }
+        if !layers.Length {
+            return
+        }
+        selected_layers := layers.Length == 1 ? layers : ChooseLayers(layers)
+    }
+
+    for layer in selected_layers {
+        json_root := DeserializeMap(layer)
+
+        if !json_root.Has(gui_lang) {
+            json_root[gui_lang] := [Map(), Map()]
+        }
+        json_node := _WalkJson(json_root[gui_lang], current_path, is_hold)
+        json_node[-1] := Map()
+        json_node[-2] := Map()
+        SerializeMap(json_root, layer)
+    }
+
+    FillRoots()
+    if layer_editing {
+        AllLayers.map[selected_layer] := true
+        _MergeLayer(selected_layer)
+    }
+    UpdLayers()
+    ChangePath()
 }
 
 

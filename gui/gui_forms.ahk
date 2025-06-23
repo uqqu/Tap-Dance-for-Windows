@@ -8,6 +8,13 @@ OpenForm(save_type, *) {
 
     try form.Destroy()
 
+    if current_path.Length
+        && SubStr(current_path[-1][1], 2) == "Button"
+        && MsgBox("This assignment will remove the corresponding drag-and-drop behavior!",
+            "Attention", "OKCancel Icon!") == "Cancel" {
+            return
+    }
+
     form := Gui(, "Set value")
     form.OnEvent("Close", CloseForm)
     form.OnEvent("Escape", CloseForm)
@@ -417,7 +424,8 @@ WriteValue(is_hold, *) {
 
 
     if !StrLen(vals["Input"]) && vals["DDL"] !== "Default" && vals["DDL"] !== "Disabled" {
-        MsgBox("Write any value. For empty behavior use 'Disabled' option.", "Wrong value")
+        MsgBox("Write any value. For empty behavior use the 'Disabled' type.",
+            "Wrong value", "Icon!")
         return
     }
     if vals["DDL"] == "Modifier" {
@@ -427,7 +435,7 @@ WriteValue(is_hold, *) {
                 throw
             }
         } catch {
-            MsgBox("The modifier value must be a number up to 60.", "Wrong value")
+            MsgBox("The modifier value must be a number up to 60.", "Wrong value", "Icon!")
             return
         }
     }

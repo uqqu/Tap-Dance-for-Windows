@@ -24,8 +24,8 @@ DrawLayout() {
     UI.help_texts := []
     UI.buttons := Map()
 
-    UI.SetFont("Italic s" . Round(7 * CONF.font_scale), "Segoe UI")
-    UI.Add("DropDownList", "vLangs " . Scale(CONF.wide_mode ? 1150 : 895, 195, 50), LANGS.GetAll())
+    UI.SetFont("s" . Round(7 * CONF.font_scale), CONF.font_name)
+    UI.Add("DropDownList", "vLangs " . Scale(CONF.wide_mode ? 1370 : 1125, CONF.ref_height + 3, 105), LANGS.GetAll())
     for code, val in LANGS.map {
         if code == gui_lang {
             UI["Langs"].Text := val
@@ -35,7 +35,7 @@ DrawLayout() {
     UI["Langs"].OnEvent("Change", (*) => ChangeLang(UI["Langs"].Value))
     UI.SetFont("Norm s" . Round(8 * CONF.font_scale))
 
-    UI.Add("Text", "vSettings " . Scale(CONF.wide_mode ? 1470 : 1215, CONF.ref_height + 3), "🔧")
+    UI.Add("Text", "vSettings " . Scale(CONF.wide_mode ? 1470 : 1252, CONF.ref_height + 3), "🔧")
     UI["Settings"].OnEvent("Click", ShowSettings)
 
     _DrawKeys()
@@ -55,7 +55,7 @@ DrawLayout() {
     ToggleVisibility(0, UI.chs_back, UI["BtnBackToRoot"])
 
     UI.SetFont("Norm")
-    UI.Show(CONF.wide_mode ? Scale(,, 1745) : Scale(,, 1240))
+    UI.Show(CONF.wide_mode ? Scale(,, 1745) : Scale(,, 1294))
 
     ChangePath()
 }
@@ -70,10 +70,11 @@ _DrawKeys() {
     x_offset := CONF.wide_mode ? 263 : 10
     y_offset := 50 * CONF.gui_scale
     spacing := 5
-    height := (CONF.ref_height * CONF.gui_scale - (spacing * (len - 1)) - y_offset) / len
+    height := (CONF.ref_height * CONF.gui_scale - (spacing * (len - 1)) - y_offset)
+        / (CONF.extra_k_row ? len - 0.3 : len)
 
     for row_idx, row in keyboard_layouts[CONF.layout_format] {
-        y := y_offset + (row_idx - 1) * (height + spacing)
+        y := y_offset + (row_idx - (row_idx > 1 && CONF.extra_k_row ? 1.3 : 1)) * (height + spacing)
         x := x_offset * 1.0
 
         for data in row {
@@ -82,7 +83,9 @@ _DrawKeys() {
 
             if data.Length > 1 {
                 sc := data[2]
-                ALL_SCANCODES.Push(sc)
+                if sc !== "CurrMod" {
+                    ALL_SCANCODES.Push(sc)
+                }
                 if sc == 0x11D {
                     UI[CONF.layout_format == "ISO" ? "54" : "310"].GetPos(&shx, , &shw)
                     w := shx + shw - x * CONF.gui_scale + 1
@@ -92,6 +95,9 @@ _DrawKeys() {
                     sc == 0x11C || sc == 0x4E || sc == 0x1C && CONF.layout_format == "ISO"
                     ? height + spacing : 0
                 )
+                if row_idx == 1 && CONF.extra_k_row {
+                    h /= 1.5
+                }
 
                 btn := UI.Add("Button",
                     "v" . sc . " x" . x * CONF.gui_scale . " y" . y . " w" . w . " h" . h
@@ -105,23 +111,21 @@ _DrawKeys() {
             x += logical_w + spacing
         }
     }
-    UI["328"].GetPos(, &y)
-    UI["Langs"].Move(, y - height)
 }
 
 
 _DrawLayersLV() {
     p := CONF.wide_mode
         ? Scale(0, 0, 255, CONF.ref_height)
-        : Scale(10, CONF.ref_height + 25, 610, CONF.ref_height)
+        : Scale(10, CONF.ref_height + 27, 638, CONF.ref_height)
     UI.AddListView("vLV_layers " . p . " Checked", ["?", "P", "Layer", "Base", "→", "Hold", "→"])
     UI["LV_layers"].OnEvent("DoubleClick", LVLayerDoubleClick)
     UI["LV_layers"].OnEvent("Click", LVLayerClick)
     UI["LV_layers"].OnEvent("ItemCheck", LVLayerCheck)
-    for i, w in (CONF.wide_mode ? [15, 15, 75, 40, 21, 40, 21] : [24, 30, 200, 135, 30, 135, 30]) {
+    for i, w in (CONF.wide_mode ? [15, 15, 75, 40, 21, 40, 21] : [25, 30, 230, 135, 40, 135, 40]) {
         UI["LV_layers"].ModifyCol(i, Max(w * CONF.gui_scale, 16 * USER_DPI))
     }
-    btns_wh := "w" . ((CONF.wide_mode ? 256 : 610) * CONF.gui_scale / 6)
+    btns_wh := "w" . ((CONF.wide_mode ? 256 : 635) * CONF.gui_scale / 6)
             . " h" . (20 * CONF.gui_scale)
 
     for i, arr in [
@@ -137,7 +141,7 @@ _DrawLayersLV() {
     }
     UI.Add("Button", "vBtnBackToRoot " . (CONF.wide_mode ? Scale(0, CONF.ref_height, 256, 20)
         : ("x" . (10 * CONF.gui_scale) . " yp0"
-        . " w" . (610 * CONF.gui_scale)
+        . " w" . (635 * CONF.gui_scale)
         . " h" . (20 * CONF.gui_scale))
         ),
         CONF.wide_mode ? "🔙" : "🔙 Back to all active layers"
@@ -153,15 +157,15 @@ _DrawLayersLV() {
 _DrawChordsLV() {
     p := CONF.wide_mode
         ? Scale(1490, 0, 255, CONF.ref_height)
-        : Scale(619, CONF.ref_height + 25, 610, CONF.ref_height)
+        : Scale(647, CONF.ref_height + 27, 638, CONF.ref_height)
     UI.AddListView("vLV_chords " . p, ["Chord", "Value", "→", "Layer", ""])
     UI["LV_chords"].OnEvent("DoubleClick", LVChordDoubleClick)
     UI["LV_chords"].OnEvent("Click", LVChordClick)
-    for i, w in (CONF.wide_mode ? [90, 60, 25, 75, 0] : [190, 250, 34, 110, 0]) {
+    for i, w in (CONF.wide_mode ? [90, 60, 25, 75, 0] : [200, 270, 35, 120, 0]) {
         UI["LV_chords"].ModifyCol(i, w * CONF.gui_scale)
     }
 
-    btns_wh := "w" . ((CONF.wide_mode ? 256 : 610) * CONF.gui_scale / 3)
+    btns_wh := "w" . ((CONF.wide_mode ? 256 : 635) * CONF.gui_scale / 3)
             . " h" . (20 * CONF.gui_scale)
     UI.chs_front := []
     UI.chs_front.Push(
@@ -169,7 +173,7 @@ _DrawChordsLV() {
         UI.Add("Button", "vBtnChangeSelectedChord x+0 yp0 " . btns_wh, "✏️ Change"),
         UI.Add("Button", "vBtnDeleteSelectedChord x+0 yp0 " . btns_wh, "🗑️ Delete")
     )
-    x := "xp-" . ((CONF.wide_mode ? 256 : 610) * CONF.gui_scale / 3 * 2)
+    x := "xp-" . ((CONF.wide_mode ? 256 : 635) * CONF.gui_scale / 3 * 2)
     UI.chs_back := []
     UI.chs_back.Push(
         UI.Add("Button", "vBtnSaveEditedChord " . x . " yp0 " . btns_wh, "✔ Save"),
@@ -181,29 +185,31 @@ _DrawChordsLV() {
 
 
 _DrawCurrentValues() {
-    sh := CONF.wide_mode ? 0 : 255
-    fs := CONF.font_scale * 16
-    UI.current_values.Push(
-        UI.Add("Text", Scale(1269 - sh, 0, 35 + fs, 25) . " +0x200 vTextBase"),
-        UI.Add("Text", Scale(1269 - sh, 25, 35 + fs, 25) . " +0x200 vTextHold"),
-        UI.Add("Button", Scale(1309 - sh + fs, 0, 156 - fs, 25) . " vBtnBase"),
-        UI.Add("Button", Scale(1309 - sh + fs, 25, 156 - fs, 25) . " vBtnHold"),
-        UI.Add("Button", Scale(1465 - sh, 0, 25, 25) . " vBtnBaseClear", "✕"),
-        UI.Add("Button", Scale(1465 - sh, 25, 25, 25) . " vBtnHoldClear", "✕")
-    )
-    UI.Add("Text", Scale(1330 - sh, 55, 160, 25) . " vCurrMod")
     UI.SetFont("Norm")
+    sh := CONF.wide_mode ? 0 : 255
+    UI.current_values.Push(
+        UI.Add("Text", Scale(1270 - sh, 0, 50, 23) . " +0x200 Center vTextBase"),
+        UI.Add("Text", Scale(1270 - sh, 23, 50, 23) . " +0x200 Center vTextHold"),
+        UI.Add("Button", Scale(1325 - sh, 0, 160, 23) . " vBtnBase"),
+        UI.Add("Button", Scale(1325 - sh, 23, 160, 23) . " vBtnHold"),
+        UI.Add("Button", Scale(1490 - sh, 0, 25, 23) . " vBtnBaseClear", "✕"),
+        UI.Add("Button", Scale(1490 - sh, 23, 25, 23) . " vBtnHoldClear", "✕"),
+        UI.Add("Button", Scale(1515 - sh, 0, 25, 23) . " vBtnBaseClearNest", "🕳"),
+        UI.Add("Button", Scale(1515 - sh, 23, 25, 23) . " vBtnHoldClearNest", "🕳")
+    )
     UI["BtnBase"].OnEvent("Click", OpenForm.Bind(0))
     UI["BtnHold"].OnEvent("Click", OpenForm.Bind(1))
     UI["BtnBaseClear"].OnEvent("Click", ClearCurrentValue.Bind(0))
     UI["BtnHoldClear"].OnEvent("Click", ClearCurrentValue.Bind(1))
+    UI["BtnBaseClearNest"].OnEvent("Click", ClearNested.Bind(0))
+    UI["BtnHoldClearNest"].OnEvent("Click", ClearNested.Bind(1))
 
     ToggleVisibility(0, UI.current_values)
 }
 
 
 _AddHelpText(font_opt, p, txt) {
-    UI.SetFont("Norm " . font_opt, "Segoe UI")
+    UI.SetFont("Norm " . font_opt)
     UI.help_texts.Push(UI.Add("Text", p, txt))
     UI.help_texts[-1].OnEvent("DoubleClick", HideHelp)
 }
@@ -213,7 +219,7 @@ _DrawHelp() {
     if !CONF.help_texts {
         return
     }
-    _AddHelpText("Italic cGray", Scale(CONF.wide_mode ? 265 : 9, 317), "Borders (hold behavior):")
+    _AddHelpText("Italic cGray", Scale(CONF.wide_mode ? 265 : 9, CONF.ref_height + 3), "Borders (hold behavior):")
     _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
     _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")
     _AddHelpText("Italic Bold cAAAA11", "x+5 yp0", "chord part.")
@@ -228,12 +234,13 @@ _DrawHelp() {
 
     _AddHelpText("Italic cGray", Scale(CONF.wide_mode ? 265 : 11, 31),
         "The arrows indicate the type of transition: ➤ – base, ▲ – hold, ▼ – chord; "
-        . "if it's with a number, that's the used modifier's designation."
+        . "if it's with a number – the used modifier's designation."
     )
 
-    _AddHelpText("Italic cGray", "x+" . 60 / USER_DPI . " yp0",
+    _AddHelpText("Italic cGray", "x+" . 30 / USER_DPI . " yp0",
         "LBM – base next map, RBM – hold next map/activate mod."
     )
+    UI.SetFont("Norm cBlack")
 }
 
 
@@ -283,24 +290,29 @@ _GetKeyName(sc, with_keytype:=false, to_short:=false, from_sc_str:=false) {
         "Browser_Back", "Back", "Browser_Forward", "Forw", "Browser_Refresh", "Refr",
         "Browser_Stop", "Stop", "Browser_Search", "Srch", "Browser_Favorites", "Fav",
         "Browser_Home", "Home", "Launch_Mail", "Mail", "Launch_Media", "Media",
-        "Launch_App1", "App1", "Launch_App2", "App2"
+        "Launch_App1", "App1", "Launch_App2", "App2", "LButton", "LBM", "RButton", "RBM",
+        "MButton", "Wheel`nClick", "XButton1", "XBM1", "XButton2", "XBM2", "WheelLeft", "Wheel`n🡐",
+        "WheelDown", "Wheel`n🡓", "WheelUp", "Wheel`n🡑", "WheelRight", "Wheel`n🡒"
     )
     static short_names := Map(
         "PrintScreen", "PrtSc", "ScrollLock", "ScrLk", "Numlock", "NumLk",
-        "Backspace", "BS", "LControl", "LCtrl", "RControl", "RCtrl", "AppsKey", "Menu"
+        "Backspace", "BS", "LControl", "LCtrl", "RControl", "RCtrl", "AppsKey", "Menu",
+        "WheelLeft", "WhLeft", "WheelDown", "WhDown", "WheelUp", "WhUp", "WheelRight", "WhRight",
+        "MButton", "WhClick"
     )
 
     if with_keytype && CONF.keyname_type == 2 {
         return "&" . sc
     }
 
-    if !from_sc_str {
-        res := GetKeyName(SC_STR[sc])
-    } else {
+    res := sc
+    if from_sc_str {
         res := GetKeyName(SubStr(from_sc_str, 2, -1))
         if !res {
             return from_sc_str
         }
+    } else if sc is Number {
+        res := GetKeyName(SC_STR[sc])
     }
 
     return to_short && short_names.Has(res) ? short_names[res]
@@ -323,7 +335,7 @@ _BuildLayout(layout) {
             [w, GetKeySC("Browser_Refresh")], [w, GetKeySC("Browser_Stop")],
             [w, GetKeySC("Browser_Search")], [w, GetKeySC("Browser_Favorites")],
             [w, GetKeySC("Browser_Home")],
-            [25], [w, GetKeySC("Launch_Mail")], [w, GetKeySC("Launch_Media")],
+            [24], [w, GetKeySC("Launch_Mail")], [w, GetKeySC("Launch_Media")],
             [w, GetKeySC("Launch_App1")], [w, GetKeySC("Launch_App2")]
         ))
     }
@@ -331,27 +343,29 @@ _BuildLayout(layout) {
         res.Push(R([85], 100, 101, 102, 103, [30], 104, 105, 106, 107, [30], 108, 109, 110, 118))
     }
 
-    res.Push([  ; f-row, numrow
-        R(1, [30], 59, 60, 61, 62, [30], 63, 64, 65, 66, [30], 67, 68, 87, 88, [5], 311, 70, 69),
-        R(41, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, [100, 14], [5], 338, 327, 329, [5], 325, 309, 55, 74)
-    ]*)
+    res.Push(  ; f-row, numrow
+        R(1, [30], 59, 60, 61, 62, [30], 63, 64, 65, 66, [30], 67, 68, 87, 88, [5], 311, 70, 69,
+            [5], "LButton", "RButton", "XButton1", "XButton2", "CurrMod"),
+        R(41, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, [100, 14], [5], 338, 327, 329,
+            [5], 325, 309, 55, 74, "WheelRight")
+    )
 
     if layout == "ANSI" {  ; tab…, caps…, shift…
-        res.Push([
-            R([75, 15], 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, [75, 43], [5], 339, 335, 337, [5], 71, 72, 73, 78),
-            R([90, 58], 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, [115, 28], [180], 75, 76, 77),
-            R([120, 42], 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, [140, 310], [60], 328, [60], 79, 80, 81, 284)
-        ]*)
+        res.Push(
+            R([75, 15], 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, [75, 43],[5], 339, 335, 337,[5], 71, 72, 73, 78, "WheelUp"),
+            R([90, 58], 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, [115, 28], [180], 75, 76, 77, [50], "MButton"),
+            R([120, 42], 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, [140, 310], [60], 328, [60], 79, 80, 81, 284, "WheelDown")
+        )
     } else {
-        res.Push([
-            R([75, 15], 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, [10], [60, 28], [5], 339, 335, 337, [5], 71, 72, 73, 78),
-            R([90, 58], 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 43, [245], 75, 76, 77),
-            R([70, 42], 86, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, [135, 54], [60], 328, [60], 79, 80, 81, 284)
-        ]*)
+        res.Push(
+            R([75, 15], 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, [10], [60, 28], [5], 339, 335, 337, [5], 71, 72, 73, 78, "WheelUp"),
+            R([90, 58], 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 43, [245], 75, 76, 77, [50], "MButton"),
+            R([70, 42], 86, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, [135, 54], [60], 328, [60], 79, 80, 81, 284, "WheelDown")
+        )
     }
 
     res.Push(  ; ctrl…
-        R([70, 29], [70, 347], [70, 56], [325, 57], [60, 312], [60, 348], [60, 349], [65, 285], [5], 331, 336, 333, [5], [105, 82], 83)
+        R([70, 29], [70, 347], [70, 56], [325, 57], [60, 312], [60, 348], [60, 349], [65, 285], [5], 331, 336, 333, [5], [105, 82], 83, [50], "WheelLeft")
     )
 
     return res
@@ -361,7 +375,13 @@ _BuildLayout(layout) {
 R(args*) {
     res := []
     for arg in args {
-        res.Push(arg is Array ? arg : [50, arg])
+        if arg is Array {
+            res.Push(arg)
+            try empty_scs.Delete(arg[2])
+        } else {
+            res.Push([50, arg])
+            try empty_scs.Delete(arg)
+        }
     }
     return res
 }

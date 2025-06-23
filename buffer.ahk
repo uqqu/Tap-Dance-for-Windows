@@ -1,14 +1,26 @@
 ﻿SetBit(sc, buffer) {
+    if MOUSE_SCS.Has(sc) {
+        if sc == "WheelUp" || sc == "WheelDown" {
+            return
+        }
+        sc := MOUSE_SCS[sc]
+    }
     NumPut("UChar", NumGet(buffer, sc // 8, "UChar") | (1 << (sc & 7)), buffer, sc // 8)
 }
 
 
 ClearBit(sc, buffer) {
+    if MOUSE_SCS.Has(sc) {
+        sc := MOUSE_SCS[sc]
+    }
     NumPut("UChar", NumGet(buffer, sc // 8, "UChar") & ~(1 << (sc & 7)), buffer, sc // 8)
 }
 
 
 CheckBit(sc, buffer) {
+    if MOUSE_SCS.Has(sc) {
+        sc := MOUSE_SCS[sc]
+    }
     return (NumGet(buffer, sc // 8, "UChar") & (1 << (sc & 7))) !== 0
 }
 

@@ -12,6 +12,14 @@ SYS_MODIFIERS := Map(
     0x15C, ">#"
 )
 
+EXTRA_SCS := Map()
+for name in ["Volume_Mute", "Volume_Down", "Volume_Up", "Media_Next", "Media_Prev", "Media_Stop",
+    "Media_Play_Pause", "Browser_Back", "Browser_Forward", "Browser_Refresh", "Browser_Stop",
+    "Browser_Search", "Browser_Favorites", "Browser_Home", "Launch_Mail", "Launch_Media",
+    "Launch_App1", "Launch_App2"] {
+    EXTRA_SCS[GetKeySC(name)] := true
+}
+
 TYPES := {}
 TYPES_R := ["Disabled", "Default", "Text", "KeySimulation", "Function", "Modifier", "Chord"]
 for i, v in TYPES_R {
@@ -22,14 +30,16 @@ BUFFER_SIZE := 48  ; 0x173 (372) is the last "standard" code; 8×48 = 384
 
 SC_STR := []
 SC_STR_BR := []
+empty_scs := Map()
 loop 511 {
     curr := Format("SC{:03X}", A_Index)
     SC_STR.Push(curr)
     SC_STR_BR.Push("{" . curr . "}")
+    empty_scs[A_Index] := true
 }
 
 LANGS := OrderedMap()
-LANGS.Add(0, "Global")
+LANGS.Add(0, "Layout: global")
 
 CheckConfig()
 CurrentLayout := GetCurrentLayout()
@@ -48,17 +58,20 @@ CheckConfig() {
         FileAppend(
             "[Main]"
             . "`nLayoutFormat=ANSI"
+            . "`nWideMode=0"
             . "`nExtraFRow=0"
             . "`nExtraKRow=0"
             . "`nHelpTexts=1"
             . "`nGuiAltIgnore=1"
             . "`nGuiScale=1.25"
             . "`nFontScale=1"
+            . "`nFontName=Segoe UI"
             . "`nReferenceHeight=314"
             . "`nKeynameType=1"
             . "`nActiveLayers="  ; TODO?
             . "`nLongPressDuration=150"
             . "`nNextKeyWaitDuration=250"
+            . "`nWheelLRUnlockTime=150"
             . "`nUserLayouts="
             . "`nIgnoreInactiveLayers=0"
             . "`nCollectUnfamiliarLayouts=0"
@@ -75,6 +88,7 @@ CheckConfig() {
     CONF.MS_NK := Integer(IniRead("config.ini", "Main", "NextKeyWaitDuration", 250))
     CONF.MS_LP := Integer(IniRead("config.ini", "Main", "LongPressDuration", 150))
     CONF.T := "T" . CONF.MS_LP / 1000
+    CONF.wheel_unlock_time := Integer(IniRead("config.ini", "Main", "WheelLRUnlockTime", 150))
     CONF.layout_format := IniRead("config.ini", "Main", "LayoutFormat", "ANSI")
     CONF.extra_k_row := Integer(IniRead("config.ini", "Main", "ExtraKRow", 0))
     CONF.extra_f_row := Integer(IniRead("config.ini", "Main", "ExtraFRow", 0))
@@ -83,13 +97,14 @@ CheckConfig() {
     CONF.keyname_type := Integer(IniRead("config.ini", "Main", "KeynameType", 1))
     CONF.ref_height := Integer(IniRead("config.ini", "Main", "ReferenceHeight", 314))
     CONF.wide_mode := Integer(IniRead("config.ini", "Main", "WideMode", 0))
+    CONF.font_name := IniRead("config.ini", "Main", "FontName", "Segoe UI")
     CONF.font_scale := Float(IniRead("config.ini", "Main", "FontScale", 1))
     CONF.gui_scale := Float(IniRead(
         "config.ini", "Main", "GuiScale", scale_defaults.Get(A_ScreenWidth, 1.0)
     ))
-    CONF.gui_back_sc := Integer(IniRead("config.ini", "Main", "GuiBack", 74))
-    CONF.gui_set_sc := Integer(IniRead("config.ini", "Main", "GuiSet", 78))
-    CONF.gui_set_hold_sc := Integer(IniRead("config.ini", "Main", "GuiSetHold", 284))
+    CONF.gui_back_sc := IniRead("config.ini", "Main", "GuiBack", 74)
+    CONF.gui_set_sc := IniRead("config.ini", "Main", "GuiSet", 78)
+    CONF.gui_set_hold_sc := IniRead("config.ini", "Main", "GuiSetHold", 284)
     CONF.overlay_type := Integer(IniRead("config.ini", "Main", "OverlayType", 3))
     CONF.unfam_layouts := Integer(IniRead("config.ini", "Main", "CollectUnfamiliarLayouts", 0))
     CONF.ignore_inactive := Integer(IniRead("config.ini", "Main", "IgnoreInactiveLayers", 0))
@@ -105,7 +120,7 @@ CheckConfig() {
         if LANGS.Has(lang) {
             continue
         }
-        LANGS.Add(lang, GetLayoutNameFromHKL(lang))
+        LANGS.Add(lang, "Layout: " . GetLayoutNameFromHKL(lang))
     }
 }
 
@@ -183,7 +198,7 @@ ShowSettings(*) {
         (*) => (MsgBox("With this option, the program doesn’t parse inactive layer values "
             . "into a core structure. "
             . "`nTurn off only temporarily for work with GUI to view cross-values for all layers. "
-            . "`n⚠Turn on after adjusting the layers.", "IgnoreInactiveLayers")))
+            . "`n⚠Turn on after adjusting the layers.", "Ignore inactive layers", "Iconi")))
 
     s_gui.Add("CheckBox", "x20 y+1 w280 vExtraKRow", "Show extra keys (media, browser, apps)")
         .Value := CONF.extra_k_row
@@ -210,23 +225,32 @@ ShowSettings(*) {
     s_gui.Add("Text", "x20 y+10 w160", "Next key wait dur. (ms):")
     s_gui.Add("Edit", "Center Number x+10 yp-2 w160 vNextKeyWaitDuration", CONF.MS_NK)
 
+    s_gui.Add("Text", "x20 y+10 w160", "Unlock l/r mouse wheel after (ms):")
+    s_gui.Add("Edit", "Center Number x+10 yp-2 w160 vWheelLRUnlockTime", CONF.wheel_unlock_time)
+
     s_gui.Add("Text", "x20 y+10 w160", "Gui scale:")
     s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiScale", Round(CONF.gui_scale, 2))
 
     s_gui.Add("Text", "x20 y+10 w160", "Font scale:")
     s_gui.Add("Edit", "Center x+10 yp-2 w160 vFontScale", Round(CONF.font_scale, 2))
 
+    s_gui.Add("Text", "x20 y+10 w160", "Font name:")
+    s_gui.Add("Edit", "Center x+10 yp-2 w160 vFontName", CONF.font_name)
+
     s_gui.Add("Text", "x20 y+10 w160", "Reference height:")
     s_gui.Add("Edit", "Center Number x+10 yp-2 w160 vReferenceHeight", CONF.ref_height)
 
     s_gui.Add("Text", "x20 y+10 w160", "'Back' action GUI hotkey:")
-    s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiBackEdit", _GetKeyName(CONF.gui_back_sc))
+    s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiBackEdit")
+        .Text := _GetKeyName(CONF.gui_back_sc)
 
     s_gui.Add("Text", "x20 y+10 w160", "…'Set tap' action:")
-    s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiSetEdit", _GetKeyName(CONF.gui_set_sc))
+    s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiSetEdit")
+        .Text := _GetKeyName(CONF.gui_set_sc)
 
     s_gui.Add("Text", "x20 y+10 w160", "…'Set hold' action:")
-    s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiSetHoldEdit", _GetKeyName(CONF.gui_set_hold_sc))
+    s_gui.Add("Edit", "Center x+10 yp-2 w160 vGuiSetHoldEdit")
+        .Text := _GetKeyName(CONF.gui_set_hold_sc)
 
     s_gui.Add("Button", "Center x20 y+15 w320 h20", "Reread system langs")
         .OnEvent("Click", TrackLayouts)
@@ -262,13 +286,13 @@ PasteSCToInput(sc) {
 
 SaveConfig(*) {
     global s_gui
-    
+
     old_extra_f := CONF.extra_f_row
     old_extra_k := CONF.extra_k_row
 
     for name in [  ; texts/numbers
-        "LayoutFormat", "LongPressDuration", "NextKeyWaitDuration", "GuiScale", "FontScale",
-        "ReferenceHeight", "GuiBack", "GuiSet", "GuiSetHold"
+        "LayoutFormat", "LongPressDuration", "NextKeyWaitDuration", "WheelLRUnlockTime",
+        "GuiScale", "FontScale", "FontName", "ReferenceHeight", "GuiBack", "GuiSet", "GuiSetHold"
     ] {
         IniWrite(s_gui[name].Text, "config.ini", "Main", name)
     }

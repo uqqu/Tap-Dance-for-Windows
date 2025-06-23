@@ -116,11 +116,10 @@ RenameSelectedLayer(*) {
     }
     FileMove("layers/" . selected_layer . ".json", new_filepath, true)
     if ActiveLayers.Has(selected_layer) {
-        p := ActiveLayers.Get(selected_layer)
+        p := ActiveLayers[selected_layer]
         ActiveLayers.Add(inp.Value, , p)
         ActiveLayers.Remove(selected_layer)
 		_WriteActiveLayersToConfig()
-		return
     }
     ReadLayers()
     FillRoots()

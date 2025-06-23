@@ -178,7 +178,7 @@ DiscardChordEditing(*) {
 
 SaveEditedChord(*) {
     if temp_chord.Count < 2 {
-        MsgBox("Chord must include at least 2 keys.", "Not enough keys")
+        MsgBox("Chord must include at least 2 keys.", "Not enough keys", "Icon!")
         return
     }
     if layer_editing || ActiveLayers.order.Length == 1 {

@@ -7,6 +7,8 @@
 #Include "gui/gui.ahk"
 #Include "user_functions.ahk"
 
+A_HotkeyInterval := 0
+
 skip_once := false
 last_val := false
 prev_unode := false
@@ -17,6 +19,7 @@ up_actions := Map()
 current_mod := 0
 
 #Include "keys.ahk"
+SetSysModHotkeys()
 
 
 TimerSendCurrent() {
@@ -98,9 +101,23 @@ TransferModifiers() {
 }
 
 
+UnlockWhL() {
+    OnKeyUp("WheelLeft")
+}
+
+UnlockWhR() {
+    OnKeyUp("WheelRight")
+}
+
 OnKeyDown(sc, extra_mod:=0) {
     global last_val, current_mod
     static pending := false
+
+    if sc == "WheelLeft" {  ; simulate up action manually
+        SetTimer(UnlockWhL, -CONF.wheel_unlock_time)
+    } else if sc == "WheelRight" {
+        SetTimer(UnlockWhR, -CONF.wheel_unlock_time)
+    }
 
     if CheckReturns(sc) {  ; unprocessing conditions
         return
@@ -156,7 +173,7 @@ OnKeyDown(sc, extra_mod:=0) {
         }
     } else {  ; tap/hold branching
         pending := entries.ubase || GetDefaultSim(sc)[1]
-        b := KeyWait(SC_STR[sc],
+        b := KeyWait((sc is Number ? SC_STR[sc] : sc),
             (pending.fin.custom_lp_time ? "T" . pending.fin.custom_lp_time / 1000 : CONF.T))
         if pending {  ; pending may be reset by any other press while we perform KeyWait
             res_unode := b ? pending : entries.uhold
@@ -249,7 +266,7 @@ GetEntries(sc) {
 
     ; if the curr_unode has not changed, just send the native press
     if b {
-        SendKbd(TYPES.Default, "{Blind}" . SC_STR_BR[sc])
+        SendKbd(TYPES.Default, (sc is Number ? "{Blind}" . SC_STR_BR[sc] : "{Blind}{" . sc . "}"))
         return false
     }
 

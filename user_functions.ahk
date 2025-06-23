@@ -87,7 +87,8 @@ GetWeather(city_name, out) {
     static weather_key := RegRead("HKEY_CURRENT_USER\Environment", "OPENWEATHERMAP", 0)
 
     if !weather_key {
-        MsgBox("The api key was not found in the environment variables.", "OPENWEATHERMAP")
+        MsgBox("The api key was not found in the environment variables.",
+            "OPENWEATHERMAP", "IconX")
     }
 
     if !city_name {
@@ -114,7 +115,7 @@ ExchRates(from_currency, to_currency, out) {
     static currency_key := RegRead("HKEY_CURRENT_USER\Environment", "GETGEOAPI", 0)
 
     if !currency_key {
-        MsgBox("The api key was not found in the environment variables.", "GETGEOAPI")
+        MsgBox("The api key was not found in the environment variables.", "GETGEOAPI", "IconX")
     }
 
     web_request := ComObject("WinHttp.WinHttpRequest.5.1")

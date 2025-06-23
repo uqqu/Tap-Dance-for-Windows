@@ -1,6 +1,6 @@
 ﻿_FillPathline() {
     UI.SetFont("Italic")
-    root := UI.Add("Button", Scale(CONF.wide_mode ? 265 : 10, 5), root_text)
+    root := UI.Add("Button", "+0x80 -Wrap" . Scale(CONF.wide_mode ? 265 : 10, 5, 50), root_text)
     ToggleVisibility(0, UI.path)
     UI.path := []
     UI.path.Push(root)
@@ -25,8 +25,10 @@
         UI.path[-1].OnEvent("Click", ChangePath.Bind(i))
     }
 
-    ToggleEnabled(!SYS_MODIFIERS.Has(current_path[-1][1]), UI["BtnBase"], UI["BtnBaseClear"])
-    ToggleEnabled(current_path[-1][3] == false, UI["BtnHold"], UI["BtnHoldClear"])
+    ToggleEnabled(!SYS_MODIFIERS.Has(current_path[-1][1]),
+        UI["BtnBase"], UI["BtnBaseClear"], UI["BtnBaseClearNest"])
+    ToggleEnabled(current_path[-1][3] == false,
+        UI["BtnHold"], UI["BtnHoldClear"], UI["BtnHoldClearNest"])
 }
 
 
@@ -39,10 +41,23 @@ _FillSetButtons() {
         curr_node := _GetFirst(arr[2])
         UI["Text" . txt].Text := txt
         UI["Btn" . txt].Text := ""
+        if txt == "Hold" && current_path.Length
+            && (!(current_path[-1][1] is Number) && SubStr(current_path[-1][1], 1, 5) == "Wheel"
+                || EXTRA_SCS.Has(current_path[-1][1])) {
+            UI["Btn" . txt].Opt("+Disabled")
+            UI["Btn" . txt . "Clear"].Opt("+Disabled")
+            UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
+            continue
+        }
         if !curr_node {
+            UI["Btn" . txt . "Clear"].Opt("+Disabled")
+            UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
             continue
         }
         _AddIndicators(arr[2], UI["Btn" . txt], [54, 54])
+        if !arr[2].scancodes.Count && !arr[2].chords.Count {
+            UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
+        }
 
         UI["Text" . txt].Text .= " ("
             . ["-", "D", "T", "S", "F", "M", "C"][curr_node.down_type]
@@ -73,6 +88,12 @@ _FillSetButtons() {
 
 _FillKeyboard() {
     for sc, btn in UI.buttons {
+        if sc == "CurrMod" {
+            btn.SetFont("Italic")
+            btn.Opt("Disabled +BackgroundGray")
+            btn.Text := "Mod:`n" . gui_mod_val
+            continue
+        }
         btn.Opt("-Disabled +BackgroundSilver")
         btn.SetFont("Norm")
 
@@ -82,7 +103,8 @@ _FillKeyboard() {
         m_node := _GetFirst(res.umod)
 
         if temp_chord {
-            if SYS_MODIFIERS.Has(sc) || !h_node && m_node && m_node.down_type == TYPES.Modifier {
+            if SYS_MODIFIERS.Has(sc) || SubStr(sc, 1, 5) == "Wheel" || SubStr(sc, 2, 6) == "Button"
+                || EXTRA_SCS.Has(sc) || !h_node && m_node && m_node.down_type == TYPES.Modifier {
                 btn.Opt("+Disabled")
             }
             btn.Opt(temp_chord.Has(sc) ? "+BackgroundBBBB22" : "+BackgroundSilver")
@@ -92,6 +114,7 @@ _FillKeyboard() {
 
         btxt := _GetKeyName(sc, true)
         if b_node {
+            UI["BtnBaseClear"].Opt("-Disabled")
             _AddIndicators(res.ubase, btn, [54, 54])
             switch b_node.down_type {
                 case TYPES.Default:

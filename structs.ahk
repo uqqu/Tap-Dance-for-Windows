@@ -245,9 +245,9 @@ _BuildNode(raw_node, sc, md, down_type:=false) {
 GetDefaultNode(sc, md) {
     node_obj := {up_type: TYPES.Disabled, up_val: "", is_instant: 0, is_irrevocable: 0,
         custom_lp_time: 0, custom_nk_time: 0, sc: sc, md: md}
-    if !md && sc is Integer {
+    if !md {
         node_obj.down_type := TYPES.Default
-        node_obj.down_val := "{Blind}" . SC_STR_BR[sc]
+        node_obj.down_val := (sc is Number ? "{Blind}" . SC_STR_BR[sc] : "{Blind}{" . sc . "}")
     } else {
         node_obj.down_type := TYPES.Disabled
         node_obj.down_val := ""
@@ -259,7 +259,7 @@ GetDefaultNode(sc, md) {
 _RepairValue(node_obj) {
     for arr in [["down_type", "down_val"], ["up_type", "up_val"]] {
         node_obj.%arr[2]% := node_obj.%arr[1]% == TYPES.Default
-            ? "{Blind}" . SC_STR_BR[node_obj.sc]
+            ? (node_obj.sc is Number ? "{Blind}" . SC_STR_BR[node_obj.sc] : "{Blind}{" . node_obj.sc . "}")
             : StrReplace(StrReplace(node_obj.%arr[2]%, "%md%", node_obj.md), "%sc%", node_obj.sc)
     }
     return node_obj
@@ -353,7 +353,7 @@ _MergeLayer(layer) {
             if !CONF.unfam_layouts {
                 continue
             }
-            LANGS.Add(lang, GetLayoutNameFromHKL(lang))
+            LANGS.Add(lang, "Layout: " . GetLayoutNameFromHKL(lang))
             ROOTS[lang] := UnifiedNode()
         }
         ROOTS[lang].MergeNodeRecursive(root, 0, 0, layer)
