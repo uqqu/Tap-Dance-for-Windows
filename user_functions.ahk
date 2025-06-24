@@ -1,17 +1,17 @@
 outs := Map(
-    "Output: SendText", (txt) => Send(txt),
+    "Output: SendText", (txt) => SendText(txt),
     "Output: Clipboard", (txt) => (A_Clipboard := txt, 0),
     "Ouptut: Tooltip", (txt) => (Tooltip(txt), SetTimer(() => Tooltip(), -3000)),
     "Output: MessageBox", (txt) => MsgBox(txt)
 )
 
 inps := Map(
-    "Input: Clipboard", (main_func) => main_func.Call(A_Clipboard),
-    "Input: InputBox", (main_func) => main_func.Call(InputBox("Write text to processing").Value),
-    "Input: Selected", (main_func) => _FromSelected(main_func)
+    "Input: Clipboard", () => A_Clipboard,
+    "Input: InputBox", () => InputBox("Write text to processing").Value,
+    "Input: Selected", () => _FromSelected()
 )
 
-_FromSelected(main_func) {
+_FromSelected() {
     saved := ClipboardAll()
     A_Clipboard := ""
     SendInput("^{SC02E}")
@@ -20,7 +20,7 @@ _FromSelected(main_func) {
     if A_Clipboard == "" {
         return
     }
-    res := main_func.Call(A_Clipboard)
+    res := A_Clipboard
     A_Clipboard := saved
     return res
 }
@@ -132,14 +132,14 @@ ExchRates(from_currency, to_currency, out) {
 
 Reminder(given_minutes:=0) {
     if given_minutes {
-        SetTimer(_Alarma, given_minutes * 60000)
+        SetTimer(_Alarma, -given_minutes * 60000)
         return
     }
     res := InputBox("Remind me in ... minutes", "Reminder", "h100 w250")
     if res.Result == "OK" {
         try {
             delay := res.Value * 60000
-            SetTimer(_Alarma, delay)
+            SetTimer(_Alarma, -delay)
         } catch {
             if MsgBox("The input must be a number!", "Incorrect value", 53) == "Retry" {
                 Reminder()
@@ -150,20 +150,19 @@ Reminder(given_minutes:=0) {
 
 _Alarma() {
     MsgBox("Reminder", "Reminder", 48)
-    SetTimer(_Alarma, 0)
 }
 
 
 DelayedMediaPlayPause(given_minutes:=0) {
     if given_minutes {
-        SetTimer(_MPPTimer, given_minutes * 60000)
+        SetTimer(_MPPTimer, -given_minutes * 60000)
         return
     }
     res := InputBox("Trigger the play/pause after ... minutes", "", "h100 w250")
     if res.Result == "OK" {
         try {
             delay := res.Value * 60000
-            SetTimer(_MPPTimer, delay)
+            SetTimer(_MPPTimer, -delay)
         } catch {
             if MsgBox("The input must be a number!", "Incorrect value", 53) == "Retry" {
                 DelayedMediaPlayPause()
@@ -174,27 +173,23 @@ DelayedMediaPlayPause(given_minutes:=0) {
 
 _MPPTimer() {
     SendInput("{Media_Play_Pause}")
-    SetTimer(_MPPTimer, 0)
 }
 
 
 ChangeTextCase(change_name, inp, out) {
-    outs[out](inps[inp](_ChangeTextCase.Bind(change_name)))
-}
-
-_ChangeTextCase(change_name, txt) {
+    txt := inps[inp]()
     switch change_name {
         case "Normalize":
             result := Trim(RegExReplace(StrLower(txt), "[ \t]+", " "))
             result := RegExReplace(result, " ?([.,!?;]+) ?", "$1 ")
             result := RegExReplace(result, "((^|[.!?]\s|^[–—]\s)([a-zа-яё]))", "$U1")
-            return RegExReplace(result, "\bi(['’])\b", "I$1")
+            changed_txt := RegExReplace(result, "\bi(['’])\b", "I$1")
         case "Title":
-            return StrTitle(txt)
+            changed_txt := StrTitle(txt)
         case "Lower":
-            return StrLower(txt)
+            changed_txt := StrLower(txt)
         case "Upper":
-            return StrUpper(txt)
+            changed_txt := StrUpper(txt)
         case "Invert":
             result := ""
             for char in StrSplit(txt) {
@@ -209,16 +204,13 @@ _ChangeTextCase(change_name, txt) {
                     result .= char
                 }
             }
-            return result
+            changed_txt := result
     }
+    outs[out](changed_txt)
 }
 
 
-SmartTranslit(txt, inp, out) {
-    outs[out](inps[inp](_SmartTranslit.Bind(txt)))
-}
-
-_SmartTranslit(txt) {
+SmartTranslit(inp, out) {
     static to_cyr := Map(
         "shch", "щ", "yo", "ё", "zh", "ж", "kh", "х", "ts", "ц", "ch", "ч", "sh", "ш", "yu", "ю",
         "ya", "я", "a", "а", "b", "б", "v", "в", "g", "г", "d", "д", "e", "е", "z", "з", "i", "и",
@@ -231,6 +223,8 @@ _SmartTranslit(txt) {
             to_lat[v] := k
         }
     }
+
+    txt := inps[inp]()
 
     reverse := !RegExMatch(txt, "[а-яА-ЯёЁ]")
     keys := []
@@ -262,8 +256,10 @@ _SmartTranslit(txt) {
             i++
         }
     }
-    return result
+
+    outs[out](result)
 }
+
 
 _PreserveCase(from, to) {
     if from == "" || to == ""
@@ -347,6 +343,53 @@ CustomString(txt, out) {
 }
 
 
+RemoveTextFormatting(inp, out) {
+    str := inps[inp]()
+    outs[out](str)
+}
+
+
+ShortenURL(inp, out) {
+    url := inps[inp]()
+    api := "https://tinyurl.com/api-create.php?url=" . url
+    try {
+        http := ComObject("WinHttp.WinHttpRequest.5.1")
+        http.Open("GET", api, true)
+        http.Send()
+        http.WaitForResponse()
+        outs[out](http.ResponseText)
+    } catch {
+        outs[out](url)
+    }
+}
+
+
+ClipboardSwap() {
+    new_text := _FromSelected()
+    Sleep(50)
+    outs["Output: SendText"](A_Clipboard)
+    Sleep(50)
+    A_Clipboard := new_text
+}
+
+
+MinimizeWindows() {
+    if WinGetTitle("A") !== "Program Manager" {
+        WinMinimizeAll
+    }
+}
+
+
+GenerateRandomPass(len, extra_symbs, out) {  ; !@#$%^&*()-_=+[]{};:,.<>/?
+    chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" . extra_symbs
+    pass := ""
+    loop len {
+        pass .= SubStr(chars, Random(1, StrLen(chars)), 1)
+    }
+    outs[out](pass)
+}
+
+
 ; don't look here
 custom_funcs := Map(
     "SetActiveLayers", ["Set specified layers as current active layers. Multifield.",
@@ -394,12 +437,19 @@ custom_funcs := Map(
     ],
     "IncrDecr", ["Increase/decrease number or symbol (by unicode table) under the cursor",
         "Increase/decrease value (int). 1, -1, 42, …"],
-    "CustomString", ["Just return custom text to chosen output.", "Text", 2]
+    "CustomString", ["Just return custom text to chosen output.", "Text", 2],
+    "RemoveTextFormatting", ["Removing formatting (italic, bold, etc.) from a given text", 1, 2],
+    "ShortenURL", ["Get short url with tinyurl api", 1, 2],
+    "ClipboardSwap", ["Paste clipboard and save selected as a new clipboard value"],
+    "MinimizeWindows", ["Carefully minimize all windows"],
+    "GenerateRandomPass", ["Generate new password with alphanumerical range and your own extra "
+        . "symbols", "Password length", "Extra symbols", 2],
 )
 
 custom_func_keys := ["SetActiveLayers", "ToggleLayers", "TreatAsOtherNode", "ActivateApp",
     "ToggleMod", "GetDateTime", "GetCustomDateTime", "GetWeather", "ExchRates", "Reminder",
-    "DelayedMediaPlayPause", "ChangeTextCase", "SmartTranslit", "IncrDecr", "CustomString"
+    "DelayedMediaPlayPause", "ChangeTextCase", "SmartTranslit", "IncrDecr", "CustomString",
+    "RemoveTextFormatting", "ShortenURL", "ClipboardSwap", "MinimizeWindows", "GenerateRandomPass",
 ]
 
 custom_func_ddls := [
@@ -418,23 +468,37 @@ _ParseFuncArgs(s) {
     in_array := false
     arr_buf := []
 
+    skip := false
     i := 1
     len := StrLen(s)
 
     while i <= len {
         ch := SubStr(s, i, 1)
 
-        if ch == "[" {
-            in_array := true
-            arr_buf := []
-            buffer := ""
-        } else if ch == "]" {
-            if Trim(buffer) !== "" {
-                arr_buf.Push(Trim(buffer))
+        if skip {
+            buffer .= ch
+            skip := false
+        } else if ch == "\" {
+            skip := true
+        } else if ch == "[" {
+            if in_array {
+                buffer .= ch
+            } else {
+                in_array := true
+                arr_buf := []
+                buffer := ""
             }
-            args.Push(arr_buf)
-            in_array := false
-            buffer := ""
+        } else if ch == "]" {
+            if in_array {
+                if Trim(buffer) !== "" {
+                    arr_buf.Push(Trim(buffer))
+                }
+                args.Push(arr_buf)
+                in_array := false
+                buffer := ""
+            } else {
+                buffer .= ch
+            }
         } else if ch == "," && SubStr(s, i+1, 1) == " " {
             if in_array {
                 arr_buf.Push(Trim(buffer))
@@ -450,7 +514,7 @@ _ParseFuncArgs(s) {
         i += 1
     }
 
-    if Trim(buffer) != "" {
+    if Trim(buffer) !== "" {
         in_array ? arr_buf.Push(Trim(buffer)) : args.Push(Trim(buffer))
     }
 

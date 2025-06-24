@@ -7,8 +7,6 @@
 #Include "gui/gui.ahk"
 #Include "user_functions.ahk"
 
-A_HotkeyInterval := 0
-
 skip_once := false
 last_val := false
 prev_unode := false
@@ -113,10 +111,12 @@ OnKeyDown(sc, extra_mod:=0) {
     global last_val, current_mod
     static pending := false
 
-    if sc == "WheelLeft" {  ; simulate up action manually
-        SetTimer(UnlockWhL, -CONF.wheel_unlock_time)
-    } else if sc == "WheelRight" {
-        SetTimer(UnlockWhR, -CONF.wheel_unlock_time)
+    if !(sc is Number) {
+        if sc == "WheelLeft" {  ; simulate up action manually
+            SetTimer(UnlockWhL, -CONF.wheel_unlock_time)
+        } else if sc == "WheelRight" {
+            SetTimer(UnlockWhR, -CONF.wheel_unlock_time)
+        }
     }
 
     if CheckReturns(sc) {  ; unprocessing conditions

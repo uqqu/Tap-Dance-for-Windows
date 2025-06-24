@@ -1,5 +1,7 @@
+A_HotkeyInterval := 0
 version := 0
 s_gui := false
+
 SYS_MODIFIERS := Map(
     0x02A, "<+",
     0x036, ">+",  ; ASCII
