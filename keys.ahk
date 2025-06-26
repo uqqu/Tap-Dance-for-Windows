@@ -38,6 +38,15 @@ for sc in ALL_SCANCODES {
 HotIf
 
 
+CheckSysSC(sc, *) {
+    if (UI.Hwnd && (WinActive("A") == UI.Hwnd))
+        || (s_gui && s_gui.Hwnd && (WinActive("A") == s_gui.Hwnd) && PasteSCToInput(sc)) {
+        return true
+    }
+    return false
+}
+
+
 CheckSC(sc, *) {
     entries := curr_unode.GetBaseHoldMod(sc, current_mod, false, true)
     if last_val
@@ -46,16 +55,12 @@ CheckSC(sc, *) {
         || (s_gui && s_gui.Hwnd && (WinActive("A") == s_gui.Hwnd) && PasteSCToInput(sc)) {
         return true
     }
-    return false
-}
 
-
-CheckSysSC(sc, *) {
-    entries := curr_unode.GetBaseHoldMod(sc, current_mod, false, true)
-    if (UI.Hwnd && (WinActive("A") == UI.Hwnd))
-        || (s_gui && s_gui.Hwnd && (WinActive("A") == s_gui.Hwnd) && PasteSCToInput(sc)) {
+    entries := ROOTS[CurrentLayout].GetBaseHoldMod(sc, current_mod, false, true)
+    if entries.ubase || entries.uhold || entries.umod {
         return true
     }
+
     return false
 }
 
@@ -67,6 +72,12 @@ CheckMSC(sc, *) {
         && !(s_gui && s_gui.Hwnd && (WinActive("A") == s_gui.Hwnd)) {
         return true
     }
+
+    entries := ROOTS[CurrentLayout].GetBaseHoldMod(sc, current_mod, false, true)
+    if entries.ubase || entries.uhold || entries.umod {
+        return true
+    }
+
     return false
 }
 

@@ -8,7 +8,7 @@ OpenForm(save_type, *) {
 
     try form.Destroy()
 
-    if current_path.Length
+    if !CONF.hide_mouse_warnings && current_path.Length
         && SubStr(current_path[-1][1], 2) == "Button"
         && MsgBox("This assignment will remove the corresponding drag-and-drop behavior!",
             "Attention", "OKCancel Icon!") == "Cancel" {
@@ -232,6 +232,7 @@ SetUpFunction(is_up) {
         return
     }
     func_form := Gui(, "Function Selector (" . (is_up ? "up" : "down") . ")")
+    func_form.OnEvent("Close", FuncFormClose)
 
     func_form.Add("Button", "x10 y10 w160 h19 vBtnPrev", "-")
         .OnEvent("Click", PrevFields.Bind(is_up))
@@ -380,7 +381,7 @@ PasteToInput(is_up:=false) {
 
 
 SaveAssignedFunction(is_up:=false, *) {
-    global func_params, func_form
+    global func_params
 
     func_name := func_form["FuncDDL"].Text
     args := custom_funcs[func_name]
@@ -403,6 +404,12 @@ SaveAssignedFunction(is_up:=false, *) {
     }
 
     PasteToInput(is_up)
+    FuncFormClose()
+}
+
+
+FuncFormClose(*) {
+    global func_form
 
     func_form.Destroy()
     func_form := false

@@ -184,9 +184,9 @@ _AddIndicators(unode, btn, ay, ah:=false) {
         cnt := _CountChild("", 0, 0, unode.scancodes, unode.chords)
     }
     if cnt {
-        l := (StrLen(String(cnt)) - 1) * 7
+        l := (StrLen(String(cnt)) - 1) * 6 * CONF.font_scale
         (CONF.overlay_type == 3)
-            ? _AddOverlayItem(x + w - 3 - l, y + ay[1] + (ah ? h : 0), "", cnt)
+            ? _AddOverlayItem(x + w - 3 - l, y + ay[1] + (ah ? h + 10 - 6 * CONF.font_scale : 0), "", cnt)
             : _AddOverlayItem(x + w + 3, y + ay[2] + (ah ? h : 0), "Red")
     }
     if node.gui_shortname {

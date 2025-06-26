@@ -120,8 +120,8 @@ class UnifiedNode {
         res.ubase := this.Get(schex, md, is_chord, is_active)
         res.uhold := this.Get(schex, md+1, is_chord, is_active)
         mod_unode := md ? this.Get(schex, 1, is_chord, is_active) : res.uhold
-        res.umod := mod_unode && mod_unode.fin && mod_unode.fin.down_type == TYPES.Modifier
-            ? mod_unode : false
+        res.umod := false
+        try res.umod := _GetFirst(mod_unode).down_type == TYPES.Modifier ? mod_unode : false
         return res
     }
 

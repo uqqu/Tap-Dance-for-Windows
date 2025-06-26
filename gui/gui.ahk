@@ -181,7 +181,7 @@ ButtonRBM(sc, *) {
 
     UI["Hidden"].Focus()
 
-    if sc == "WheelUp" || sc == "WheelDown" {
+    if sc == "WheelUp" || sc == "WheelDown" || sc == "CurrMod" {
         return
     }
 
@@ -340,7 +340,9 @@ TrayClick(*) {
     } else {
         UI.Hide()
         SetTimer(UpdateOverlayPos, 0)
-        overlay.Hide()
+        if overlay {
+            overlay.Hide()
+        }
     }
 }
 
@@ -400,7 +402,7 @@ UpdateOverlayPos() {
     }
     WinGetPos &x, &y, , , "ahk_id " . UI.Hwnd
 
-    if overlay && (overlay_x !== x || overlay_y !== y
+    if overlay && overlay.Hwnd && (overlay_x !== x || overlay_y !== y
         || !DllCall("IsWindowVisible", "Ptr", overlay.Hwnd)) {
         overlay.Show("x" . x . " y" . y)
         overlay_x := x

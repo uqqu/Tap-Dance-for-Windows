@@ -64,6 +64,7 @@ CheckConfig() {
             . "`nExtraFRow=0"
             . "`nExtraKRow=0"
             . "`nHelpTexts=1"
+            . "`nHideMouseWarnings=0"
             . "`nGuiAltIgnore=1"
             . "`nGuiScale=1.25"
             . "`nFontScale=1"
@@ -96,6 +97,7 @@ CheckConfig() {
     CONF.extra_f_row := Integer(IniRead("config.ini", "Main", "ExtraFRow", 0))
     CONF.help_texts := Integer(IniRead("config.ini", "Main", "HelpTexts", 1))
     CONF.gui_alt_ignore := Integer(IniRead("config.ini", "Main", "GuiAltIgnore", 1))
+    CONF.hide_mouse_warnings := Integer(IniRead("config.ini", "Main", "HideMouseWarnings", 0))
     CONF.keyname_type := Integer(IniRead("config.ini", "Main", "KeynameType", 1))
     CONF.ref_height := Integer(IniRead("config.ini", "Main", "ReferenceHeight", 314))
     CONF.wide_mode := Integer(IniRead("config.ini", "Main", "WideMode", 0))
@@ -188,6 +190,10 @@ ShowSettings(*) {
     s_gui.Add("CheckBox", "x20 y+10 w280 vGuiAltIgnore",
         "Ignore phisical Alt presses on the GUI")
         .Value := CONF.gui_alt_ignore
+
+    s_gui.Add("CheckBox", "x20 y+10 w280 vHideMouseWarnings",
+        "Hide warnings about disabling drag behavior for LBM/RBM/MBM")
+        .Value := CONF.hide_mouse_warnings
 
     s_gui.Add("CheckBox", "x20 y+0 w290 vCollectUnfamiliarLayouts",
         "Collect unfamiliar layouts (langs) from layers")
@@ -300,7 +306,7 @@ SaveConfig(*) {
     }
 
     for name in [  ; checkboxes
-        "HelpTexts", "WideMode", "KeynameType", "OverlayType", "GuiAltIgnore",
+        "HelpTexts", "WideMode", "KeynameType", "OverlayType", "GuiAltIgnore", "HideMouseWarnings",
         "ExtraKRow", "ExtraFRow", "CollectUnfamiliarLayouts", "IgnoreInactiveLayers"
     ] {
         IniWrite(s_gui[name].Value, "config.ini", "Main", name)

@@ -261,7 +261,7 @@ _CreateOverlay() {
     WinSetTransColor("FFFFFF", overlay.Hwnd)
     overlay.Opt("-DPIScale")
     overlay.BackColor := "FFFFFF"
-    overlay.SetFont("s" . 5 * CONF.font_scale . " cGreen")
+    overlay.SetFont("s" . 6 * CONF.font_scale . " cGreen")
     overlay.Show(CONF.wide_mode ? Scale(,, 1745, 335) : Scale(,, 1240, 675))
     DllCall("SetWindowLongPtr", "Ptr", overlay.Hwnd, "Int", -8, "Ptr", UI.Hwnd)
     WinActivate("ahk_id " . UI.Hwnd)
