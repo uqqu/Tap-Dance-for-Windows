@@ -97,7 +97,7 @@ _FillKeyboard() {
         btn.Opt("-Disabled +BackgroundSilver")
         btn.SetFont("Norm")
 
-        res := gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val)
+        res := gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val, false, false, false)
         b_node := _GetFirst(res.ubase)
         h_node := _GetFirst(res.uhold)
         m_node := _GetFirst(res.umod)

@@ -39,8 +39,9 @@ HotIf
 
 
 CheckSysSC(sc, *) {
-    if (UI.Hwnd && (WinActive("A") == UI.Hwnd))
-        || (s_gui && s_gui.Hwnd && (WinActive("A") == s_gui.Hwnd) && PasteSCToInput(sc)) {
+    active := WinActive("A")
+    if (UI.Hwnd && active == UI.Hwnd)
+        || (s_gui && s_gui.Hwnd && active == s_gui.Hwnd && PasteSCToInput(sc)) {
         return true
     }
     return false
@@ -48,11 +49,16 @@ CheckSysSC(sc, *) {
 
 
 CheckSC(sc, *) {
+    active := WinActive("A")
+    if last_val || !CONF.ignore_unassigned_under_mods && current_mod
+        || !CONF.ignore_unassigned_non_root && curr_unode !== ROOTS[CurrentLayout]
+        || (UI.Hwnd && active == UI.Hwnd)
+        || (s_gui && s_gui.Hwnd && active == s_gui.Hwnd && PasteSCToInput(sc)) {
+        return true
+    }
+
     entries := curr_unode.GetBaseHoldMod(sc, current_mod, false, true)
-    if last_val
-        || (entries.ubase || entries.uhold || entries.umod)
-        || (UI.Hwnd && (WinActive("A") == UI.Hwnd))
-        || (s_gui && s_gui.Hwnd && (WinActive("A") == s_gui.Hwnd) && PasteSCToInput(sc)) {
+    if entries.ubase || entries.uhold || entries.umod {
         return true
     }
 
@@ -66,10 +72,17 @@ CheckSC(sc, *) {
 
 
 CheckMSC(sc, *) {
+    active := WinActive("A")
+    if (UI.Hwnd && active == UI.Hwnd) || (s_gui && s_gui.Hwnd && active == s_gui.Hwnd) {
+        return false
+    }
+
+    if last_val {
+        return true
+    }
+
     entries := curr_unode.GetBaseHoldMod(sc, current_mod, false, true)
-    if (last_val || entries.ubase || entries.uhold || entries.umod)
-        && !(UI.Hwnd && (WinActive("A") == UI.Hwnd))
-        && !(s_gui && s_gui.Hwnd && (WinActive("A") == s_gui.Hwnd)) {
+    if entries.ubase || entries.uhold || entries.umod {
         return true
     }
 

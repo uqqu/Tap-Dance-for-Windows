@@ -104,7 +104,7 @@ class UnifiedNode {
         return mp.Has(schex) ? mp[schex].Get(md, false) : false
     }
 
-    GetBaseHoldMod(schex, md:=0, is_chord:=false, is_active:=false) {
+    GetBaseHoldMod(schex, md:=0, is_chord:=false, is_active:=false, is_fin:=true) {
         res := {}
 
         if !is_chord && !is_active {
@@ -120,8 +120,15 @@ class UnifiedNode {
         res.ubase := this.Get(schex, md, is_chord, is_active)
         res.uhold := this.Get(schex, md+1, is_chord, is_active)
         mod_unode := md ? this.Get(schex, 1, is_chord, is_active) : res.uhold
-        res.umod := false
-        try res.umod := _GetFirst(mod_unode).down_type == TYPES.Modifier ? mod_unode : false
+
+        if is_fin {
+            res.umod := mod_unode && mod_unode.fin && mod_unode.fin.down_type == TYPES.Modifier
+                ? mod_unode : false
+        } else {
+            res.umod := false
+            try res.umod := _GetFirst(mod_unode).down_type == TYPES.Modifier ? mod_unode : false
+        }
+
         return res
     }
 

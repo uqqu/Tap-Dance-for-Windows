@@ -11,10 +11,8 @@ skip_once := false
 last_val := false
 prev_unode := false
 current_presses := Buffer(BUFFER_SIZE, 0)  ; scs buffer
-pressed_mod_sc := Map()
-pressed_mod_val := Map()
 up_actions := Map()
-current_mod := 0
+ResetModifiers()
 
 #Include "keys.ahk"
 SetSysModHotkeys()
@@ -85,8 +83,7 @@ TransferModifiers() {
     global current_mod, pressed_mod_val, pressed_mod_sc
 
     new_pressed_mod_sc := Map()
-    pressed_mod_val := Map()
-    current_mod := 0
+    ResetModifiers()
     for mod_sc, val in pressed_mod_sc {
         res_md := curr_unode.GetModFin(mod_sc)
         if res_md && res_md.down_val == val {
@@ -130,8 +127,6 @@ OnKeyDown(sc, extra_mod:=0) {
     }
 
     CheckLayout()  ; switch to a new root if the layout has changed
-
-    SetTimer(TimerSendCurrent, 0)  ; stop sendtimer, further we control the sending ourselves
 
     if extra_mod {  ; separately count modifiers from hotkeys with system keys
         current_mod |= extra_mod
@@ -222,7 +217,7 @@ CheckReturns(sc) {
 
 
 CheckLayout() {
-    global CurrentLayout, curr_unode, current_mod, pressed_mod_sc, pressed_mod_val
+    global CurrentLayout, curr_unode
 
     layout := GetCurrentLayout()
     if layout == CurrentLayout {
@@ -233,8 +228,13 @@ CheckLayout() {
     TimerSendCurrent()
     CurrentLayout := layout
     curr_unode := ROOTS[CurrentLayout]
+    ResetModifiers()
+}
 
-    ; reset all modifiers
+
+ResetModifiers() {
+    global current_mod, pressed_mod_val, pressed_mod_sc
+
     current_mod := 0
     pressed_mod_sc := Map()
     pressed_mod_val := Map()
@@ -242,29 +242,41 @@ CheckLayout() {
 
 
 GetEntries(sc) {
-    global curr_unode
+    global curr_unode, last_val
 
     entries := curr_unode.GetBaseHoldMod(sc, current_mod, false, true)
 
     if TreatMod(entries, sc) {
+        SetTimer(TimerSendCurrent, 0)
         return false
     }
 
     if entries.ubase || entries.uhold {
+        SetTimer(TimerSendCurrent, 0)
         return entries  ; has at least one assignment; there's a point in further processing
     }
 
     ; if the scancode or both modifiers (base/hold) are missing in the current node
     b := curr_unode == ROOTS[CurrentLayout]  ; save the 'node is root' check
-    TimerSendCurrent()  ; …and force sending previous value
 
-    if current_mod {  ; ignore current press if it with active modifier
+    if current_mod {
+        if CONF.ignore_unassigned_under_mods {  ; ignore current press if it with active modifier
+            return false
+        } else {
+            ResetModifiers()
+        }
+    }
+
+    ; if the curr_unode has not changed, just send the native press
+    if !b && CONF.ignore_unassigned_non_root {
+        last_val := false
         return false
     }
 
+    SetTimer(TimerSendCurrent, 0)
+    TimerSendCurrent()  ; force sending previous value
     curr_unode := ROOTS[CurrentLayout]  ; for sure
 
-    ; if the curr_unode has not changed, just send the native press
     if b {
         SendKbd(TYPES.Default, (sc is Number ? "{Blind}" . SC_STR_BR[sc] : "{Blind}{" . sc . "}"))
         return false
@@ -304,8 +316,10 @@ TreatMod(entries, sc) {
 GetDefaultSim(sc, extended:=false) {
     return [
         {
-            scancodes: Map(), chords: Map(), active_scancodes: Map(), active_chords: Map(),
-            fin: GetDefaultNode(sc, current_mod)},
+            scancodes: Map(), chords: Map(),
+            active_scancodes: Map(), active_chords: Map(),
+            fin: GetDefaultNode(sc, current_mod)
+        },
         extended ? sc : false
     ]
 }

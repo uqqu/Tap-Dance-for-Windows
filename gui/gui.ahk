@@ -185,7 +185,7 @@ ButtonRBM(sc, *) {
         return
     }
 
-    res := gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val)
+    res := gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val, false, false, false)
 
     h_node := _GetFirst(res.uhold)
     if h_node && h_node.down_type == TYPES.Chord {
