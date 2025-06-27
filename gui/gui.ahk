@@ -395,7 +395,7 @@ ToggleVisibility(state, arrs*) {
 UpdateOverlayPos() {
     global overlay, overlay_x, overlay_y
 
-    if !UI.Hwnd || !WinExist("ahk_id " . UI.Hwnd)
+    if !UI || !UI.Hwnd || !WinExist("ahk_id " . UI.Hwnd)
         || !(WinActive("A") == UI.Hwnd) && !(WinActive("A") == overlay.Hwnd) {
         overlay.Hide()
         return

@@ -311,7 +311,7 @@ _GetKeyName(sc, with_keytype:=false, to_short:=false, from_sc_str:=false) {
         if !res {
             return from_sc_str
         }
-    } else if sc is Number {
+    } else if IsNumber(sc) {
         res := GetKeyName(SC_STR[sc])
     }
 

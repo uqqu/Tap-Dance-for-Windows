@@ -63,7 +63,7 @@ CheckConfig() {
             . "`nWideMode=0"
             . "`nExtraFRow=0"
             . "`nExtraKRow=0"
-            . "`nHelpTexts=1"
+            . "`nHelpTexts=0"
             . "`nHideMouseWarnings=0"
             . "`nIgnoreUnassignedUnderMods=1"
             . "`nIgnoreUnassignedNonRoot=0"
@@ -97,7 +97,7 @@ CheckConfig() {
     CONF.layout_format := IniRead("config.ini", "Main", "LayoutFormat", "ANSI")
     CONF.extra_k_row := Integer(IniRead("config.ini", "Main", "ExtraKRow", 0))
     CONF.extra_f_row := Integer(IniRead("config.ini", "Main", "ExtraFRow", 0))
-    CONF.help_texts := Integer(IniRead("config.ini", "Main", "HelpTexts", 1))
+    CONF.help_texts := Integer(IniRead("config.ini", "Main", "HelpTexts", 0))
     CONF.gui_alt_ignore := Integer(IniRead("config.ini", "Main", "GuiAltIgnore", 1))
     CONF.hide_mouse_warnings := Integer(IniRead("config.ini", "Main", "HideMouseWarnings", 0))
     CONF.ignore_unassigned_under_mods := Integer(IniRead(
