@@ -1,97 +1,62 @@
-﻿mouse_buttons := [
-    "LButton", "RButton", "MButton", "XButton1", "XButton2",
-    "WheelUp", "WheelDown", "WheelLeft", "WheelRight"
-]
-
-MOUSE_SCS := Map()
-MOUSE_SCS_R := Map()
-for key in empty_scs {
-    SC_STR[key] := mouse_buttons[A_Index]
-    MOUSE_SCS[mouse_buttons[A_Index]] := key
-    MOUSE_SCS_R[key] := mouse_buttons[A_Index]
-    if A_Index == 9 {
-        break
-    }
-}
-
-for sc in ALL_SCANCODES {
+﻿for sc in ALL_SCANCODES {
     if !(sc is Number) {
         if sc == "LButton" || sc == "RButton" {
-            HotIf CheckMSC.Bind(sc)
+            HotIf CheckMouse.Bind(sc)
                 Hotkey(sc, ((sc) => (*) => OnKeyDown(sc))(sc))
+            HotIf UpCheck.Bind(sc)
                 Hotkey(sc . " up", ((sc) => (*) => OnKeyUp(sc))(sc))
         } else {
-            HotIf CheckSC.Bind(sc)
+            HotIf PreCheck.Bind(sc)
                 Hotkey(sc, ((sc) => (*) => OnKeyDown(sc))(sc))
+            HotIf UpCheck.Bind(sc)
                 Hotkey(sc . " up", ((sc) => (*) => OnKeyUp(sc))(sc))
         }
     } else if !SYS_MODIFIERS.Has(sc) {
-        HotIf CheckSC.Bind(sc)
+        HotIf PreCheck.Bind(sc)
             Hotkey(SC_STR[sc], ((sc) => (*) => OnKeyDown(sc))(sc))
+        HotIf UpCheck.Bind(sc)
             Hotkey(SC_STR[sc] . " up", ((sc) => (*) => OnKeyUp(sc))(sc))
     } else {
-        HotIf CheckSysSC.Bind(sc)
+        HotIf GuiCheck.Bind(sc)
             Hotkey("~" . SC_STR[sc], ((sc) => (*) => OnKeyDown(sc))(sc))
+        HotIf UpCheck.Bind(sc)
             Hotkey("~" . SC_STR[sc] . " up", ((sc) => (*) => OnKeyUp(sc))(sc))
     }
 }
 HotIf
 
 
-CheckSysSC(sc, *) {
-    active := WinActive("A")
-    if (UI.Hwnd && active == UI.Hwnd)
-        || (s_gui && s_gui.Hwnd && active == s_gui.Hwnd && PasteSCToInput(sc)) {
-        return true
-    }
-    return false
+UpCheck(sc, *) {
+    return current_presses.Has(sc)
 }
 
 
-CheckSC(sc, *) {
-    active := WinActive("A")
-    if last_val || !CONF.ignore_unassigned_under_mods && current_mod
-        || !CONF.ignore_unassigned_non_root && curr_unode !== ROOTS[CurrentLayout]
-        || (UI.Hwnd && active == UI.Hwnd)
-        || (s_gui && s_gui.Hwnd && active == s_gui.Hwnd && PasteSCToInput(sc)) {
-        return true
-    }
+GuiCheck(sc, *) {
+    global catched_gui_func
 
-    entries := curr_unode.GetBaseHoldMod(sc, current_mod, false, true)
-    if entries.ubase || entries.uhold || entries.umod {
-        return true
-    }
-
-    entries := ROOTS[CurrentLayout].GetBaseHoldMod(sc, current_mod, false, true)
-    if entries.ubase || entries.uhold || entries.umod {
-        return true
-    }
-
-    return false
-}
-
-
-CheckMSC(sc, *) {
-    active := WinActive("A")
-    if (UI.Hwnd && active == UI.Hwnd) || (s_gui && s_gui.Hwnd && active == s_gui.Hwnd) {
+    if current_presses.Has(sc) {
         return false
     }
 
-    if last_val {
+    ; if the focus is on the our GUI – process separately
+    active := WinActive("A")
+    if UI.Hwnd && active == UI.Hwnd {
+        catched_gui_func := true  ; memorize for main func; cannot be performed now due to keywait
+        return true
+    } else if s_gui && s_gui.Hwnd && active == s_gui.Hwnd && PasteSCToInput(sc) {
         return true
     }
-
-    entries := curr_unode.GetBaseHoldMod(sc, current_mod, false, true)
-    if entries.ubase || entries.uhold || entries.umod {
-        return true
-    }
-
-    entries := ROOTS[CurrentLayout].GetBaseHoldMod(sc, current_mod, false, true)
-    if entries.ubase || entries.uhold || entries.umod {
-        return true
-    }
-
     return false
+}
+
+
+CheckMouse(sc, *) {
+    active := WinActive("A")
+    if UI.Hwnd && active == UI.Hwnd || s_gui && s_gui.Hwnd && active == s_gui.Hwnd {
+        return false
+    }
+
+    return PreCheck(sc)
 }
 
 
@@ -140,11 +105,7 @@ SetSysModHotkeys() {
                 }
                 if chs.Length {
                     for res in CombineGroups(chs) {
-                        if sc is Number {
-                            hks.Push([res . SC_STR[sc], sc, bt])
-                        } else {
-                            hks.Push([res . sc, MOUSE_SCS[sc], bt])
-                        }
+                        hks.Push([res . SC_STR[sc], sc, bt])
                     }
                 }
 
@@ -156,7 +117,7 @@ SetSysModHotkeys() {
 
         HotIf(_CompareGlob.Bind(unode, version))
         for sc in hks {
-            Hotkey(sc[1], ((sc, extra_mod) => (*) => OnKeyDown(sc, extra_mod))(sc[2], sc[3]))
+            Hotkey(sc[1], ((sc, extra_mod) => (*) => SysModComboDown(sc, extra_mod))(sc[2], sc[3]))
             Hotkey(sc[1] . " up", ((sc, extra_mod) => (*) => OnKeyUp(sc, extra_mod))(sc[2], sc[3]))
         }
         HotIf()
@@ -165,7 +126,7 @@ SetSysModHotkeys() {
 
 
 _CompareGlob(mem_unode, mem_version, *) {
-    return version == mem_version && curr_unode == mem_unode
+    return version == mem_version && (mem_unode == ROOTS[CurrentLayout] || curr_unode == mem_unode)
 }
 
 

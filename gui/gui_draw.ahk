@@ -18,6 +18,7 @@ DrawLayout() {
     UI := Gui(, "TapDance for Windows")
     UI.Opt("-DPIScale")
     UI.OnEvent("Close", CloseEvent)
+    UI.OnEvent("Size", UpdateOverlayPos)
     UI.Add("Edit", "x-999 y-999 w0 h0 vHidden")
     UI.path := []
     UI.current_values := []
@@ -25,7 +26,8 @@ DrawLayout() {
     UI.buttons := Map()
 
     UI.SetFont("s" . Round(7 * CONF.font_scale), CONF.font_name)
-    UI.Add("DropDownList", "vLangs " . Scale(CONF.wide_mode ? 1370 : 1125, CONF.ref_height + 3, 105), LANGS.GetAll())
+    UI.Add("DropDownList", "vLangs "
+        . Scale(CONF.wide_mode ? 1370 : 1125, CONF.ref_height + 3, 105), LANGS.GetAll())
     for code, val in LANGS.map {
         if code == gui_lang {
             UI["Langs"].Text := val
@@ -74,7 +76,8 @@ _DrawKeys() {
         / (CONF.extra_k_row ? len - 0.3 : len)
 
     for row_idx, row in keyboard_layouts[CONF.layout_format] {
-        y := y_offset + (row_idx - (row_idx > 1 && CONF.extra_k_row ? 1.3 : 1)) * (height + spacing)
+        y := y_offset
+            + (row_idx - (row_idx > 1 && CONF.extra_k_row ? 1.3 : 1)) * (height + spacing)
         x := x_offset * 1.0
 
         for data in row {
@@ -158,10 +161,10 @@ _DrawChordsLV() {
     p := CONF.wide_mode
         ? Scale(1490, 0, 255, CONF.ref_height)
         : Scale(647, CONF.ref_height + 27, 638, CONF.ref_height)
-    UI.AddListView("vLV_chords " . p, ["Chord", "Value", "→", "Layer", ""])
+    UI.AddListView("vLV_chords " . p, ["Chord", "Value", "→", "Layer"])
     UI["LV_chords"].OnEvent("DoubleClick", LVChordDoubleClick)
     UI["LV_chords"].OnEvent("Click", LVChordClick)
-    for i, w in (CONF.wide_mode ? [90, 60, 25, 75, 0] : [200, 270, 35, 120, 0]) {
+    for i, w in (CONF.wide_mode ? [90, 60, 25, 75] : [200, 270, 35, 120]) {
         UI["LV_chords"].ModifyCol(i, w * CONF.gui_scale)
     }
 
@@ -181,6 +184,7 @@ _DrawChordsLV() {
         UI.Add("Button", "vBtnCancelChordEditing x+0 yp0 " . btns_wh, "❌ Cancel")
     )
     UI.chs_toggles := [UI["BtnChangeSelectedChord"], UI["BtnDeleteSelectedChord"]]
+    ToggleEnabled(0, UI.chs_toggles)
 }
 
 
@@ -219,7 +223,8 @@ _DrawHelp() {
     if !CONF.help_texts {
         return
     }
-    _AddHelpText("Italic cGray", Scale(CONF.wide_mode ? 265 : 9, CONF.ref_height + 3), "Borders (hold behavior):")
+    _AddHelpText("Italic cGray", Scale(CONF.wide_mode ? 265 : 9, CONF.ref_height + 3),
+        "Borders (hold behavior):")
     _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
     _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")
     _AddHelpText("Italic Bold cAAAA11", "x+5 yp0", "chord part.")
@@ -312,7 +317,7 @@ _GetKeyName(sc, with_keytype:=false, to_short:=false, from_sc_str:=false) {
             return from_sc_str
         }
     } else if IsNumber(sc) {
-        res := GetKeyName(SC_STR[sc])
+        res := GetKeyName(SC_STR[Integer(sc)])
     }
 
     return to_short && short_names.Has(res) ? short_names[res]
@@ -352,20 +357,27 @@ _BuildLayout(layout) {
 
     if layout == "ANSI" {  ; tab…, caps…, shift…
         res.Push(
-            R([75, 15], 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, [75, 43],[5], 339, 335, 337,[5], 71, 72, 73, 78, "WheelUp"),
-            R([90, 58], 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, [115, 28], [180], 75, 76, 77, [50], "MButton"),
-            R([120, 42], 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, [140, 310], [60], 328, [60], 79, 80, 81, 284, "WheelDown")
+            R([75, 15], 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, [75, 43],
+                [5], 339, 335, 337,[5], 71, 72, 73, 78, "WheelUp"),
+            R([90, 58], 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, [115, 28],
+                [180], 75, 76, 77, [50], "MButton"),
+            R([120, 42], 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, [140, 310],
+                [60], 328, [60], 79, 80, 81, 284, "WheelDown")
         )
     } else {
         res.Push(
-            R([75, 15], 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, [10], [60, 28], [5], 339, 335, 337, [5], 71, 72, 73, 78, "WheelUp"),
-            R([90, 58], 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 43, [245], 75, 76, 77, [50], "MButton"),
-            R([70, 42], 86, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, [135, 54], [60], 328, [60], 79, 80, 81, 284, "WheelDown")
+            R([75, 15], 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, [10], [60, 28],
+                [5], 339, 335, 337, [5], 71, 72, 73, 78, "WheelUp"),
+            R([90, 58], 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 43, [245],
+                75, 76, 77, [50], "MButton"),
+            R([70, 42], 86, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, [135, 54],
+                [60], 328, [60], 79, 80, 81, 284, "WheelDown")
         )
     }
 
     res.Push(  ; ctrl…
-        R([70, 29], [70, 347], [70, 56], [325, 57], [60, 312], [60, 348], [60, 349], [65, 285], [5], 331, 336, 333, [5], [105, 82], 83, [50], "WheelLeft")
+        R([70, 29], [70, 347], [70, 56], [325, 57], [60, 312], [60, 348], [60, 349], [65, 285],
+            [5], 331, 336, 333, [5], [105, 82], 83, [50], "WheelLeft")
     )
 
     return res
@@ -375,13 +387,7 @@ _BuildLayout(layout) {
 R(args*) {
     res := []
     for arg in args {
-        if arg is Array {
-            res.Push(arg)
-            try empty_scs.Delete(arg[2])
-        } else {
-            res.Push([50, arg])
-            try empty_scs.Delete(arg)
-        }
+        res.Push(arg is Array ? arg : [50, arg])
     }
     return res
 }

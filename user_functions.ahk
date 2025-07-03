@@ -401,7 +401,7 @@ custom_funcs := Map(
         "Go to assignment by given path (both in terms of value and transitions). "
         . "Set path step by step (multifield) from root node. You can use shortnames "
         . "%sc% and %md% for autocomplete.",
-        ["Scancode (integer) or hexbuffer. '%sc%' is short for current one.",
+        ["Scancode (integer) or chord string. '%sc%' is short for current one.",
         "Modifier value. 0/1/…, or '%md%' for autocomplete with current.",
         "Is chord? false/true / 0/1"]
     ],

@@ -19,9 +19,24 @@ OpenForm(save_type, *) {
     form.OnEvent("Close", CloseForm)
     form.OnEvent("Escape", CloseForm)
 
-    unode := save_type == 1 ? gui_entries.uhold : save_type == 2
-        ? gui_entries.ubase.GetBaseHoldMod(selected_chord, gui_mod_val, true).ubase
-        : gui_entries.ubase
+    chord_as_base := false
+    ; check and correct if it "base" from chord
+    if save_type == 0 && current_path.Length && current_path[-1][3] {
+        chord_as_base := true
+        save_type := 2
+        entries := {ubase: ROOTS[gui_lang], uhold: false, umod: false}
+        path := current_path.Clone()
+        path.Length -= 1
+
+        for arr in path {
+            entries := entries.ubase.GetBaseHoldMod(arr[1], arr[2], arr[3])
+        }
+        unode := entries.ubase.GetBaseHoldMod(selected_chord, gui_mod_val, true).ubase
+    } else {
+        unode := save_type == 1 ? gui_entries.uhold : save_type == 2
+            ? gui_entries.ubase.GetBaseHoldMod(selected_chord, gui_mod_val, true).ubase
+            : gui_entries.ubase
+    }
 
     layers := layer_editing ? [selected_layer] : GetLayerList()
     prior_layer := false
@@ -33,17 +48,18 @@ OpenForm(save_type, *) {
             }
         }
     }
+    curr_val := prior_layer ? unode.layers[prior_layer][0] : false
 
-    display_type := save_type == 0 && current_path.Length && current_path[-1][3] ? 2 : save_type
     if layers.Length > 1 {
         form.Add("DropDownList", "x10 y+10 w320 vLayersDDL Choose1", layers)
-        form["LayersDDL"].OnEvent(
-            "Change", ChangeFormPlaceholder.Bind(save_type, (display_type == 2 ? 0 : 2), 1)
+        form["LayersDDL"].OnEvent("Change",
+            ChangeFormPlaceholder.Bind(unode, layers, save_type, (save_type == 2 ? 0 : 2), 1)
         )
         try form["LayersDDL"].Text := prior_layer
     }
 
-    if current_path.Length && SYS_MODIFIERS.Has(current_path[-1][1]) {  ; mod
+    ; sysmod
+    if current_path.Length && SYS_MODIFIERS.Has(current_path[-1][1]) {
         form.Title := "Set modifier value"
         form.Add("Edit", "y+10 w300 vInput")
         form.Add("Edit", "y+10 w300 vShortname")
@@ -56,77 +72,72 @@ OpenForm(save_type, *) {
         SendMessage(0x1501, true, StrPtr("GUI shortname"), form["Shortname"].Hwnd)
 
         form.Show("w340")
-        ChangeFormPlaceholder(1)
+        ChangeFormPlaceholder(unode, layers, 1)
         form["Input"].Focus()
         return
     }
 
+    ; action types for different events
     ddl_list := [
         ["Disabled", "Default", "Text", "KeySimulation", "Function"],
         ["Disabled", "Default", "Text", "KeySimulation", "Function", "Modifier"],
         ["Disabled", "Text", "KeySimulation", "Function"]
-    ][display_type == 1 && current_path[-1][2] ? 1 : display_type + 1]
+    ][save_type == 1 && current_path[-1][2] ? 1 : save_type + 1]
 
     form.Add("DropDownList", "x10 y+10 w320 vDDL", ddl_list)
     form.Add("Edit", "y+10 w320 vInput")
 
+    ; custom values
     form.Add("CheckBox", "x10 y+10 w160 vCBInstant", "Instant")
 
-    if display_type !== 2 {
-        form.Add("Edit", "x170 yp-3 w160 vCustomLP +Center", CONF.MS_LP).Visible := false
-        SendMessage(0x1501, true, StrPtr("Your custom lp value (in ms)"), form["CustomLP"].Hwnd)
-        form.Add("Button", "x170 yp+0 w160 vBtnLP", "Custom hold waiting")
-            .OnEvent("Click", ShowCustomLP)
-    }
+    form.Add("Edit", "x170 yp-3 w160 vCustomLP Number +Center", CONF.MS_LP).Visible := false
+    SendMessage(0x1501, true, StrPtr("Your custom lp value (in ms)"), form["CustomLP"].Hwnd)
+    form.Add("Button", "x170 yp+0 w160 vBtnLP", "Custom hold waiting")
+        .OnEvent("Click", (*) => (
+            form["BtnLP"].Visible := false, form["CustomLP"].Visible := true)
+        )
 
     form.Add("CheckBox", "x10 y+5 w160 vCBIrrevocable", "Irrevocable")
 
-    form.Add("Edit", "x170 yp-3 w160 vCustomNK +Center", CONF.MS_NK).Visible := false
-    SendMessage(0x1501, true, StrPtr("Your custom nk value (in ms)"), form["CustomNK"].Hwnd)
-    form.Add("Button", "x170 yp+0 w160 vBtnNK", "Custom next key waiting")
-        .OnEvent("Click", ShowCustomNK)
-
-    if !current_path.Length || current_path.Length == 1 && !current_path[-1][3] {
-        form["CBIrrevocable"].Value := false
-        form["CBIrrevocable"].Opt("+Disabled")
-    } else if current_path[-1][2] & ~1 {
+    if current_path.Length && current_path[-1][2] & ~1 {
         form["CBIrrevocable"].Value := true
     }
-    curr_val := prior_layer ? unode.layers[prior_layer][0] : false
-    if display_type !== 2 {
+
+    form.Add("Edit", "x170 yp-3 w160 vCustomNK Number +Center", CONF.MS_NK).Visible := false
+    SendMessage(0x1501, true, StrPtr("Your custom nk value (in ms)"), form["CustomNK"].Hwnd)
+    form.Add("Button", "x170 yp+0 w160 vBtnNK", "Custom next key waiting")
+        .OnEvent("Click", (*) => (
+            form["BtnNK"].Visible := false, form["CustomNK"].Visible := true)
+        )
+
+    ; extra up value & shortname
+    if save_type !== 2 {
         form.Add("Button", "x10 y+20 w320 vUpToggle", "+Additional up action")
         form.Add("DropDownList", "x10 y+10 w320 vUpDDL", ddl_list).Visible := false
         form.Add("Edit", "x10 y+10 w320 vUpInput").Visible := false
-        form["UpDDL"].OnEvent("Change", ChangeFormPlaceholder.Bind(save_type, 1, 0))
+        form["UpDDL"].OnEvent("Change", ChangeFormPlaceholder.Bind(unode, layers, save_type, 1, 0))
         form["UpDDL"].Text := curr_val ? TYPES_R[curr_val.up_type] : "Disabled"
         form["UpToggle"].OnEvent("Click", ShowHideUpVals)
         if curr_val && curr_val.up_type !== TYPES.Disabled {
             ShowHideUpVals()
         }
-    }
-    form.Add("Edit", "x10 y+10 w300 vShortname")
-    SendMessage(0x1501, true, StrPtr("GUI shortname"), form["Shortname"].Hwnd)
 
+        form.Add("Edit", "x10 y+10 w300 vShortname")
+        SendMessage(0x1501, true, StrPtr("GUI shortname"), form["Shortname"].Hwnd)
+    }
+
+    ; control
     form.Add("Button", "x10 y+10 h20 w160 vCancel", "❌ Cancel").OnEvent("Click", CloseForm)
     form.Add("Button", "x170 yp+0 h20 w160 Default vSave", "✔ Save")
-        .OnEvent("Click", (save_type == 2 ? WriteChord : WriteValue.Bind(save_type)))
+        .OnEvent("Click", (save_type == 2
+            ? (chord_as_base ? WriteChord.Bind(current_path[-1][1]) : WriteChord.Bind(0))
+            : WriteValue.Bind(save_type))
+        )
 
-    form["DDL"].OnEvent("Change", ChangeFormPlaceholder.Bind(save_type, 0, 0))
+    form["DDL"].OnEvent("Change", ChangeFormPlaceholder.Bind(unode, layers, save_type, 0, 0))
     form["DDL"].Text := curr_val ? TYPES_R[curr_val.down_type] : "Text"
     form.Show("w340")
-    ChangeFormPlaceholder(save_type, (display_type == 2 ? 0 : 2))
-}
-
-
-ShowCustomLP(btn, *) {
-    btn.Visible := false
-    form["CustomLP"].Visible := true
-}
-
-
-ShowCustomNK(btn, *) {
-    btn.Visible := false
-    form["CustomNK"].Visible := true
+    ChangeFormPlaceholder(unode, layers, save_type, (save_type == 2 ? 0 : 2))
 }
 
 
@@ -138,7 +149,7 @@ ShowHideUpVals(*) {
 }
 
 
-ChangeFormPlaceholder(save_type:=0, is_up:=0, is_layer_editing:=0, *) {
+ChangeFormPlaceholder(unode, layers, save_type:=0, is_up:=0, is_layer_editing:=0, *) {
     static placeholders := [
         "Disabled",
         "Default key value",
@@ -148,24 +159,16 @@ ChangeFormPlaceholder(save_type:=0, is_up:=0, is_layer_editing:=0, *) {
         "Modifier number"
     ]
 
+    layer := layers.Length > 1 ? form["LayersDDL"].Text : layers[1]
+
     is_ddl := false
-    is_layers := false
     try is_ddl := form["DDL"]
-    try is_layers := form["LayersDDL"]
-
-    unode := save_type == 1 ? gui_entries.uhold : save_type == 2
-        ? gui_entries.ubase.GetBaseHoldMod(selected_chord, gui_mod_val, true).ubase
-        : gui_entries.ubase
-    layer := is_layers ? form["LayersDDL"].Text : selected_layer
-
     if !is_ddl {  ; sysmod
-        if layer {
-            form["Input"].Text := ""
-            form["Shortname"].Text := ""
-            try form["Input"].Text := unode.layers[layer][0].down_val
-            try form["Shortname"].Text := unode.layers[layer][0].gui_shortname
-            form["Input"].Focus()
-        }
+        form["Input"].Text := ""
+        form["Shortname"].Text := ""
+        try form["Input"].Text := unode.layers[layer][0].down_val
+        try form["Shortname"].Text := unode.layers[layer][0].gui_shortname
+        form["Input"].Focus()
         return
     }
 
@@ -195,17 +198,25 @@ ChangeFormPlaceholder(save_type:=0, is_up:=0, is_layer_editing:=0, *) {
     }
 
     form.Title := title ?? "New value for layer '" . layer . "'"
-    if save_type !== 2 {
+
+    if save_type !== 0 {
+        try form["CustomLP"].Visible := 0
+        try form["BtnLP"].Visible := 0
+    } else {
         form["CustomLP"].Text := lp ?? 0
-        form["BtnLP"].Visible := !(lp ?? 1)
+        form["BtnLP"].Visible := !(lp ?? 0)
         form["CustomLP"].Visible := lp ?? 0
     }
+
     form["CustomNK"].Text := nk ?? 0
-    form["BtnNK"].Visible := !(nk ?? 1)
+    form["BtnNK"].Visible := !(nk ?? 0)
     form["CustomNK"].Visible := nk ?? 0
+
+    if save_type !== 2 {
+        form["Shortname"].Text := gui_name ?? ""
+    }
     form["CBIrrevocable"].Value := irrevoc ?? 0
     form["CBInstant"].Value := instant ?? 0
-    form["Shortname"].Text := gui_name ?? ""
 
     curr_type == "Function" ? SetUpFunction(is_up) : inp.Focus()
     if curr_type == "Default" || curr_type == "Disabled" {
@@ -220,7 +231,7 @@ ChangeFormPlaceholder(save_type:=0, is_up:=0, is_layer_editing:=0, *) {
     }
 
     if is_up == 2 {
-        ChangeFormPlaceholder(save_type, 0, is_layer_editing)
+        ChangeFormPlaceholder(unode, layers, save_type, 0, is_layer_editing)
     }
 }
 
@@ -231,6 +242,31 @@ SetUpFunction(is_up) {
     if func_form {
         return
     }
+
+    func_fields := []
+    func_params := []
+
+    args := false
+    name := false
+    func_str := is_up ? form["UpInput"].Text : form["Input"].Text
+    if func_str && RegExMatch(func_str, "^(?<name>\w+)(?:\((?<args>.*)\))?$", &m) {
+        name := m["name"]
+        args := _ParseFuncArgs(m["args"])
+        arg_fields := custom_funcs[name]
+        if arg_fields[2] is Array {
+            l := arg_fields[2].Length
+            for arg in args {
+                idx := A_Index // l
+                if func_params.Length < idx {
+                    func_params.Push([])
+                }
+                func_params[idx].Push(arg)
+            }
+        } else {
+            func_params.Push(args)
+        }
+    }
+
     func_form := Gui(, "Function Selector (" . (is_up ? "up" : "down") . ")")
     func_form.OnEvent("Close", FuncFormClose)
 
@@ -242,14 +278,13 @@ SetUpFunction(is_up) {
     func_form.Add("DropDownList", "x10 y40 w240 vFuncDDL Choose1", custom_func_keys)
         .OnEvent("Change", ChangeFields)
 
-    func_fields := []
-    func_params := []
-
     func_form.Add("Button", "x250 yp+0 w80 h19 vSave", "✔ Assign")
         .OnEvent("Click", SaveAssignedFunction.Bind(is_up))
     func_form.Add("Text", "x10 y+10 w320 h42 vDescription +0x1000", "")
     WinGetPos(&x, &y, &w, &h, "ahk_id " . form.Hwnd)
-    try _FillFuncFields(is_up ? form["UpInput"].Text : form["Input"].Text)
+    if name {
+        try func_form["FuncDDL"].Text := name
+    }
     func_form.Show("w340 h" . 291 + (layer_editing ? 0 : 28) . " x" . x + w . " y" . y)
     RefreshFields()
 }
@@ -260,20 +295,6 @@ ChangeFields(*) {
 
     func_params := []
     RefreshFields()
-}
-
-
-_FillFuncFields(func_str) {
-    if !func_str {
-        return
-    }
-    if !RegExMatch(func_str, "^(?<name>\w+)(?:\((?<args>.*)\))?$", &m) {
-        throw Error("Wrong function: " . func_str)
-    }
-    try {
-        func_form["FuncDDL"].Text := m["name"]
-        args := _ParseFuncArgs(m["args"])
-    }
 }
 
 
@@ -307,8 +328,8 @@ NextFields(is_up, *) {
 RefreshFields(*) {
     global func_fields
 
-    func_name := func_form["FuncDDL"].Text
-    args := custom_funcs[func_name]
+    name := func_form["FuncDDL"].Text
+    arg_fields := custom_funcs[name]
 
     for elem in func_fields {
         elem.Visible := false
@@ -320,15 +341,17 @@ RefreshFields(*) {
 
     y := 130
 
-    for i, arg in args {
-        if i == 1 {
+    for arg in arg_fields {
+        if A_Index == 1 {
             func_form["Description"].Text := arg
             continue
         }
+
         if arg is Array {
             for elem in arg {
                 func_fields.Push(func_form.Add("Edit", "w320 x10 y" . y))
                 SendMessage(0x1501, true, StrPtr(elem), func_fields[-1].Hwnd)
+                try func_fields[-1].Text := func_params[-1][A_Index]
                 y += 30
             }
             func_form["BtnPrev"].Visible := true
@@ -337,10 +360,12 @@ RefreshFields(*) {
             func_fields.Push(
                 func_form.Add("DDL", "w320 x10 y" . y . " Choose1", custom_func_ddls[arg])
             )
+            try func_fields[-1].Text := func_params[-1][A_Index-1]
             y += 30
         } else {
             func_fields.Push(func_form.Add("Edit", "w320 x10 y" . y))
             SendMessage(0x1501, true, StrPtr(arg), func_fields[-1].Hwnd)
+            try func_fields[-1].Text := func_params[-1][A_Index-1]
             y += 30
         }
     }

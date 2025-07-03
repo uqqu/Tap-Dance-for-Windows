@@ -266,7 +266,9 @@ GetDefaultNode(sc, md) {
 _RepairValue(node_obj) {
     for arr in [["down_type", "down_val"], ["up_type", "up_val"]] {
         node_obj.%arr[2]% := node_obj.%arr[1]% == TYPES.Default
-            ? (node_obj.sc is Number ? "{Blind}" . SC_STR_BR[node_obj.sc] : "{Blind}{" . node_obj.sc . "}")
+            ? (node_obj.sc is Number
+                ? "{Blind}" . SC_STR_BR[node_obj.sc]
+                : "{Blind}{" . node_obj.sc . "}")
             : StrReplace(StrReplace(node_obj.%arr[2]%, "%md%", node_obj.md), "%sc%", node_obj.sc)
     }
     return node_obj

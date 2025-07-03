@@ -7,7 +7,7 @@
     }
 
     if lv.GetText(row, 1) !== "Chord" {
-        selected_chord := lv.GetText(row, 5)
+        selected_chord := ChordToStr(lv.GetText(row, 1))
         ToggleEnabled(1, UI.chs_toggles)
     } else {
         selected_chord := ""
@@ -17,8 +17,8 @@
 
 
 LVChordDoubleClick(lv, row, from_selected:=false) {
-    if lv.GetText(row, 1) !== "Chord" {
-        OneNodeDeeper(lv.GetText(row, 5), gui_mod_val, lv.GetText(row, 1))
+    if lv.GetText(row, 1) !== "Chord" && !start_temp_chord {
+        OneNodeDeeper(ChordToStr(lv.GetText(row, 1)), gui_mod_val, lv.GetText(row, 1))
     }
 }
 
@@ -36,10 +36,8 @@ _CheckUnsavedChord() {
         equal := false
     }
 
-    if !equal && MsgBox(
-        "The chord has been changed. Do you really want to undo the changes?",
-        "Confirmation", "YesNo Icon?"
-    ) == "No"{
+    if !equal && MsgBox("The chord has been changed. Do you really want to undo the changes?",
+        "Confirmation", "YesNo Icon?") == "No" {
         return false
     }
     return true
@@ -70,7 +68,7 @@ ChordEditing(new:=true) {
         selected_chord := ""
     } else {
         UI.Title := "Editing a chord"
-        for sc in HexToScancodes(selected_chord) {
+        for sc in StrSplit(selected_chord, "-") {
             temp_chord[sc] := true
             start_temp_chord[sc] := true
         }
@@ -84,15 +82,13 @@ ChordEditing(new:=true) {
 DeleteSelectedChord(_, without_confirmation:=false) {
     global selected_chord
 
-    if !without_confirmation && MsgBox(
-        "Do you really want to delete that chord?",
-        "Confirmation", "YesNo Icon?"
-    ) == "No" {
+    if !without_confirmation && MsgBox("Do you really want to delete that chord?",
+        "Confirmation", "YesNo Icon?") == "No" {
         return
     }
 
     layers := []
-    checked_layers := layer_editing ? [selected_layer] : ActiveLayers.GetAll()
+    checked_layers := layer_editing ? [selected_layer] : ActiveLayers.order
     ubase := gui_entries.ubase.GetBaseHoldMod(selected_chord, gui_mod_val, true).ubase
     child_node := _GetFirst(ubase)
     for layer in checked_layers {
@@ -119,29 +115,36 @@ DeleteSelectedChord(_, without_confirmation:=false) {
             json_chords[selected_chord].Delete(gui_mod_val)
         } else {
             json_chords.Delete(selected_chord)
-        }
-        if !json_chords.Count {
-            scancodes := HexToScancodes(selected_chord)
-        } else {
-            bufs := []
-            for buf, mods in json_chords {
-                if mods.Has(gui_mod_val) {
-                    bufs.Push(BufferFromHex(buf))
+            scancodes := Map()
+            for sc in StrSplit(selected_chord, "-") {
+                scancodes[sc] := true
+            }
+            if json_chords.Count {
+                for buf, mods in json_chords {
+                    if mods.Has(gui_mod_val) {
+                        for sc in StrSplit(buf, "-") {
+                            try scancodes.Delete(sc)
+                        }
+                    }
                 }
             }
-            main_buf := BufferFromHex(selected_chord)
-            RemoveBits(main_buf, bufs)
-            scancodes := BufferToScancodes(main_buf)
+
+            for sc in scancodes {
+                try {
+                    sc_node := json_scancodes[Integer(sc)][gui_mod_val+1]
+                } catch {
+                    sc_node := json_scancodes[sc][gui_mod_val+1]
+                }
+                sc_node[1] := TYPES.Disabled
+                sc_node[2] := ""
+            }
         }
 
-        for sc in scancodes {
-            sc_node := json_scancodes[sc][gui_mod_val+1]
-            sc_node[1] := TYPES.Disabled
-            sc_node[2] := ""
-        }
 	    SerializeMap(json_root, layer)
     }
     selected_chord := ""
+    ReadLayers()
+    FillRoots()
     UpdLayers()
     ChangePath()
 }
@@ -183,17 +186,12 @@ SaveEditedChord(*) {
     }
     if layer_editing || ActiveLayers.order.Length == 1 {
         layer := layer_editing ? selected_layer : ActiveLayers.order[1]
-        temp_buf := Buffer(BUFFER_SIZE, 0)
-        for sc, _ in temp_chord {
-            SetBit(sc, temp_buf)
-        }
-        hex := BufferToHex(temp_buf)
-        if gui_entries.ubase.chords.Has(hex) && gui_entries.ubase.chords[hex].Has(gui_mod_val)
-            && gui_entries.ubase.chords[hex][gui_mod_val].layers.Has(layer) && MsgBox(
-            "Chord with these keys already exists on this layer. "
-            . "Do you want to overwrite it?",
-            "Confirmation", "YesNo Icon?"
-        ) == "No" {
+        chord_txt := ChordToStr(temp_chord)
+        if gui_entries.ubase.chords.Has(chord_txt)
+            && gui_entries.ubase.chords[chord_txt].Has(gui_mod_val)
+            && gui_entries.ubase.chords[chord_txt][gui_mod_val].layers.Has(layer)
+            && MsgBox("Chord with these keys already exists on this layer. "
+                . "Do you want to overwrite it?", "Confirmation", "YesNo Icon?") == "No" {
             return
         }
     }
@@ -201,15 +199,11 @@ SaveEditedChord(*) {
 }
 
 
-WriteChord(*) {
+WriteChord(chord:=false, *) {
     global form
 
-    temp_buf := Buffer(BUFFER_SIZE, 0)
-    for sc, _ in temp_chord {
-        SetBit(sc, temp_buf)
-    }
-
-    hex := BufferToHex(temp_buf)
+    chord_txt := chord || ChordToStr(temp_chord)
+    chord_scs := chord ? StrSplit(chord, "-") : temp_chord
 
     layers := GetLayerList()
     temp_layer := layer_editing ? selected_layer
@@ -218,19 +212,24 @@ WriteChord(*) {
     if !json_root.Has(gui_lang) {
         json_root[gui_lang] := [Map(), Map()]
     }
-    res := current_path.Length ? _WalkJson(json_root[gui_lang], current_path, false)
-        : json_root[gui_lang]
+    if chord {
+        path := current_path.Clone()
+        path.Length -= 1
+        res := current_path.Length > 1 ? _WalkJson(json_root[gui_lang], path, false)
+            : json_root[gui_lang]
+    } else {
+        res := current_path.Length ? _WalkJson(json_root[gui_lang], current_path, false)
+            : json_root[gui_lang]
+    }
     json_scancodes := res[-2]
     json_chords := res[-1]
-    if json_chords.Has(hex) && json_chords[hex].Has(gui_mod_val) && MsgBox(
-            "Chord with these keys already exists on the selected layer. "
-            . "Do you want to overwrite it?",
-            "Confirmation", "YesNo Icon?"
-        ) == "No" {
+    if json_chords.Has(chord_txt) && json_chords[chord_txt].Has(gui_mod_val)
+        && MsgBox("Chord with these keys already exists on the selected layer. "
+            . "Do you want to overwrite it?", "Confirmation", "YesNo Icon?") == "No" {
         return
     }
 
-    for sc, _ in temp_chord {
+    for sc, _ in chord_scs {
         if !json_scancodes.Has(sc) {
             json_scancodes[sc] := Map()
         }
@@ -244,13 +243,13 @@ WriteChord(*) {
         }
     }
 
-    if !json_chords.Has(hex) {
-        json_chords[hex] := Map()
+    if !json_chords.Has(chord_txt) {
+        json_chords[chord_txt] := Map()
     }
-    json_chords[hex][gui_mod_val] := [
+    json_chords[chord_txt][gui_mod_val] := [
         TYPES.%form["DDL"].Text%, form["Input"].Text . "", TYPES.Disabled, "",
         form["CBInstant"].Value, form["CBIrrevocable"].Value,
-        hex, gui_mod_val, form["Shortname"].Text, Map(), Map()
+        0, form["CustomNK"].Text, "", Map(), Map()
     ]
 
     SerializeMap(json_root, temp_layer)
@@ -282,4 +281,22 @@ WriteChord(*) {
 
     form.Destroy()
     form := false
+}
+
+
+ChordToStr(scs) {
+    res := ""
+    if scs is String {
+        for key in StrSplit(scs, " ") {
+            if key {
+                int_sc := GetKeySC(key)
+                res .= (int_sc || key) . "-"
+            }
+        }
+    } else {
+        for sc in scs {
+            res .= sc . "-"
+        }
+    }
+    return SubStr(Sort(res, "D-"), 1, -1)
 }

@@ -103,11 +103,11 @@ _FillKeyboard() {
         m_node := _GetFirst(res.umod)
 
         if temp_chord {
-            if SYS_MODIFIERS.Has(sc) || SubStr(sc, 1, 5) == "Wheel" || SubStr(sc, 2, 6) == "Button"
+            if SYS_MODIFIERS.Has(sc) || SubStr(sc, 1, 5) == "Wheel"
                 || EXTRA_SCS.Has(sc) || !h_node && m_node && m_node.down_type == TYPES.Modifier {
                 btn.Opt("+Disabled")
             }
-            btn.Opt(temp_chord.Has(sc) ? "+BackgroundBBBB22" : "+BackgroundSilver")
+            btn.Opt(temp_chord.Has(String(sc)) ? "+BackgroundBBBB22" : "+BackgroundSilver")
             btn.Text := _GetKeyName(sc, true)
             continue
         }
@@ -186,7 +186,8 @@ _AddIndicators(unode, btn, ay, ah:=false) {
     if cnt {
         l := (StrLen(String(cnt)) - 1) * 6 * CONF.font_scale
         (CONF.overlay_type == 3)
-            ? _AddOverlayItem(x + w - 3 - l, y + ay[1] + (ah ? h + 10 - 6 * CONF.font_scale : 0), "", cnt)
+            ? _AddOverlayItem(x + w - 3 - l, y + ay[1] + (ah ? h + 10 - 6 * CONF.font_scale : 0),
+                "", cnt)
             : _AddOverlayItem(x + w + 3, y + ay[2] + (ah ? h : 0), "Red")
     }
     if node.gui_shortname {
@@ -327,14 +328,14 @@ _IsCounted(node) {
 _FillChords() {
     UI["LV_chords"].Delete()
     checked_layers := layer_editing ? [selected_layer] : ActiveLayers.order
-    for hex, mods in gui_entries.ubase.chords {
-        ubase := gui_entries.ubase.GetBaseHoldMod(hex, gui_mod_val, true).ubase
+    for chord_str, mods in gui_entries.ubase.chords {
+        ubase := gui_entries.ubase.GetBaseHoldMod(chord_str, gui_mod_val, true).ubase
         child_node := _GetFirst(ubase)
         if !child_node {
             continue
         }
 
-        hl := start_temp_chord && start_temp_chord.Count && hex == selected_chord ? "👉 " : ""
+        hl := start_temp_chord && start_temp_chord.Count && chord_str == selected_chord ? "👉 " : ""
         cnt := ubase ? _CountChild("", 0, 0, ubase.scancodes, ubase.chords) : 0
 
         layer_text := ""
@@ -355,26 +356,24 @@ _FillChords() {
             case TYPES.Function:
                 val := "(" . child_node.down_val . ")"
         }
+
+        chord_txt := ""
+        for sc in StrSplit(chord_str, "-") {
+            try {
+                chord_txt .= GetKeyName(SC_STR[Integer(sc)]) . " "
+            } catch {
+                chord_txt .= GetKeyName(SC_STR[sc]) . " "
+            }
+        }
+
         UI["LV_chords"].Add(
             "",
-            hl . (child_node.gui_shortname || SC_ArrToString(HexToScancodes(hex))),
+            hl . (child_node.gui_shortname || chord_txt),
             val,
             cnt || "",
-            layer_text,
-            hex
+            layer_text
         )
     }
-}
-
-
-SC_ArrToString(arr) {
-    result := ""
-    for sc in arr {
-        if sc {
-            result .= _GetKeyName(sc, true) . " "
-        }
-    }
-    return result
 }
 
 

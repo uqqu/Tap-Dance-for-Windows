@@ -1,16 +1,19 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
-#Include "buffer.ahk"
 #Include "serializing.ahk"
 #Include "structs.ahk"
 #Include "config.ahk"
 #Include "gui/gui.ahk"
 #Include "user_functions.ahk"
 
-skip_once := false
-last_val := false
+last_val := false  ; unsended value while we wait nested event (if the timer expires/interrupted)
+pending := false  ; tap value of assignment, while we wait if the hold will be confirmed
+interrupted_kw := false  ; strange case – unassigned event with existing pending mimics it in kw oO
+delayed := false
 prev_unode := false
-current_presses := Buffer(BUFFER_SIZE, 0)  ; scs buffer
+catched_entries := false
+catched_gui_func := false
+current_presses := Map()
 up_actions := Map()
 ResetModifiers()
 
@@ -21,18 +24,14 @@ SetSysModHotkeys()
 TimerSendCurrent() {
     ; delayed send for assignments with child transitions, if there are no new presses
     ;   …or for direct call when a new press is not found in the current table / layout has changed
-    global curr_unode, prev_unode
 
+    SetTimer(TimerSendCurrent, 0)
     if !last_val || !last_val[1].fin.is_irrevocable {
-        curr_unode := ROOTS[CurrentLayout]
+        ToRoot()
     }
     ; mods/chords store the tap value with additional argument
     if last_val && !last_val[2] {  ; skip mod/chord triggers
         SendKbd(last_val[1].fin.down_type, last_val[1].fin.down_val)
-        if prev_unode {  ; back from inoperated node
-            curr_unode := prev_unode
-            prev_unode := false
-        }
     }
 }
 
@@ -41,9 +40,10 @@ TimerResetBase() {
     ; mods and chords on hold save their tap value to last_val;
     ; if the mod/chord key was released before activation of TimerResetBase
     ;   …or before last_val was overwritten by other press – send the last_val
-    global last_val
+    global last_val, prev_unode
 
     last_val := false
+    prev_unode := false
 }
 
 
@@ -56,9 +56,11 @@ TransitionProcessing(checked_unode, sc:=0) {
     if !checked_unode.active_scancodes.Count && !checked_unode.active_chords.Count {
         SendKbd(checked_unode.fin.down_type, checked_unode.fin.down_val)
         if !checked_unode.fin.is_irrevocable && curr_unode !== ROOTS[CurrentLayout] {
-            curr_unode := ROOTS[CurrentLayout]
+            ToRoot()
         } else if sc {  ; only if the curr_unode has not been reseted
-            ClearBit(sc, current_presses)  ; allow repeat on hold for the corresponding keys
+            if sc !== "WheelLeft" && sc !== "WheelRight" {
+                try current_presses.Delete(sc)  ; allow repeat on hold for the corresponding keys
+            }
         }
         return
     }
@@ -71,28 +73,26 @@ TransitionProcessing(checked_unode, sc:=0) {
         last_val := [checked_unode, false]
     }
     SetTimer(TimerSendCurrent, -(checked_unode.fin.custom_nk_time || CONF.MS_NK))
-    prev_unode := current_mod ? curr_unode : false
-    curr_unode := checked_unode
+    if curr_unode !== checked_unode {
+        prev_unode := curr_unode
+        curr_unode := checked_unode
+    }
 
     ; transfer the pressed modifiers, if they have the same values
     TransferModifiers()
 }
 
 
-TransferModifiers() {
-    global current_mod, pressed_mod_val, pressed_mod_sc
+TransferModifiers(extra_mod:=0) {
+    global current_mod
 
-    new_pressed_mod_sc := Map()
-    ResetModifiers()
-    for mod_sc, val in pressed_mod_sc {
-        res_md := curr_unode.GetModFin(mod_sc)
-        if res_md && res_md.down_val == val {
-            new_pressed_mod_sc[mod_sc] := val
-            pressed_mod_val[val] := pressed_mod_val.Get(val, 0) + 1
-            current_mod |= 1 << val
+    current_mod := extra_mod
+    for sc in current_presses {
+        res_md := curr_unode.GetModFin(sc)
+        if res_md {
+            current_mod |= 1 << res_md.down_val
         }
     }
-    pressed_mod_sc := new_pressed_mod_sc
 }
 
 
@@ -104,192 +104,122 @@ UnlockWhR() {
     OnKeyUp("WheelRight")
 }
 
-OnKeyDown(sc, extra_mod:=0) {
-    global last_val, current_mod
-    static pending := false
+
+PreCheck(sc, *) {
+    ;; determine whether we will intercept the event or allow it to be executed natively
+    ;;  …with accompanying logic operations (in fact, everything except
+    ;;  …the final processing of the found assignment)
+    global catched_entries, pending, delayed, interrupted_kw
 
     if !(sc is Number) {
-        if sc == "WheelLeft" {  ; simulate up action manually
+        ; simulate wheel l/r up action manually
+        if sc == "WheelLeft" {
             SetTimer(UnlockWhL, -CONF.wheel_unlock_time)
         } else if sc == "WheelRight" {
             SetTimer(UnlockWhR, -CONF.wheel_unlock_time)
         }
     }
 
-    if CheckReturns(sc) {  ; unprocessing conditions
-        return
+    ;; unprocessing conditions
+    ; deny repetition via holding (conflicts with hold catching)
+    if current_presses.Has(sc) {
+        return true
     }
 
+    if GuiCheck(sc) {
+        return true
+    }
+
+    ; continue the chain of transitions, if the previous unsent push had a table of transitions
+    ; case: {a down (with hold assignment)}[keywait start]{b down}
     if pending {
-        ; continue the chain of transitions, if the previous unsent push had a table of transitions
-        TransitionProcessing(pending)
+        SetTimer(TransitionProcessing.Bind(pending), -1)  ; SetTimer allow use Send "inside" HotIf
+        delayed := true  ; …but we must approve that next send will be sent after current
         pending := false
     }
 
     CheckLayout()  ; switch to a new root if the layout has changed
 
-    if extra_mod {  ; separately count modifiers from hotkeys with system keys
-        current_mod |= extra_mod
-    }
-
     entries := GetEntries(sc)
-    if !entries {
-        return  ; treated as mod on basehold or no assignments found (send default)
+    if entries == 0 {  ; no assignments found
+        if !delayed {  ; allow native press in the base case
+            return false
+        }
+        ; else (if there are cross sends) follow the send order with default simulation
+        TransitionProcessing(GetDefaultSim(sc)[1])
+        interrupted_kw := true
+        return true
+    } else if entries == 1 {  ; processed as mod/basemod or blocked by conf.unassigned
+        return true
     }
-
-    last_val := false  ; reset last_val and the corresponding timer
-    SetTimer(TimerResetBase, 0)
-
-    SetBit(sc, current_presses)  ; store current press for repetition and chord checks
-
-    ; assignment branching; there is at least one after GetEntries and it is not a modifier on hold
-    if !entries.uhold || entries.uhold.fin.down_type == TYPES.Disabled
-        && !entries.uhold.active_scancodes.Count && !entries.uhold.active_chords.Count {
-        TransitionProcessing(entries.ubase, sc)  ; only tap / empty hold
-        if entries.ubase.fin.up_type !== TYPES.Disabled {
-            up_actions[sc] := entries.ubase.fin
-        }
-    } else if entries.uhold.fin.down_type == TYPES.Chord {  ; chord part
-        res := curr_unode.Get(BufferToHex(current_presses), current_mod, true)
-        if res {
-            TransitionProcessing(res)  ; chord match
-            return
-        }
-        ; in other case store tap/default value with sc note (can be sent with KeyUp(sc) only)
-        if entries.ubase {
-            last_val := [entries.ubase, sc]
-            if entries.ubase.fin.up_type !== TYPES.Disabled {
-                up_actions[sc] := entries.ubase.fin
-            }
-            SetTimer(TimerResetBase, -(entries.ubase.fin.custom_nk_time || CONF.MS_NK))
-        } else {
-            last_val := GetDefaultSim(sc, true)
-            SetTimer(TimerResetBase, -CONF.MS_NK)
-        }
-    } else {  ; tap/hold branching
-        pending := entries.ubase || GetDefaultSim(sc)[1]
-        b := KeyWait((sc is Number ? SC_STR[sc] : sc),
-            (pending.fin.custom_lp_time ? "T" . pending.fin.custom_lp_time / 1000 : CONF.T))
-        if pending {  ; pending may be reset by any other press while we perform KeyWait
-            res_unode := b ? pending : entries.uhold
-            TransitionProcessing(res_unode)
-            if res_unode.fin.up_type !== TYPES.Disabled {
-                up_actions[sc] := res_unode.fin
-            }
-        }
-        pending := false
-    }
+    ; else catched_entries is obj
+    catched_entries := entries  ; memorize for main func; cannot be performed now due to keywait
+    return true
 }
 
 
-CheckReturns(sc) {
-    global skip_once
+GetEntries(sc, extra_mod:=0) {
+    global delayed
 
-    ; deny repetition via holding (conflicts with hold catching)
-    if CheckBit(sc, current_presses) || pressed_mod_sc.Has(sc) {
-        return true
-    }
-
-    ; if the focus is on GUI – process separately
-    if UI.Hwnd && (WinActive("A") == UI.Hwnd) {
-        SetBit(sc, current_presses)
-        HandleKeyPress(sc)  ; gui func
-        return true
-    } else if s_gui && s_gui.Hwnd && (WinActive("A") == s_gui.Hwnd) && PasteSCToInput(sc) {
-        SetBit(sc, current_presses)
-        return true
-    }
-
-    ; skip the single system modifier
-    if SYS_MODIFIERS.Has(sc) {
-        return true
-    }
-
-    ; triggered when the key was held with a modifier, but the modifier was released first
-    ; prevents new sends after mod release
-    if skip_once {
-        SetBit(sc, current_presses)
-        skip_once := false
-        return true
-    }
-    return false
-}
-
-
-CheckLayout() {
-    global CurrentLayout, curr_unode
-
-    layout := GetCurrentLayout()
-    if layout == CurrentLayout {
-        return
-    }
-
-    ; force sending the last stored value and reset curr_unode to the root by the new layout
-    TimerSendCurrent()
-    CurrentLayout := layout
-    curr_unode := ROOTS[CurrentLayout]
-    ResetModifiers()
-}
-
-
-ResetModifiers() {
-    global current_mod, pressed_mod_val, pressed_mod_sc
-
-    current_mod := 0
-    pressed_mod_sc := Map()
-    pressed_mod_val := Map()
-}
-
-
-GetEntries(sc) {
-    global curr_unode, last_val
-
+    SetTimer(TimerSendCurrent, 0)
     entries := curr_unode.GetBaseHoldMod(sc, current_mod, false, true)
 
     if TreatMod(entries, sc) {
-        SetTimer(TimerSendCurrent, 0)
-        return false
+        current_presses[sc] := true
+        return 1
     }
 
-    if entries.ubase || entries.uhold {
-        SetTimer(TimerSendCurrent, 0)
+    if entries.ubase || entries.uhold {  ; TODO umod?
         return entries  ; has at least one assignment; there's a point in further processing
     }
 
-    ; if the scancode or both modifiers (base/hold) are missing in the current node
-    b := curr_unode == ROOTS[CurrentLayout]  ; save the 'node is root' check
+    ;; if the scancode or both events (base/hold [+mod]) are missing in the current node
 
-    if current_mod {
-        if CONF.ignore_unassigned_under_mods {  ; ignore current press if it with active modifier
-            return false
-        } else {
-            ResetModifiers()
+    is_root := curr_unode == ROOTS[CurrentLayout]
+
+    for conditions in [
+        [current_mod, CONF.unassigned_under_mods], [!is_root, CONF.unassigned_non_root]] {
+        if conditions[1] {
+            if conditions[2] == 5 {  ; block unassigned
+                return 1  ; do nothing else
+            } else if prev_unode && conditions[2] == 1 {  ; backsearch
+                StepBack(extra_mod)
+                return GetEntries(sc)  ; repeat scmod check from previous step
+            } else if prev_unode && conditions[2] == 2 {  ; send + backsearch
+                if last_val {
+                    delayed := true
+                    SendKbd(last_val[1].fin.down_type, last_val[1].fin.down_val)
+                }
+                StepBack(extra_mod)
+                return GetEntries(sc)
+            } else if !is_root {
+                if conditions[2] == 4 && last_val {  ; force sending stored value
+                    delayed := true
+                    SendKbd(last_val[1].fin.down_type, last_val[1].fin.down_val)
+                }
+                ToRoot(extra_mod)
+                return GetEntries(sc)
+            }
         }
     }
 
-    ; if the curr_unode has not changed, just send the native press
-    if !b && CONF.ignore_unassigned_non_root {
-        last_val := false
-        return false
+    ;; root reached, not assigned, not blocked, not found on the prev node/root (if configured so)
+
+    ; to prevent the native press from being sent earlier than previous simulated. rare case
+    if last_val {
+        delayed := true
+        SendKbd(TYPES.KeySimulation, SC_STR_BR[sc])
+        return 1
     }
-
-    SetTimer(TimerSendCurrent, 0)
-    TimerSendCurrent()  ; force sending previous value
-    curr_unode := ROOTS[CurrentLayout]  ; for sure
-
-    if b {
-        SendKbd(TYPES.Default, (sc is Number ? "{Blind}" . SC_STR_BR[sc] : "{Blind}{" . sc . "}"))
-        return false
-    }
-
-    return GetEntries(sc)  ; …else repeat the checks with changed curr_unode
-    ; it's definitely over by the second lap
+    return 0
 }
 
 
 TreatMod(entries, sc) {
-    global last_val, current_mod, pressed_mod_sc, pressed_mod_val
+    global last_val, current_mod
 
+    ; if there is an assignment for hold, it has higher priority than basemod (1)
+    ; without `current_mod` – umod is uhold, so this is only for assignments under mods
     if entries.uhold {
         if entries.uhold.fin.down_type !== TYPES.Modifier {
             return false
@@ -301,15 +231,148 @@ TreatMod(entries, sc) {
         val := entries.umod.fin.down_val
     }
 
+    ; mods and chord_parts are stored with their scs to indicate that the assignment will
+    ; …only triggered from its own event (without execution from cross-presses)
     last_val := entries.ubase ? [entries.ubase, sc] : GetDefaultSim(sc, true)
 
-    ; store count of pressed keys with the same mod values
-    ; this will allow us to avoid reseting the modval on the first release
-    pressed_mod_val[val] := pressed_mod_val.Get(val, 0) + 1
-    pressed_mod_sc[sc] := val  ; store the value only for checking when changing the node
     current_mod |= 1 << val
     SetTimer(TimerResetBase, -(last_val[1].fin.custom_nk_time || CONF.MS_NK))
     return true
+}
+
+
+StepBack(extra_mod:=0) {
+    global curr_unode, prev_unode
+
+    if prev_unode {
+        curr_unode := prev_unode
+        prev_unode := false
+        TransferModifiers(extra_mod)
+    } else {
+        ToRoot(extra_mod)
+    }
+}
+
+
+ToRoot(extra_mod:=0) {
+    global curr_unode, prev_unode
+
+    curr_unode := ROOTS[CurrentLayout]
+    prev_unode := false
+    TransferModifiers(extra_mod)
+}
+
+
+SysModComboDown(sc, extra_mod) {
+    global current_mod, catched_entries
+
+    if current_presses.Has(sc) {
+        return
+    }
+
+    current_mod |= extra_mod
+    catched_entries := GetEntries(sc, extra_mod)
+    OnKeyDown(sc)
+}
+
+
+OnKeyDown(sc) {
+    global last_val, pending, catched_entries, catched_gui_func, delayed, interrupted_kw
+
+    if catched_gui_func {
+        if sc !== "WheelDown" && sc !== "WheelUp" {
+            current_presses[sc] := true
+        }
+        catched_gui_func := false
+        HandleKeyPress(sc)
+        return
+    }
+
+    if !catched_entries {
+        return
+    }
+
+    TimerResetBase()
+    SetTimer(TimerResetBase, 0)
+
+    if !interrupted_kw {
+        current_presses[sc] := true  ; store current press for repetition and chord checks
+    }
+
+    ; only tap assigned or insignificant hold
+    if !catched_entries.uhold || catched_entries.uhold.fin.down_type == TYPES.Disabled
+        && !catched_entries.uhold.active_scancodes.Count
+        && !catched_entries.uhold.active_chords.Count {
+        TransitionProcessing(catched_entries.ubase, sc)
+        if catched_entries.ubase.fin.up_type !== TYPES.Disabled {
+            up_actions[sc] := catched_entries.ubase.fin
+        }
+
+    ; chord part
+    } else if catched_entries.uhold.fin.down_type == TYPES.Chord {
+        res := curr_unode.Get(ChordToStr(current_presses), current_mod, true)
+        if res {  ; chord matched!
+            TransitionProcessing(res)
+            catched_entries := false
+            return
+        }
+        ; in other case store tap/default value with sc note
+        ; …(can be sent with corresponding KeyUp(sc) only)
+        if catched_entries.ubase {
+            last_val := [catched_entries.ubase, sc]
+            if catched_entries.ubase.fin.up_type !== TYPES.Disabled {
+                up_actions[sc] := catched_entries.ubase.fin
+            }
+            SetTimer(TimerResetBase, -(catched_entries.ubase.fin.custom_nk_time || CONF.MS_NK))
+        } else {
+            last_val := GetDefaultSim(sc, true)
+            SetTimer(TimerResetBase, -CONF.MS_NK)
+        }
+
+    ; full-fledged tap/hold
+    } else {
+        ; store base value for the case if KeyWait will be interrupted
+        pending := catched_entries.ubase || GetDefaultSim(sc)[1]
+        is_hold := KeyWait(SC_STR[sc],
+            (pending.fin.custom_lp_time ? "T" . pending.fin.custom_lp_time / 1000 : CONF.T))
+        ; determine tap/hold and than recheck pending that may be reset by other presses during KW
+        if pending && !delayed {
+            if interrupted_kw {
+                interrupted_kw := false
+                pending := false
+                return
+            }
+            res_unode := is_hold ? pending : catched_entries.uhold
+            TransitionProcessing(res_unode)
+            if res_unode.fin.up_type !== TYPES.Disabled {
+                up_actions[sc] := res_unode.fin
+            }
+            pending := false
+        }
+    }
+    catched_entries := false
+}
+
+
+CheckLayout() {
+    global CurrentLayout
+
+    layout := GetCurrentLayout()
+    if layout == CurrentLayout {
+        return
+    }
+
+    ; force sending the last stored value and reset curr_unode to the root by the new layout
+    TimerSendCurrent()
+    CurrentLayout := layout
+    ToRoot()
+}
+
+
+ResetModifiers() {
+    global current_mod
+
+    current_mod := 0
 }
 
 
@@ -326,7 +389,7 @@ GetDefaultSim(sc, extended:=false) {
 
 
 OnKeyUp(sc, extra_mod:=0) {
-    global curr_unode, current_mod, skip_once, pressed_mod_sc, pressed_mod_val
+    global current_mod
 
     if extra_mod {  ; separately count modifiers from hotkeys with system keys
         current_mod &= ~extra_mod
@@ -337,29 +400,23 @@ OnKeyUp(sc, extra_mod:=0) {
         up_actions.Delete(sc)
     }
 
-    if pressed_mod_sc.Has(sc) {  ; release mod
-        ; decrease corresponding values
-        val := curr_unode.GetModFin(sc).down_val
-        if pressed_mod_val[val] == 1 {
-            current_mod &= ~(1 << val)
-            pressed_mod_val.Delete(val)
-        } else {
-            pressed_mod_val[val] -= 1
-        }
-        pressed_mod_sc.Delete(sc)
+    try current_presses.Delete(sc)
+    md := curr_unode.GetModFin(sc)
+    if md {  ; release mod
+        current_mod &= ~(1 << md.down_val)
         ; there are no more modifiers ? reset the node to the root
         if !current_mod && curr_unode !== ROOTS[CurrentLayout] {
-            curr_unode := ROOTS[CurrentLayout]
+            ToRoot()
         }
-    } else if CheckBit(sc, current_presses) {  ; release regular key
-        ClearBit(sc, current_presses)
-    } else if SYS_MODIFIERS.Has(sc) {  ; release sysmod
-        md := curr_unode.GetModFin(sc)
+    }
+
+    if last_val && prev_unode {  ; same for previous level if exists
+        md := prev_unode.GetModFin(sc)
         if md {
-            b := 1 << md.down_val
-            if current_mod & b == b {
-                current_mod &= ~b
-                skip_once := true  ; deny sending a held key when the mod is released before it
+            current_mod &= ~(1 << md.down_val)
+            TimerSendCurrent()
+            if !current_mod && curr_unode !== ROOTS[CurrentLayout] {
+                ToRoot()
             }
         }
     }
@@ -373,15 +430,25 @@ OnKeyUp(sc, extra_mod:=0) {
 
 
 SendKbd(action_type, action_val) {
-    global last_val
+    global last_val, delayed
 
     last_val := false
 
     switch action_type {
         case TYPES.Text:
-            SendText(action_val)
+            if delayed {
+                SetTimer(SendText.Bind(action_val), -1)
+                delayed := false
+            } else {
+                SendText(action_val)
+            }
         case TYPES.Default, TYPES.KeySimulation:
-            SendInput(action_val)
+            if delayed {
+                SetTimer(SendInput.Bind(action_val), -1)
+                delayed := false
+            } else {
+                SendInput(action_val)
+            }
         case TYPES.Function:
             if !RegExMatch(action_val, "^(?<name>\w+)(?:\((?<args>.*)\))?$", &m) {
                 throw Error("Wrong function value: " . action_val)

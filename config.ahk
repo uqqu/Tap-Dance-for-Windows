@@ -28,16 +28,19 @@ for i, v in TYPES_R {
     TYPES.%v% := i
 }
 
-BUFFER_SIZE := 48  ; 0x173 (372) is the last "standard" code; 8×48 = 384
-
-SC_STR := []
+SC_STR := Map()
 SC_STR_BR := []
-empty_scs := Map()
 loop 511 {
     curr := Format("SC{:03X}", A_Index)
-    SC_STR.Push(curr)
+    SC_STR[A_Index] := curr
     SC_STR_BR.Push("{" . curr . "}")
-    empty_scs[A_Index] := true
+}
+
+for key in [
+    "LButton", "RButton", "MButton", "XButton1", "XButton2",
+    "WheelUp", "WheelDown", "WheelLeft", "WheelRight"
+] {
+    SC_STR[key] := key
 }
 
 LANGS := OrderedMap()
@@ -65,8 +68,8 @@ CheckConfig() {
             . "`nExtraKRow=0"
             . "`nHelpTexts=0"
             . "`nHideMouseWarnings=0"
-            . "`nIgnoreUnassignedUnderMods=1"
-            . "`nIgnoreUnassignedNonRoot=0"
+            . "`nUnassignedUnderModsBehavior=5"
+            . "`nUnassignedNonRootBehavior=2"
             . "`nGuiAltIgnore=1"
             . "`nGuiScale=1.25"
             . "`nFontScale=1"
@@ -100,11 +103,11 @@ CheckConfig() {
     CONF.help_texts := Integer(IniRead("config.ini", "Main", "HelpTexts", 0))
     CONF.gui_alt_ignore := Integer(IniRead("config.ini", "Main", "GuiAltIgnore", 1))
     CONF.hide_mouse_warnings := Integer(IniRead("config.ini", "Main", "HideMouseWarnings", 0))
-    CONF.ignore_unassigned_under_mods := Integer(IniRead(
-        "config.ini", "Main", "IgnoreUnassignedUnderMods", 1
+    CONF.unassigned_under_mods := Integer(IniRead(
+        "config.ini", "Main", "UnassignedUnderModsBehavior", 5
     ))
-    CONF.ignore_unassigned_non_root := Integer(IniRead(
-        "config.ini", "Main", "IgnoreUnassignedNonRoot", 0
+    CONF.unassigned_non_root := Integer(IniRead(
+        "config.ini", "Main", "UnassignedNonRootBehavior", 2
     ))
     CONF.keyname_type := Integer(IniRead("config.ini", "Main", "KeynameType", 1))
     CONF.ref_height := Integer(IniRead("config.ini", "Main", "ReferenceHeight", 314))
@@ -192,24 +195,93 @@ ShowSettings(*) {
     s_gui.OnEvent("Escape", CloseSettingsEvent)
     s_gui.SetFont("s10")
 
-    s_gui.Add("Text", "x20 y15 h20 w160", "Layout format:")
-    s_gui.Add("DropDownList", "Center x+10 yp-2 w160 vLayoutFormat", ["ANSI", "ISO"])
-        .Text := CONF.layout_format
+    s_gui.Add("Button", "Center x370 y0 w20 h20 Default vApply", "✔")
+        .OnEvent("Click", SaveConfig)
 
-    s_gui.Add("Text", "x20 y+10 h20 w160", "Keyname type:")
-    s_gui.Add("DropDownList", "Center x+10 yp-2 w160 vKeynameType",
-        ["Always use keynames", "Always use scancodes", "Scancodes on empty keys"])
-        .Value := CONF.keyname_type
+    tabs := s_gui.Add("Tab3", "x10 y0", ["Main", "GUI"])
 
-    s_gui.Add("Text", "x20 y+10 h20 w160", "Overlay type:")
-    s_gui.Add("DropDownList", "Center x+10 yp-2 w160 vOverlayType",
-        ["Disabled", "Indicators only", "With counters"])
-        .Value := CONF.overlay_type
+    tabs.UseTab("Main")
 
     str_settings := [
         ["LongPressDuration Number", "Longpress duration (ms):", CONF.MS_LP],
         ["NextKeyWaitDuration Number", "Next key wait dur. (ms):", CONF.MS_NK],
-        ["WheelLRUnlockTime Number", "Unlock l/r mouse wheel after (ms):", CONF.wheel_unlock_time],
+        ["WheelLRUnlockTime Number", "Unlock l/r mouse wheel (ms):", CONF.wheel_unlock_time],
+    ]
+
+    for arr in str_settings {
+        s_gui.Add("Text", "x20 y+13 h20 w180", arr[2])
+        s_gui.Add("Edit", "Center x+10 yp-2 h20 w180 v" . arr[1], arr[3])
+    }
+
+    ddl_settings := [
+        ["LayoutFormat", "Layout format:", ["ANSI", "ISO"], 1, CONF.layout_format],
+        ["UnassignedUnderModsBehavior", "Behavior for unassigned events under mods:",
+            ["Backsearch", "Send current + backsearch",
+                "To root", "Send current + to root", "Block"],
+            0, CONF.unassigned_under_mods],
+        ["UnassignedNonRootBehavior", "Behavior for unassigned non-root events:",
+            ["Backsearch", "Send current + backsearch",
+                "To root", "Send current + to root", "Block"],
+            0, CONF.unassigned_non_root],
+    ]
+
+    for arr in ddl_settings {
+        double := StrLen(arr[2]) > 35
+        s_gui.Add("Text", "x20 y+" . (double ? 5 : 15) . " h45 w180", arr[2])
+        elem := s_gui.Add("DropDownList",
+            "x+10 yp" . (double ? 10 : 0) . " w180 v" . arr[1], arr[3])
+        if arr[4] {
+            elem.Text := arr[5]
+        } else {
+            elem.Value := arr[5]
+        }
+    }
+
+    chb_main := [
+        ["ExtraFRow", "Use extra &f-row (13-24)", CONF.extra_f_row],
+        ["ExtraKRow", "Use &special keys (media, browser, apps)", CONF.extra_k_row],
+        ["CollectUnfamiliarLayouts", "Collect unfamiliar kbd &layouts from layers",
+            CONF.unfam_layouts],
+    ]
+
+    for arr in chb_main {
+        s_gui.Add("CheckBox", "x20 w360 h20 y+10 v" . arr[1], arr[2]).Value := arr[3]
+    }
+
+    s_gui.Add("Button", "x20 y+10 h20 w20", "?").OnEvent("Click",
+        (*) => (MsgBox("With this option, the program doesn’t parse inactive layer values "
+            . "into a core structure. "
+            . "`nTurn off only temporarily for work with GUI to view cross-values for all layers. "
+            . "`n⚠Turn on after adjusting the layers.", "Ignore inactive layers", "Iconi")))
+    s_gui.Add("CheckBox", "x+3 w330 yp+0 h20 vIgnoreInactiveLayers", "&Ignore inactive layers")
+        .Value := CONF.ignore_inactive
+
+    s_gui.Add("Button", "Center x20 y+15 w360 h20", "Reread system layouts")
+        .OnEvent("Click", TrackLayouts)
+
+    tabs.UseTab("GUI")
+
+    ddl_gui := [
+        ["KeynameType", "Keyname type:",
+            ["Always use keynames", "Always use scancodes", "Scancodes on empty keys"],
+            0, CONF.keyname_type],
+        ["OverlayType", "Overlay type:", ["Disabled", "Indicators only", "With counters"],
+            0, CONF.overlay_type],
+    ]
+
+    for arr in ddl_gui {
+        double := StrLen(arr[2]) > 20
+        s_gui.Add("Text", "x20 y+" . (double ? 3 : 10) . " h45 w180", arr[2])
+        elem := s_gui.Add("DropDownList",
+            "Center x+10 yp" . (double ? 10 : 0) . " w180 v" . arr[1], arr[3])
+        if arr[4] {
+            elem.Text := arr[5]
+        } else {
+            elem.Value := arr[5]
+        }
+    }
+
+    str_gui := [
         ["GuiScale", "Gui scale:", Round(CONF.gui_scale, 2)],
         ["FontScale", "Font scale:", Round(CONF.font_scale, 2)],
         ["FontName", "Font name:", CONF.font_name],
@@ -219,52 +291,28 @@ ShowSettings(*) {
         ["GuiSetHoldEdit", "…'Set hold' action:", ""],
     ]
 
-    for arr in str_settings {
-        s_gui.Add("Text", "x20 y+13 h20 w160", arr[2])
-        s_gui.Add("Edit", "Center x+10 yp-2 h20 w160 v" . arr[1], arr[3])
+    for arr in str_gui {
+        s_gui.Add("Text", "x20 y+13 h20 w180", arr[2])
+        s_gui.Add("Edit", "Center x+10 yp-2 h20 w180 v" . arr[1], arr[3])
     }
 
     s_gui["GuiBackEdit"].Text := _GetKeyName(CONF.gui_back_sc)
     s_gui["GuiSetEdit"].Text := _GetKeyName(CONF.gui_set_sc)
     s_gui["GuiSetHoldEdit"].Text := _GetKeyName(CONF.gui_set_hold_sc)
 
-
-    chb_settings := [
-        ["ExtraFRow", "Show extra &f-row (13-24)", CONF.extra_f_row, 0],
-        ["ExtraKRow", "Show &special keys (media, browser, apps)", CONF.extra_k_row, 0],
-        ["HelpTexts", "Show &help texts", CONF.help_texts, 0],
-        ["WideMode", "Enable &wide mode", CONF.wide_mode, 0],
-        ["GuiAltIgnore", "Ignore phisical &Alt presses on the GUI", CONF.gui_alt_ignore, 0],
-        ["IgnoreUnassignedUnderMods",
-            "Ignore unassigned kbd events when pressing with &modifiers (empty action)",
-            CONF.ignore_unassigned_under_mods, 1],
-        ["IgnoreUnassignedNonRoot",
-            "Ignore unassigned kbd events when pressing from &deep within the chain (empty action)",
-            CONF.ignore_unassigned_non_root, 1],
+    chb_gui := [
+        ["HelpTexts", "Show &help texts", CONF.help_texts],
+        ["WideMode", "Enable &wide mode", CONF.wide_mode],
+        ["GuiAltIgnore", "Ignore physical &Alt presses on the GUI", CONF.gui_alt_ignore],
         ["HideMouseWarnings", "Hide warnings about disabling drag &behavior for LBM/RBM/MBM",
-            CONF.hide_mouse_warnings, 1],
-        ["CollectUnfamiliarLayouts", "Collect unfamiliar &layouts (langs) from layers",
-            CONF.unfam_layouts, 0],
+            CONF.hide_mouse_warnings],
     ]
 
-    for arr in chb_settings {
+    for arr in chb_gui {
         y := A_Index == 1 ? " y15 " : " y+10 "
-        h := arr[4] ? " h41 " : " h20 "
-        s_gui.Add("CheckBox", "x380 w295" . h . y . "v" . arr[1], arr[2]).Value := arr[3]
+        h := StrLen(arr[2]) > 44 ? " h44 " : " h20 "
+        s_gui.Add("CheckBox", "x20 w360" . h . "y+10 v" . arr[1], arr[2]).Value := arr[3]
     }
-
-    s_gui.Add("Button", "x380 y+10 h20 w20", "?").OnEvent("Click",
-        (*) => (MsgBox("With this option, the program doesn’t parse inactive layer values "
-            . "into a core structure. "
-            . "`nTurn off only temporarily for work with GUI to view cross-values for all layers. "
-            . "`n⚠Turn on after adjusting the layers.", "Ignore inactive layers", "Iconi")))
-    s_gui.Add("CheckBox", "x+3 w260 yp+0 h20 vIgnoreInactiveLayers", "&Ignore inactive layers")
-        .Value := CONF.ignore_inactive
-
-    s_gui.Add("Button", "Center x20 y+45 w330 h20", "Reread system langs")
-        .OnEvent("Click", TrackLayouts)
-    s_gui.Add("Button", "Center x+30 yp+0 w320 h20 Default vApply", "✔ Apply")
-        .OnEvent("Click", SaveConfig)
 
     s_gui.Add("Edit", "Center x-1000 y-1000 w0 h0 vGuiBack", CONF.gui_back_sc)
     s_gui.Add("Edit", "Center x-1000 y-1000 w0 h0 vGuiSet", CONF.gui_set_sc)
@@ -273,6 +321,7 @@ ShowSettings(*) {
     s_gui.Show()
     DllCall("SetFocus", "ptr", s_gui["ExtraFRow"].Hwnd)
 }
+
 
 
 PasteSCToInput(sc) {
@@ -306,12 +355,13 @@ SaveConfig(*) {
         IniWrite(s_gui[name].Text, "config.ini", "Main", name)
     }
 
-    for name in [  ; checkboxes
+    for name in [  ; checkboxes/ddl values
+        "UnassignedUnderModsBehavior", "UnassignedNonRootBehavior",
         "HelpTexts", "WideMode", "KeynameType", "OverlayType", "GuiAltIgnore", "HideMouseWarnings",
-        "IgnoreUnassignedUnderMods", "IgnoreUnassignedNonRoot",
         "CollectUnfamiliarLayouts", "IgnoreInactiveLayers", "ExtraKRow", "ExtraFRow"
     ] {
-        IniWrite(s_gui[name].Value, "config.ini", "Main", name)
+        val := s_gui[name].Value
+        IniWrite(val, "config.ini", "Main", name)
     }
 
     if s_gui["IgnoreInactiveLayers"].Value !== CONF.ignore_inactive {

@@ -109,8 +109,7 @@ RenameSelectedLayer(*) {
     new_filepath := "layers/" . inp.Value . ".json"
     if FileExist(new_filepath) && MsgBox(
         "File with this name already exists. Do you want to overwrite it?",
-        "Confirmation", "YesNo Icon?"
-    ) == "No" {
+        "Confirmation", "YesNo Icon?") == "No" {
         RenameSelectedLayer()
         return
     }

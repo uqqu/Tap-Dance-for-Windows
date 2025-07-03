@@ -20,6 +20,8 @@ gui_entries := {ubase: ROOTS[gui_lang], uhold: false, umod: false}
 temp_chord := 0
 start_temp_chord := 0
 
+overlay := false
+
 A_TrayMenu.Click := TrayClick
 A_TrayMenu.Add("tdfw", TrayClick)
 A_TrayMenu.Default := "tdfw"
@@ -110,7 +112,8 @@ UpdateKeys() {
         }
     }
 
-    ToggleEnabled(1, UI.layer_ctrl_btns, UI.layer_move_btns, UI.chs_toggles)
+    ToggleEnabled(1, UI.layer_ctrl_btns, UI.layer_move_btns)
+    ToggleEnabled(0, UI.layer_ctrl_btns, UI.chs_toggles)
 
     _CreateOverlay()
     _FillPathline()
@@ -128,6 +131,10 @@ UpdateKeys() {
 HandleKeyPress(sc) {
     global temp_chord
 
+    if sc == 0x038 || sc == 0x138 {  ; unfocus hidden menubar
+        Send("{Alt}")
+    }
+
     if sc == CONF.gui_back_sc {
         if current_path.Length {
             ChangePath(current_path.Length - 1)
@@ -139,15 +146,16 @@ HandleKeyPress(sc) {
     } else if sc == CONF.gui_set_hold_sc && UI["BtnHold"].Enabled && UI["BtnHold"].Visible {
         OpenForm(1)
     } else if temp_chord {
+        str_sc := String(sc)
         btn := UI.buttons[sc]
         if !btn.Enabled {
             return
         }
-        if temp_chord.Has(sc) {
-            temp_chord.Delete(sc)
+        if temp_chord.Has(str_sc) {
+            temp_chord.Delete(str_sc)
             btn.Opt("+BackgroundSilver")
         } else {
-            temp_chord[sc] := true
+            temp_chord[str_sc] := true
             btn.Opt("+BackgroundBBBB22")
         }
         btn.Text := btn.Text
@@ -157,14 +165,10 @@ HandleKeyPress(sc) {
         ButtonLBM(sc)
     } else {
         bnode := _GetFirst(gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val).ubase)
-        b := KeyWait((sc is Number ? SC_STR[sc] : sc),
+        is_hold := KeyWait(SC_STR[sc],
             (bnode && bnode.custom_lp_time ? "T" . bnode.custom_lp_time / 1000 : CONF.T))
         if WinActive("A") == UI.Hwnd {  ; with postcheck
-            if sc == 0x038 || sc == 0x138 {  ; unfocus hidden menubar
-                Send("{Alt}")
-            }
-
-            b ? ButtonLBM(sc) : ButtonRBM(sc)
+            is_hold ? ButtonLBM(sc) : ButtonRBM(sc)
         }
     }
 }
@@ -231,10 +235,10 @@ SaveValue(
     json_node[2] := down_type == TYPES.Default || down_type == TYPES.Disabled ? "" : down_val . ""
     json_node[3] := up_type || TYPES.Disabled
     json_node[4] := up_type == TYPES.Default || json_node[3] == TYPES.Disabled ? "" : up_val . ""
-    json_node[5] := is_instant
-    json_node[6] := is_irrevocable
-    json_node[7] := custom_lp_time
-    json_node[8] := custom_nk_time
+    json_node[5] := Integer(is_instant)
+    json_node[6] := Integer(is_irrevocable)
+    json_node[7] := Integer(custom_lp_time)
+    json_node[8] := Integer(custom_nk_time)
     json_node[9] := shortname
     SerializeMap(json_root, layer)
 
@@ -279,8 +283,7 @@ ClearCurrentValue(is_hold, layer:="", *) {
 
 ClearNested(is_hold, layer:="", *) {
     if MsgBox("Do you want to delete all nested assignments?",
-        "Confirmation", "YesNo Icon?"
-    ) == "No" {
+        "Confirmation", "YesNo Icon?") == "No" {
         return
     }
 
@@ -337,6 +340,7 @@ TrayClick(*) {
     if !DllCall("IsWindowVisible", "ptr", UI.Hwnd) {
         UI.Show()
         SetTimer(UpdateOverlayPos, 100)
+        overlay.Show()
     } else {
         UI.Hide()
         SetTimer(UpdateOverlayPos, 0)
@@ -351,8 +355,7 @@ CloseEvent(*) {
     global overlay
 
     SetTimer(UpdateOverlayPos, 0)
-    try overlay.Destroy()
-    overlay := false
+    overlay.Hide()
 }
 
 
@@ -392,21 +395,23 @@ ToggleVisibility(state, arrs*) {
 }
 
 
-UpdateOverlayPos() {
+UpdateOverlayPos(*) {
     global overlay, overlay_x, overlay_y
 
-    if !UI || !UI.Hwnd || !WinExist("ahk_id " . UI.Hwnd)
+    if !UI.Hwnd || !WinExist("ahk_id " . UI.Hwnd)
         || !(WinActive("A") == UI.Hwnd) && !(WinActive("A") == overlay.Hwnd) {
         overlay.Hide()
         return
     }
-    WinGetPos &x, &y, , , "ahk_id " . UI.Hwnd
 
-    if overlay && overlay.Hwnd && (overlay_x !== x || overlay_y !== y
-        || !DllCall("IsWindowVisible", "Ptr", overlay.Hwnd)) {
-        overlay.Show("x" . x . " y" . y)
-        overlay_x := x
-        overlay_y := y
+    try {
+        WinGetPos &x, &y, , , "ahk_id " . UI.Hwnd
+        if overlay_x !== x || overlay_y !== y
+            || !DllCall("IsWindowVisible", "Ptr", overlay.Hwnd) {
+            overlay.Show("x" . x . " y" . y)
+            overlay_x := x
+            overlay_y := y
+        }
     }
     WinActivate("ahk_id " . UI.Hwnd)
 }
