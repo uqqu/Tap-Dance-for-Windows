@@ -35,8 +35,8 @@
           null,
           0,
           0,
-          "0",
-          "0",
+          0,
+          1000,
           "Copy",
           {
             "LButton": {
@@ -50,6 +50,21 @@
                 "0",
                 "0",
                 "Cut",
+                {},
+                {}
+              ]
+            },
+            "RButton": {
+              "0": [
+                5,
+                "WikiSummary(en, Input: Selected, Ouptut: Tooltip, 7000)",
+                1,
+                null,
+                0,
+                0,
+                0,
+                0,
+                "Wiki",
                 {},
                 {}
               ]

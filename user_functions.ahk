@@ -130,6 +130,29 @@ ExchRates(from_currency, to_currency, out, t:=false) {
 }
 
 
+WikiSummary(lang, inp, out, t:=false) {
+    url := "https://" . lang . ".wikipedia.org/api/rest_v1/page/summary/" . inps[inp]()
+    web_request := ComObject("WinHttp.WinHttpRequest.5.1")
+    web_request.Open("GET", url)
+    web_request.Send()
+    bin := web_request.ResponseBody
+
+    stream := ComObject("ADODB.Stream")
+    stream.Type := 1
+    stream.Open()
+    stream.Write(bin)
+    stream.Position := 0
+    stream.Type := 2
+    stream.Charset := "utf-8"
+    txt := stream.ReadText()
+    stream.Close()
+
+    if RegExMatch(txt, '"extract"\s*:\s*"([^"]+)"', &m) {
+        outs[out](StrReplace(m[1], "\n", "`n"), t)
+    }
+}
+
+
 Reminder(given_minutes:=0) {
     if given_minutes {
         SetTimer(_Alarma, -given_minutes * 60000)
@@ -430,6 +453,7 @@ custom_funcs := Map(
         . "(requires API key GETGEOAPI in the environment variables).",
         "From currency", "To currency", 2
     ],
+    "WikiSummary", ["Get the first paragraph from wiki article", "Language code (en/ru/es)", 1, 2],
     "Reminder", ["Set a reminder after a specified number of minutes. "
         . "If value is ommited you will be asked for input when you call the function",
         "Number of minutes"
@@ -454,9 +478,10 @@ custom_funcs := Map(
 )
 
 custom_func_keys := ["SetActiveLayers", "ToggleLayers", "TreatAsOtherNode", "ActivateApp",
-    "ToggleMod", "GetDateTime", "GetCustomDateTime", "GetWeather", "ExchRates", "Reminder",
-    "DelayedMediaPlayPause", "ChangeTextCase", "SmartTranslit", "IncrDecr", "CustomString",
-    "RemoveTextFormatting", "ShortenURL", "ClipboardSwap", "MinimizeWindows", "GenerateRandomPass",
+    "ToggleMod", "GetDateTime", "GetCustomDateTime", "GetWeather", "ExchRates", "WikiSummary",
+    "Reminder", "DelayedMediaPlayPause", "ChangeTextCase", "SmartTranslit", "IncrDecr",
+    "CustomString", "RemoveTextFormatting", "ShortenURL", "ClipboardSwap", "MinimizeWindows",
+    "GenerateRandomPass",
 ]
 
 custom_func_ddls := [
