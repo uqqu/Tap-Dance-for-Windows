@@ -328,6 +328,7 @@ NextFields(is_up, *) {
 RefreshFields(*) {
     global func_fields
 
+    additional_field := false
     name := func_form["FuncDDL"].Text
     arg_fields := custom_funcs[name]
 
@@ -361,6 +362,10 @@ RefreshFields(*) {
                 func_form.Add("DDL", "w320 x10 y" . y . " Choose1", custom_func_ddls[arg])
             )
             try func_fields[-1].Text := func_params[-1][A_Index-1]
+            if arg == 2 {  ; outputs
+                func_fields[-1].OnEvent("Change", OutputChange)
+                additional_field := func_fields[-1].Value == 3 ? 2 : 1
+            }
             y += 30
         } else {
             func_fields.Push(func_form.Add("Edit", "w320 x10 y" . y))
@@ -369,8 +374,24 @@ RefreshFields(*) {
             y += 30
         }
     }
+    if additional_field {
+        func_fields.Push(func_form.Add("Edit", "w320 x10 y" . y))
+        SendMessage(0x1501, true, StrPtr("Tooltip show time (default 3000 ms)"),
+            func_fields[-1].Hwnd)
+        if func_params.Length && func_params[-1].Length == arg_fields.Length {
+            try func_fields[-1].Text := func_params[-1][-1]
+        }
+        if additional_field == 1 {
+            func_fields[-1].Visible := false
+        }
+    }
     func_form["BtnPrev"].Opt((func_params.Length ? "-" : "+") . "Disabled")
     func_form.Show()
+}
+
+
+OutputChange(ddl_obj, *) {
+    func_fields[-1].Visible := ddl_obj.Value == 3
 }
 
 
@@ -408,8 +429,12 @@ PasteToInput(is_up:=false) {
 SaveAssignedFunction(is_up:=false, *) {
     global func_params
 
+    additional_field := false
     func_name := func_form["FuncDDL"].Text
     args := custom_funcs[func_name]
+    if !(args[2] is Array) {
+        func_params := []
+    }
 
     idx := 1
     for i, arg in args {
@@ -424,8 +449,14 @@ SaveAssignedFunction(is_up:=false, *) {
             }
         } else {
             func_params.Push(func_fields[idx].Text)
+            if arg == 2 && func_fields[idx].Value == 3 {
+                additional_field := true
+            }
             idx += 1
         }
+    }
+    if additional_field {
+        func_params.Push(func_fields[-1].Text)
     }
 
     PasteToInput(is_up)

@@ -1,8 +1,8 @@
 outs := Map(
-    "Output: SendText", (txt) => SendText(txt),
-    "Output: Clipboard", (txt) => (A_Clipboard := txt, 0),
-    "Ouptut: Tooltip", (txt) => (Tooltip(txt), SetTimer(() => Tooltip(), -3000)),
-    "Output: MessageBox", (txt) => MsgBox(txt)
+    "Output: SendText", (txt, _) => SendText(txt),
+    "Output: Clipboard", (txt, _) => (A_Clipboard := txt, 0),
+    "Ouptut: Tooltip", (txt, t) => (Tooltip(txt), SetTimer(() => Tooltip(), -t || -3000)),
+    "Output: MessageBox", (txt, _) => MsgBox(txt)
 )
 
 inps := Map(
@@ -73,17 +73,17 @@ ToggleMod(md) {
 }
 
 
-GetDateTime(val, out) {
-    outs[out](FormatTime(, val))
+GetDateTime(val, out, t:=false) {
+    outs[out](FormatTime(, val), t)
 }
 
 
-GetCustomDateTime(val, out) {
-    outs[out](FormatTime(, val))
+GetCustomDateTime(val, out, t:=false) {
+    outs[out](FormatTime(, val), t)
 }
 
 
-GetWeather(city_name, out) {
+GetWeather(city_name, out, t:=false) {
     static weather_key := RegRead("HKEY_CURRENT_USER\Environment", "OPENWEATHERMAP", 0)
 
     if !weather_key {
@@ -107,11 +107,11 @@ GetWeather(city_name, out) {
     feel := RegExReplace(web_request.ResponseText, '.+"feels_like":(-?\d+\.\d+).+', "$1")
     wind := RegExReplace(web_request.ResponseText, '.+"speed":(\d+\.\d+|\d+).+', "$1")
 
-    outs[out](city_name . ":`n" . stat . "`n" . temp . "° (" . feel . "°)`n" . wind . "m/s")
+    outs[out](city_name . ":`n" . stat . "`n" . temp . "° (" . feel . "°)`n" . wind . "m/s", t)
 }
 
 
-ExchRates(from_currency, to_currency, out) {
+ExchRates(from_currency, to_currency, out, t:=false) {
     static currency_key := RegRead("HKEY_CURRENT_USER\Environment", "GETGEOAPI", 0)
 
     if !currency_key {
@@ -126,7 +126,7 @@ ExchRates(from_currency, to_currency, out) {
     web_request.Send()
 
     res := RegExMatch(web_request.ResponseText, '"rate_for_amount":"(\d+\.\d+)"', &m) ? m[1] : 0
-    outs[out](from_currency . "–" . to_currency . ": " . Round(res, 2))
+    outs[out](from_currency . "–" . to_currency . ": " . Round(res, 2), t)
 }
 
 
@@ -176,7 +176,7 @@ _MPPTimer() {
 }
 
 
-ChangeTextCase(change_name, inp, out) {
+ChangeTextCase(change_name, inp, out, t:=false) {
     txt := inps[inp]()
     switch change_name {
         case "Normalize":
@@ -206,11 +206,11 @@ ChangeTextCase(change_name, inp, out) {
             }
             changed_txt := result
     }
-    outs[out](changed_txt)
+    outs[out](changed_txt, t)
 }
 
 
-SmartTranslit(inp, out) {
+SmartTranslit(inp, out, t:=false) {
     static to_cyr := Map(
         "shch", "щ", "yo", "ё", "zh", "ж", "kh", "х", "ts", "ц", "ch", "ч", "sh", "ш", "yu", "ю",
         "ya", "я", "a", "а", "b", "б", "v", "в", "g", "г", "d", "д", "e", "е", "z", "з", "i", "и",
@@ -257,7 +257,7 @@ SmartTranslit(inp, out) {
         }
     }
 
-    outs[out](result)
+    outs[out](result, t)
 }
 
 
@@ -338,28 +338,35 @@ IncrDecr(n) {
 }
 
 
-CustomString(txt, out) {
-    outs[out](txt)
+CustomString(txt, out, t:=false) {
+    outs[out](txt, t)
 }
 
 
-RemoveTextFormatting(inp, out) {
+RemoveTextFormatting(inp, out, t:=false) {
     str := inps[inp]()
-    outs[out](str)
+    outs[out](str, t)
 }
 
 
-ShortenURL(inp, out) {
+ShortenURL(inp, out, t:=false) {
     url := inps[inp]()
-    api := "https://tinyurl.com/api-create.php?url=" . url
+    if !RegExMatch(url, "^https?://[^\s`"']+$") {
+        outs[out](url, t)
+        return
+    }
+
     try {
         http := ComObject("WinHttp.WinHttpRequest.5.1")
-        http.Open("GET", api, true)
+        http.Open("GET", "https://tinyurl.com/api-create.php?url=" . url, true)
         http.Send()
         http.WaitForResponse()
-        outs[out](http.ResponseText)
+        if http.ResponseText == "Error" {
+            throw
+        }
+        outs[out](http.ResponseText, t)
     } catch {
-        outs[out](url)
+        outs[out](url, t)
     }
 }
 
@@ -380,13 +387,13 @@ MinimizeWindows() {
 }
 
 
-GenerateRandomPass(len, extra_symbs, out) {  ; !@#$%^&*()-_=+[]{};:,.<>/?
+GenerateRandomPass(len, extra_symbs, out, t:=false) {  ; !@#$%^&*()-_=+[]{};:,.<>/?
     chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" . extra_symbs
     pass := ""
     loop len {
         pass .= SubStr(chars, Random(1, StrLen(chars)), 1)
     }
-    outs[out](pass)
+    outs[out](pass, t)
 }
 
 
