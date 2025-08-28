@@ -1,6 +1,6 @@
 ﻿_FillPathline() {
     UI.SetFont("Italic")
-    root := UI.Add("Button", "+0x80 -Wrap" . Scale(CONF.wide_mode ? 265 : 10, 5, 50), root_text)
+    root := UI.Add("Button", "+0x80 -Wrap" . Scale(10, 5, 50), root_text)
     ToggleVisibility(0, UI.path)
     UI.path := []
     UI.path.Push(root)
@@ -16,18 +16,19 @@
 
     for i, val in current_path {
         dir_text := UI.Add("Text", "x+3 yp" . (6 * CONF.gui_scale),
-            (val[2] > 1 ? val[2] : "") . (val[3] ? "▼" : ["➤", "▲"][(val[2] & 1) + 1])
+            (val[2] > 1 ? val[2] : "")
+            . (val[4] ? "•" : val[3] ? "▼" : ["➤", "▲"][(val[2] & 1) + 1])
         )
         UI.path.Push(dir_text)
 
         UI.path.Push(UI.Add("Button", "x+3 yp-"
-            . (6 * CONF.gui_scale), val[3] || _GetKeyName(val[1], true, true)))
+            . (6 * CONF.gui_scale), val[3] || val[4] || _GetKeyName(val[1], true, true)))
         UI.path[-1].OnEvent("Click", ChangePath.Bind(i))
     }
 
     ToggleEnabled(!SYS_MODIFIERS.Has(current_path[-1][1]),
         UI["BtnBase"], UI["BtnBaseClear"], UI["BtnBaseClearNest"])
-    ToggleEnabled(current_path[-1][3] == false,
+    ToggleEnabled(current_path[-1][3] == false && current_path[-1][4] == false,
         UI["BtnHold"], UI["BtnHoldClear"], UI["BtnHoldClearNest"])
 }
 
@@ -54,8 +55,8 @@ _FillSetButtons() {
             UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
             continue
         }
-        _AddIndicators(arr[2], UI["Btn" . txt], [54, 54])
-        if !arr[2].scancodes.Count && !arr[2].chords.Count {
+        _AddIndicators(arr[2], UI["Btn" . txt])
+        if !arr[2].scancodes.Count && !arr[2].chords.Count && !arr[2].gestures.Count {
             UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
         }
 
@@ -97,7 +98,7 @@ _FillKeyboard() {
         btn.Opt("-Disabled +BackgroundSilver")
         btn.SetFont("Norm")
 
-        res := gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val, false, false, false)
+        res := gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val, false, false, false, false)
         b_node := _GetFirst(res.ubase)
         h_node := _GetFirst(res.uhold)
         m_node := _GetFirst(res.umod)
@@ -115,7 +116,7 @@ _FillKeyboard() {
         btxt := _GetKeyName(sc, true)
         if b_node {
             UI["BtnBaseClear"].Opt("-Disabled")
-            _AddIndicators(res.ubase, btn, [54, 54])
+            _AddIndicators(res.ubase, btn)
             switch b_node.down_type {
                 case TYPES.Default:
                     btxt := _GetKeyName(sc, true)
@@ -135,7 +136,7 @@ _FillKeyboard() {
 
         htxt := ""
         if h_node {
-            _AddIndicators(res.uhold, btn, [28, 43], true)
+            _AddIndicators(res.uhold, btn, true)
             switch h_node.down_type {
                 case TYPES.Default:
                     htxt := "`n" . _GetKeyName(sc)
@@ -161,7 +162,7 @@ _FillKeyboard() {
             if gui_mod_val && gui_mod_val & v == v {
                 btn.Opt("+BackgroundBlack")
             } else {
-                _AddIndicators(res.umod, btn, [28, 43], true)
+                _AddIndicators(res.umod, btn, true)
                 btn.Opt("+Background7777AA")
             }
             htxt := "`n" . (m_node.gui_shortname ? m_node.gui_shortname : m_node.down_val)
@@ -171,42 +172,43 @@ _FillKeyboard() {
 }
 
 
-_AddIndicators(unode, btn, ay, ah:=false) {
+_AddIndicators(unode, btn, is_hold:=false) {
     if CONF.overlay_type == 1 {
         return
     }
     btn.GetPos(&x, &y, &w, &h)
+    x += 1
+    y += 1
+    w -= 2
+    h -= 2
+    p := 3 * CONF.gui_scale
     node := _GetFirst(unode)
     if node.down_type == TYPES.Modifier {
         cnt := _CountChild("", 0, gui_mod_val + (1 << node.down_val),
-            gui_entries.ubase.scancodes, gui_entries.ubase.chords)
+            gui_entries.ubase.scancodes, gui_entries.ubase.chords, gui_entries.ubase.gestures)
     } else {
-        cnt := _CountChild("", 0, 0, unode.scancodes, unode.chords)
+        cnt := _CountChild("", 0, 0, unode.scancodes, unode.chords, unode.gestures)
     }
     if cnt {
-        l := (StrLen(String(cnt)) - 1) * 6 * CONF.font_scale
+        l := StrLen(String(cnt)) * 5 * CONF.font_scale + 4
         (CONF.overlay_type == 3)
-            ? _AddOverlayItem(x + w - 3 - l, y + ay[1] + (ah ? h + 10 - 6 * CONF.font_scale : 0),
-                "", cnt)
-            : _AddOverlayItem(x + w + 3, y + ay[2] + (ah ? h : 0), "Red")
+            ? _AddOverlayItem(x + w - l, y + (is_hold ? h - 12 * CONF.font_scale : 0), "", cnt)
+            : _AddOverlayItem(x + w - p, y + (is_hold ? h - p : 0), "Red")
     }
-    if node.gui_shortname {
-        _AddOverlayItem(x + 14, y + ay[2] + (ah ? h : 0), "Silver")
+    if is_hold {
+        y += h - p
     }
-    if node.is_irrevocable {
-        _AddOverlayItem(x + 20, y + ay[2] + (ah ? h : 0), "Gray")
-    }
-    if node.is_instant {
-        _AddOverlayItem(x + 26, y + ay[2] + (ah ? h : 0), "Teal")
-    }
-    if node.up_type !== TYPES.Disabled {
-        _AddOverlayItem(x + 32, y + ay[2] + (ah ? h : 0), "Blue")
-    }
-    if node.custom_lp_time {
-        _AddOverlayItem(x + 38, y + ay[2] + (ah ? h : 0), "Purple")
-    }
-    if node.custom_nk_time {
-        _AddOverlayItem(x + 44, y + ay[2] + (ah ? h : 0), "Fuchsia")
+    for arr in [
+        [node.gui_shortname, "Silver"],
+        [node.is_irrevocable, "Gray"],
+        [node.is_instant, "Teal"],
+        [node.up_type !== TYPES.Disabled, "Blue"],
+        [node.custom_lp_time, "Purple"],
+        [node.custom_nk_time, "Fuchsia"]
+    ] {
+        if arr[1] {
+            _AddOverlayItem(x + p * (A_Index - 1), y, arr[2])
+        }
     }
 }
 
@@ -248,7 +250,7 @@ _FillLayers() {
         txt := ["", ""]
         for i, unode in [gui_entries.ubase, gui_entries.uhold] {
             if unode {
-                cnt[i] := _CountChild(name, 0, 0, unode.scancodes, unode.chords)
+                cnt[i] := _CountChild(name, 0, 0, unode.scancodes, unode.chords, unode.gestures)
             }
             node := _GetFirst(unode, name)
             if !node {
@@ -285,6 +287,7 @@ _FillLayers() {
         )
     }
     ToggleEnabled(0, UI.layer_move_btns, UI.layer_ctrl_btns)
+    UI["LV_layers"].ModifyCol(3, "Sort")
 }
 
 
@@ -311,7 +314,9 @@ _CountChild(layer, levels, mod_val, arrs*) {
                     }
                 }
                 if levels {
-                    cnt += _CountChild(layer, levels-1, mod_val, unode.scancodes, unode.chords)
+                    cnt += _CountChild(
+                        layer, levels-1, mod_val, unode.scancodes, unode.chords, unode.gestures
+                    )
                 }
             }
         }
@@ -322,6 +327,55 @@ _CountChild(layer, levels, mod_val, arrs*) {
 
 _IsCounted(node) {
     return node && (node.down_type !== TYPES.Chord || node.up_type !== TYPES.Disabled)
+}
+
+
+_FillGestures() {
+    UI["LV_gestures"].Delete()
+    if gui_entries && gui_entries.ubase && gui_entries.ubase == ROOTS[gui_lang] {  ; TODO
+        ToggleEnabled(0, UI["BtnAddNewGesture"])
+        return
+    }
+
+    ToggleEnabled(1, UI["BtnAddNewGesture"])
+    checked_layers := layer_editing ? [selected_layer] : ActiveLayers.order
+    for vec_str, mods in gui_entries.ubase.gestures {
+        ubase := gui_entries.ubase.GetBaseHoldMod(vec_str, gui_mod_val, false, true).ubase
+        child_node := _GetFirst(ubase)
+        if !child_node {
+            continue
+        }
+
+        cnt := ubase ? _CountChild("", 0, 0, ubase.scancodes, ubase.chords, ubase.gestures) : 0
+        layer_text := ""
+        for layer in checked_layers {
+            if _EqualNodes(child_node, _GetFirst(ubase, layer)) {
+                layer_text .= " & " . layer
+            }
+        }
+        layer_text := SubStr(layer_text, 4)
+
+        switch child_node.down_type {
+            case TYPES.Text:
+                val := "'" . _CheckDiacr(child_node.down_val) . "'"
+            case TYPES.KeySimulation:
+                val := _GetKeyName(false, false, true, child_node.down_val)
+            case TYPES.Function:
+                val := "(" . child_node.down_val . ")"
+        }
+
+        UI["LV_gestures"].Add(
+            "",
+            child_node.gui_shortname,
+            val,
+            cnt || "",
+            layer_text,
+            vec_str
+        )
+    }
+    ToggleEnabled(gui_entries && gui_entries.ubase && gui_entries.ubase !== ROOTS[gui_lang],
+        UI["BtnAddNewGesture"])
+    UI["LV_gestures"].ModifyCol(1, "Sort")
 }
 
 
@@ -336,7 +390,7 @@ _FillChords() {
         }
 
         hl := start_temp_chord && start_temp_chord.Count && chord_str == selected_chord ? "👉 " : ""
-        cnt := ubase ? _CountChild("", 0, 0, ubase.scancodes, ubase.chords) : 0
+        cnt := ubase ? _CountChild("", 0, 0, ubase.scancodes, ubase.chords, ubase.gestures) : 0
 
         layer_text := ""
         for layer in checked_layers {
@@ -374,6 +428,7 @@ _FillChords() {
             layer_text
         )
     }
+    UI["LV_chords"].ModifyCol(1, "Sort")
 }
 
 

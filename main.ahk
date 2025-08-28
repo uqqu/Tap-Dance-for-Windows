@@ -3,18 +3,20 @@
 #Include "serializing.ahk"
 #Include "structs.ahk"
 #Include "config.ahk"
+#Include "gestures.ahk"
 #Include "gui/gui.ahk"
 #Include "user_functions.ahk"
 
 last_val := false  ; unsended value while we wait nested event (if the timer expires/interrupted)
 pending := false  ; tap value of assignment, while we wait if the hold will be confirmed
-interrupted_kw := false  ; strange case – unassigned event with existing pending mimics it in kw oO
 delayed := false
 prev_unode := false
 catched_entries := false
 catched_gui_func := false
 current_presses := Map()
+unassigned_current_press := 0
 up_actions := Map()
+gest_node := false
 ResetModifiers()
 
 #Include "keys.ahk"
@@ -50,7 +52,21 @@ TimerResetBase() {
 TransitionProcessing(checked_unode, sc:=0) {
     ; branching, whether we proceed to waiting for a child press or process the current one;
     ; the sc comes from the calls with empty hold assignments
-    global curr_unode, last_val, prev_unode
+    global curr_unode, prev_unode, last_val, gest_pending
+
+    if gest_node {
+        gest_pending := TransitionProcessing.Bind(checked_unode, sc)
+        return
+    }
+    gest_pending := false
+
+    if !checked_unode {  ; NTT
+        return
+    }
+
+    if checked_unode.fin.up_type !== TYPES.Disabled {
+        up_actions[sc] := checked_unode.fin
+    }
 
     ; if there are no child assignments – send current and try to reset unode
     if !checked_unode.active_scancodes.Count && !checked_unode.active_chords.Count {
@@ -72,7 +88,9 @@ TransitionProcessing(checked_unode, sc:=0) {
     } else {  ; store current value for processing, if there will not be a child press
         last_val := [checked_unode, false]
     }
-    SetTimer(TimerSendCurrent, -(checked_unode.fin.custom_nk_time || CONF.MS_NK))
+    if !checked_unode.fin.is_irrevocable {
+        SetTimer(TimerSendCurrent, -(checked_unode.fin.custom_nk_time || CONF.MS_NK))
+    }
     if curr_unode !== checked_unode {
         prev_unode := curr_unode
         curr_unode := checked_unode
@@ -109,7 +127,11 @@ PreCheck(sc, *) {
     ;; determine whether we will intercept the event or allow it to be executed natively
     ;;  …with accompanying logic operations (in fact, everything except
     ;;  …the final processing of the found assignment)
-    global catched_entries, pending, delayed, interrupted_kw
+    global catched_entries, pending, delayed, unassigned_current_press
+
+    if gest_overlay && !gest_node {
+        DestroyGestOverlay()
+    }
 
     if !(sc is Number) {
         ; simulate wheel l/r up action manually
@@ -126,6 +148,13 @@ PreCheck(sc, *) {
         return true
     }
 
+    ; pass unassigned that was manually triggered after pending branch to allow hold repetition
+    if unassigned_current_press == sc {
+        return false
+    }
+    ; and clear it from any other scs
+    unassigned_current_press := 0
+
     if GuiCheck(sc) {
         return true
     }
@@ -133,23 +162,27 @@ PreCheck(sc, *) {
     ; continue the chain of transitions, if the previous unsent push had a table of transitions
     ; case: {a down (with hold assignment)}[keywait start]{b down}
     if pending {
-        SetTimer(TransitionProcessing.Bind(pending), -1)  ; SetTimer allow use Send "inside" HotIf
-        delayed := true  ; …but we must approve that next send will be sent after current
+        delayed := true  ; mark that next send will be sent after current
+        TransitionProcessing(pending)
         pending := false
     }
 
     CheckLayout()  ; switch to a new root if the layout has changed
 
     entries := GetEntries(sc)
+    if entries !== 2 {
+        SetTimer(TimerSendCurrent, 0)
+    }
     if entries == 0 {  ; no assignments found
         if !delayed {  ; allow native press in the base case
             return false
         }
         ; else (if there are cross sends) follow the send order with default simulation
         TransitionProcessing(GetDefaultSim(sc)[1])
-        interrupted_kw := true
+        catched_entries := false
+        unassigned_current_press := sc
         return true
-    } else if entries == 1 {  ; processed as mod/basemod or blocked by conf.unassigned
+    } else if entries == 1 || entries == 2 {  ; processed as mod/basemod or blocked by child_bhv
         return true
     }
     ; else catched_entries is obj
@@ -161,15 +194,14 @@ PreCheck(sc, *) {
 GetEntries(sc, extra_mod:=0) {
     global delayed
 
-    SetTimer(TimerSendCurrent, 0)
-    entries := curr_unode.GetBaseHoldMod(sc, current_mod, false, true)
+    entries := curr_unode.GetBaseHoldMod(sc, current_mod, false, false, true)
 
     if TreatMod(entries, sc) {
         current_presses[sc] := true
         return 1
     }
 
-    if entries.ubase || entries.uhold {  ; TODO umod?
+    if entries.ubase || entries.uhold {
         return entries  ; has at least one assignment; there's a point in further processing
     }
 
@@ -177,36 +209,29 @@ GetEntries(sc, extra_mod:=0) {
 
     is_root := curr_unode == ROOTS[CurrentLayout]
 
-    for conditions in [
-        [current_mod, CONF.unassigned_under_mods], [!is_root, CONF.unassigned_non_root]] {
-        if conditions[1] {
-            if conditions[2] == 5 {  ; block unassigned
-                return 1  ; do nothing else
-            } else if prev_unode && conditions[2] == 1 {  ; backsearch
-                StepBack(extra_mod)
-                return GetEntries(sc)  ; repeat scmod check from previous step
-            } else if prev_unode && conditions[2] == 2 {  ; send + backsearch
-                if last_val {
-                    delayed := true
-                    SendKbd(last_val[1].fin.down_type, last_val[1].fin.down_val)
-                }
-                StepBack(extra_mod)
-                return GetEntries(sc)
-            } else if !is_root {
-                if conditions[2] == 4 && last_val {  ; force sending stored value
-                    delayed := true
-                    SendKbd(last_val[1].fin.down_type, last_val[1].fin.down_val)
-                }
-                ToRoot(extra_mod)
-                return GetEntries(sc)
-            }
+    if curr_unode.fin.child_behavior == 5 {  ; block unassigned
+        return 2  ; do nothing else
+    } else if (curr_unode.fin.child_behavior == 1 || curr_unode.fin.child_behavior == 2)
+        && prev_unode {  ; backsearch
+        if last_val && curr_unode.fin.child_behavior == 2 {  ; force sending stored value
+            delayed := true
+            SendKbd(last_val[1].fin.down_type, last_val[1].fin.down_val)
         }
+        StepBack(extra_mod)
+        return GetEntries(sc)  ; repeat scmod check from previous step
+    } else if !is_root {
+        if last_val && curr_unode.fin.child_behavior == 4 {
+            delayed := true
+            SendKbd(last_val[1].fin.down_type, last_val[1].fin.down_val)
+        }
+        ToRoot(extra_mod)
+        return GetEntries(sc)
     }
 
     ;; root reached, not assigned, not blocked, not found on the prev node/root (if configured so)
 
     ; to prevent the native press from being sent earlier than previous simulated. rare case
-    if last_val {
+    if last_val {  ; NTT
         delayed := true
         SendKbd(TYPES.KeySimulation, SC_STR_BR[sc])
         return 1
@@ -216,7 +241,7 @@ GetEntries(sc, extra_mod:=0) {
 
 
 TreatMod(entries, sc) {
-    global last_val, current_mod
+    global last_val, current_mod, gest_node
 
     ; if there is an assignment for hold, it has higher priority than basemod (1)
     ; without `current_mod` – umod is uhold, so this is only for assignments under mods
@@ -234,6 +259,11 @@ TreatMod(entries, sc) {
     ; mods and chord_parts are stored with their scs to indicate that the assignment will
     ; …only triggered from its own event (without execution from cross-presses)
     last_val := entries.ubase ? [entries.ubase, sc] : GetDefaultSim(sc, true)
+
+    if last_val[1].active_gestures.Count {
+        gest_node := last_val[1]
+        StartDraw()
+    }
 
     current_mod |= 1 << val
     SetTimer(TimerResetBase, -(last_val[1].fin.custom_nk_time || CONF.MS_NK))
@@ -272,12 +302,18 @@ SysModComboDown(sc, extra_mod) {
 
     current_mod |= extra_mod
     catched_entries := GetEntries(sc, extra_mod)
+    if !IsObject(catched_entries) {
+        current_mod &= ~extra_mod
+        catched_entries := false
+        SetTimer(TimerSendCurrent, -CONF.MS_NK)
+        return
+    }
     OnKeyDown(sc)
 }
 
 
 OnKeyDown(sc) {
-    global last_val, pending, catched_entries, catched_gui_func, delayed, interrupted_kw
+    global last_val, pending, catched_entries, catched_gui_func, delayed, gest_node
 
     if catched_gui_func {
         if sc !== "WheelDown" && sc !== "WheelUp" {
@@ -292,11 +328,14 @@ OnKeyDown(sc) {
         return
     }
 
-    TimerResetBase()
     SetTimer(TimerResetBase, 0)
+    TimerResetBase()
 
-    if !interrupted_kw {
-        current_presses[sc] := true  ; store current press for repetition and chord checks
+    current_presses[sc] := true  ; store current press for repetition and chord checks
+
+    if catched_entries.ubase && catched_entries.ubase.active_gestures.Count {
+        gest_node := catched_entries.ubase
+        StartDraw()
     }
 
     ; only tap assigned or insignificant hold
@@ -304,29 +343,25 @@ OnKeyDown(sc) {
         && !catched_entries.uhold.active_scancodes.Count
         && !catched_entries.uhold.active_chords.Count {
         TransitionProcessing(catched_entries.ubase, sc)
-        if catched_entries.ubase.fin.up_type !== TYPES.Disabled {
-            up_actions[sc] := catched_entries.ubase.fin
-        }
 
     ; chord part
     } else if catched_entries.uhold.fin.down_type == TYPES.Chord {
-        res := curr_unode.Get(ChordToStr(current_presses), current_mod, true)
+        res := curr_unode.GetNode(ChordToStr(current_presses), current_mod, true)
         if res {  ; chord matched!
             TransitionProcessing(res)
-            catched_entries := false
-            return
-        }
-        ; in other case store tap/default value with sc note
-        ; …(can be sent with corresponding KeyUp(sc) only)
-        if catched_entries.ubase {
-            last_val := [catched_entries.ubase, sc]
-            if catched_entries.ubase.fin.up_type !== TYPES.Disabled {
-                up_actions[sc] := catched_entries.ubase.fin
-            }
-            SetTimer(TimerResetBase, -(catched_entries.ubase.fin.custom_nk_time || CONF.MS_NK))
         } else {
-            last_val := GetDefaultSim(sc, true)
-            SetTimer(TimerResetBase, -CONF.MS_NK)
+            ; in other case store tap/default value with sc note
+            ; …(can be sent with corresponding KeyUp(sc) only)
+            if catched_entries.ubase {
+                last_val := [catched_entries.ubase, sc]
+                if catched_entries.ubase.fin.up_type !== TYPES.Disabled {
+                    up_actions[sc] := catched_entries.ubase.fin
+                }
+                SetTimer(TimerResetBase, -(catched_entries.ubase.fin.custom_nk_time || CONF.MS_NK))
+            } else {
+                last_val := GetDefaultSim(sc, true)
+                SetTimer(TimerResetBase, -CONF.MS_NK)
+            }
         }
 
     ; full-fledged tap/hold
@@ -336,19 +371,12 @@ OnKeyDown(sc) {
         is_hold := KeyWait(SC_STR[sc],
             (pending.fin.custom_lp_time ? "T" . pending.fin.custom_lp_time / 1000 : CONF.T))
         ; determine tap/hold and than recheck pending that may be reset by other presses during KW
+
         if pending && !delayed {
-            if interrupted_kw {
-                interrupted_kw := false
-                pending := false
-                return
-            }
             res_unode := is_hold ? pending : catched_entries.uhold
             TransitionProcessing(res_unode)
-            if res_unode.fin.up_type !== TYPES.Disabled {
-                up_actions[sc] := res_unode.fin
-            }
-            pending := false
         }
+        pending := false
     }
     catched_entries := false
 }
@@ -358,13 +386,13 @@ CheckLayout() {
     global CurrentLayout
 
     layout := GetCurrentLayout()
-    if layout == CurrentLayout {
+    if layout == CurrentLayout || !ROOTS.Has(layout) && CurrentLayout == 0 {
         return
     }
 
     ; force sending the last stored value and reset curr_unode to the root by the new layout
     TimerSendCurrent()
-    CurrentLayout := layout
+    CurrentLayout := ROOTS.Has(layout) ? layout : 0
     ToRoot()
 }
 
@@ -379,8 +407,8 @@ ResetModifiers() {
 GetDefaultSim(sc, extended:=false) {
     return [
         {
-            scancodes: Map(), chords: Map(),
-            active_scancodes: Map(), active_chords: Map(),
+            scancodes: Map(), chords: Map(), gestures: Map(),
+            active_scancodes: Map(), active_chords: Map(), active_gestures: Map(),
             fin: GetDefaultNode(sc, current_mod)
         },
         extended ? sc : false
@@ -436,19 +464,11 @@ SendKbd(action_type, action_val) {
 
     switch action_type {
         case TYPES.Text:
-            if delayed {
-                SetTimer(SendText.Bind(action_val), -1)
-                delayed := false
-            } else {
-                SendText(action_val)
-            }
+            delayed ? SetTimer((val := action_val) => (SendText(val), delayed := false), -1)
+                : SendText(action_val)
         case TYPES.Default, TYPES.KeySimulation:
-            if delayed {
-                SetTimer(SendInput.Bind(action_val), -1)
-                delayed := false
-            } else {
-                SendInput(action_val)
-            }
+            delayed ? SetTimer((val := action_val) => (SendInput(val), delayed := false), -1)
+                : SendInput(action_val)
         case TYPES.Function:
             if !RegExMatch(action_val, "^(?<name>\w+)(?:\((?<args>.*)\))?$", &m) {
                 throw Error("Wrong function value: " . action_val)
@@ -470,7 +490,7 @@ TreatAsOtherNode(path) {  ; custom func
     start_unode := ROOTS[CurrentLayout]
     for arr in path {
         len := arr.Length
-        start_unode := start_unode.Get(arr[1], len > 1 ? arr[2] : 0, len > 2 ? arr[3] : 0)
+        start_unode := start_unode.GetNode(arr[1], len > 1 ? arr[2] : 0, len > 2 ? arr[3] : 0)
         if !start_unode {
             return  ; wrong path
         }

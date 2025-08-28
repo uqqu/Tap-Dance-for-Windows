@@ -1,9 +1,10 @@
 ﻿form := false
 func_form := false
+init_drawing := false
 
 
 OpenForm(save_type, *) {
-    ; 0 – base value, 1 – hold value, 2 – chord
+    ; 0 – base value, 1 – hold value, 2 – chord, 3 – gesture
     global form
 
     try form.Destroy()
@@ -20,22 +21,32 @@ OpenForm(save_type, *) {
     form.OnEvent("Escape", CloseForm)
 
     chord_as_base := false
-    ; check and correct if it "base" from chord
-    if save_type == 0 && current_path.Length && current_path[-1][3] {
-        chord_as_base := true
-        save_type := 2
+    gest_as_base := false
+    ; check and correct if it "base" from chord/gesture
+    if save_type == 0 && current_path.Length && (current_path[-1][3] || current_path[-1][4]) {
         entries := {ubase: ROOTS[gui_lang], uhold: false, umod: false}
         path := current_path.Clone()
         path.Length -= 1
 
         for arr in path {
-            entries := entries.ubase.GetBaseHoldMod(arr[1], arr[2], arr[3])
+            entries := entries.ubase.GetBaseHoldMod(arr*)
         }
-        unode := entries.ubase.GetBaseHoldMod(selected_chord, gui_mod_val, true).ubase
+
+        if current_path[-1][3] {
+            chord_as_base := true
+            save_type := 2
+            unode := entries.ubase.GetBaseHoldMod(selected_chord, gui_mod_val, true).ubase
+        } else {
+            gest_as_base := true
+            save_type := 3
+            unode := entries.ubase.GetBaseHoldMod(selected_gesture, gui_mod_val, false, true).ubase
+        }
     } else {
         unode := save_type == 1 ? gui_entries.uhold : save_type == 2
             ? gui_entries.ubase.GetBaseHoldMod(selected_chord, gui_mod_val, true).ubase
-            : gui_entries.ubase
+            : save_type == 3
+                ? gui_entries.ubase.GetBaseHoldMod(selected_gesture, gui_mod_val, false, true).ubase
+                : gui_entries.ubase
     }
 
     layers := layer_editing ? [selected_layer] : GetLayerList()
@@ -53,16 +64,24 @@ OpenForm(save_type, *) {
     if layers.Length > 1 {
         form.Add("DropDownList", "x10 y+10 w320 vLayersDDL Choose1", layers)
         form["LayersDDL"].OnEvent("Change",
-            ChangeFormPlaceholder.Bind(unode, layers, save_type, (save_type == 2 ? 0 : 2), 1)
+            ChangeFormPlaceholder.Bind(
+                unode, layers, save_type, (save_type > 1 ? 0 : 2), 1
+            )
         )
         try form["LayersDDL"].Text := prior_layer
     }
 
+    child_behavior_opts := [
+        "Backsearch", "Send current + backsearch", "To root", "Send current + to root", "Ignore"
+    ]
+
     ; sysmod
     if current_path.Length && SYS_MODIFIERS.Has(current_path[-1][1]) {
         form.Title := "Set modifier value"
-        form.Add("Edit", "y+10 w300 vInput")
-        form.Add("Edit", "y+10 w300 vShortname")
+        form.Add("Edit", "y+10 w320 vInput")
+        form.Add("Text", "y+10 w160", "Unassigned child behavior:")
+        form.Add("DropDownList", "yp-3 x+0 w160 vChildBehaviorDDL Choose5", child_behavior_opts)
+        form.Add("Edit", "y+10 x10 w320 vShortname")
         form.Add("Button", "x10 y+10 h20 w160 vCancel", "❌ Cancel")
         form.Add("Button", "x170 yp+0 h20 w160 Default vSave", "✔ Save")
         form["Cancel"].OnEvent("Click", CloseForm)
@@ -72,27 +91,30 @@ OpenForm(save_type, *) {
         SendMessage(0x1501, true, StrPtr("GUI shortname"), form["Shortname"].Hwnd)
 
         form.Show("w340")
-        ChangeFormPlaceholder(unode, layers, 1)
+        ChangeFormPlaceholder(unode, layers, 1, 0, 0)
         form["Input"].Focus()
         return
     }
 
     ; action types for different events
     ddl_list := [
-        ["Disabled", "Default", "Text", "KeySimulation", "Function"],
-        ["Disabled", "Default", "Text", "KeySimulation", "Function", "Modifier"],
-        ["Disabled", "Text", "KeySimulation", "Function"]
+        ["Disabled", "Default", "Text", "KeySimulation", "Function"],  ; base / hold under mods
+        ["Disabled", "Default", "Text", "KeySimulation", "Function", "Modifier"],  ; hold
+        ["Disabled", "Text", "KeySimulation", "Function"],  ; chords
+        ["Text", "KeySimulation", "Function"]  ; gestures
     ][save_type == 1 && current_path[-1][2] ? 1 : save_type + 1]
 
     form.Add("DropDownList", "x10 y+10 w320 vDDL", ddl_list)
     form.Add("Edit", "y+10 w320 vInput")
+    form.Add("Text", "y+10 w160", "Unassigned child behavior:")
+    form.Add("DropDownList", "yp-3 x+0 w160 vChildBehaviorDDL Choose4", child_behavior_opts)
 
     ; custom values
     form.Add("CheckBox", "x10 y+10 w160 vCBInstant", "Instant")
 
     form.Add("Edit", "x170 yp-3 w160 vCustomLP Number +Center", CONF.MS_LP).Visible := false
     SendMessage(0x1501, true, StrPtr("Your custom lp value (in ms)"), form["CustomLP"].Hwnd)
-    form.Add("Button", "x170 yp+0 w160 vBtnLP", "Custom hold waiting")
+    form.Add("Button", "x170 yp+0 w160 vBtnLP", "Custom hold waiting time")
         .OnEvent("Click", (*) => (
             form["BtnLP"].Visible := false, form["CustomLP"].Visible := true)
         )
@@ -105,13 +127,19 @@ OpenForm(save_type, *) {
 
     form.Add("Edit", "x170 yp-3 w160 vCustomNK Number +Center", CONF.MS_NK).Visible := false
     SendMessage(0x1501, true, StrPtr("Your custom nk value (in ms)"), form["CustomNK"].Hwnd)
-    form.Add("Button", "x170 yp+0 w160 vBtnNK", "Custom next key waiting")
+    form.Add("Button", "x170 yp+0 w160 vBtnNK", "Custom next event waiting time")
         .OnEvent("Click", (*) => (
             form["BtnNK"].Visible := false, form["CustomNK"].Visible := true)
         )
 
+    ; gesture
+    if save_type == 3 {
+        form.Add("Button", "x10 y+20 w320 vSetGesture", "Set gesture pattern")
+            .OnEvent("Click", SetGesture)
+        form.Add("Edit", "x10 y+10 w320 vShortname")
+        SendMessage(0x1501, true, StrPtr("GUI shortname"), form["Shortname"].Hwnd)
     ; extra up value & shortname
-    if save_type !== 2 {
+    } else if save_type !== 2 {
         form.Add("Button", "x10 y+20 w320 vUpToggle", "+Additional up action")
         form.Add("DropDownList", "x10 y+10 w320 vUpDDL", ddl_list).Visible := false
         form.Add("Edit", "x10 y+10 w320 vUpInput").Visible := false
@@ -122,7 +150,7 @@ OpenForm(save_type, *) {
             ShowHideUpVals()
         }
 
-        form.Add("Edit", "x10 y+10 w300 vShortname")
+        form.Add("Edit", "x10 y+10 w320 vShortname")
         SendMessage(0x1501, true, StrPtr("GUI shortname"), form["Shortname"].Hwnd)
     }
 
@@ -131,13 +159,94 @@ OpenForm(save_type, *) {
     form.Add("Button", "x170 yp+0 h20 w160 Default vSave", "✔ Save")
         .OnEvent("Click", (save_type == 2
             ? (chord_as_base ? WriteChord.Bind(current_path[-1][1]) : WriteChord.Bind(0))
-            : WriteValue.Bind(save_type))
+            : save_type == 3 ? (gest_as_base ? WriteGesture.Bind(current_path[-1][1])
+                : WriteGesture.Bind(0)) : WriteValue.Bind(save_type))
         )
+    if save_type == 3 {  ; TODO  && !selected_gesture
+        form["Save"].Opt("+Disabled")
+    }
 
     form["DDL"].OnEvent("Change", ChangeFormPlaceholder.Bind(unode, layers, save_type, 0, 0))
     form["DDL"].Text := curr_val ? TYPES_R[curr_val.down_type] : "Text"
     form.Show("w340")
-    ChangeFormPlaceholder(unode, layers, save_type, (save_type == 2 ? 0 : 2))
+    ChangeFormPlaceholder(unode, layers, save_type, (save_type > 1 ? 0 : 2), 0)
+}
+
+
+SetGesture(*) {
+    global init_drawing
+
+    form["SetGesture"].Text := "Draw a gesture while holding RBM"
+    init_drawing := true
+}
+
+
+WriteGesture(as_base:=false, *) {
+    global form
+
+    if !last_gesture_raw && selected_gesture {
+        out := selected_gesture
+    } else {
+        vec := NormalizeForProtractor(last_gesture_raw)
+        out := ""
+        i := 1
+        while i <= vec.Length {
+            out .= Format("{:0.8f}", vec[i]) . " "    ; x
+            out .= Format("{:0.8f}", vec[i+1]) . " "  ; y
+            i += 2
+        }
+    }
+    if !out {
+        MsgBox("Some error has occurred. Please, redraw gesture.")  ; TODO
+        return
+    }
+
+    layers := GetLayerList()
+    temp_layer := layer_editing ? selected_layer
+        : (layers.Length == 1 ? layers[1] : form["LayersDDL"].Text)
+    json_root := DeserializeMap(temp_layer)
+    if !json_root.Has(gui_lang) {
+        json_root[gui_lang] := [Map(), Map(), Map(), ""]
+    }
+    if as_base {
+        path := current_path.Clone()
+        path.Length -= 1
+        res := current_path.Length > 1 ? _WalkJson(json_root[gui_lang], path)
+            : json_root[gui_lang]
+    } else {
+        res := current_path.Length ? _WalkJson(json_root[gui_lang], current_path)
+            : json_root[gui_lang]
+    }
+    json_gestures := res[-2]
+
+    if selected_gesture {
+        if json_gestures[selected_gesture].Count !== 1 {
+            json_gestures[selected_gesture].Delete(gui_mod_val)
+        } else {
+            json_gestures.Delete(selected_gesture)
+        }
+    }
+
+    json_gestures[out] := Map()
+    json_gestures[out][gui_mod_val] := [
+        TYPES.%form["DDL"].Text%, form["Input"].Text . "", TYPES.Disabled, "",
+        Integer(form["CBInstant"].Value), Integer(form["CBIrrevocable"].Value),
+        0, Integer(form["CustomNK"].Text), Integer(form["ChildBehaviorDDL"].Value),
+        form["Shortname"].Text, Map(), Map(), Map(), ""
+    ]
+
+    SerializeMap(json_root, temp_layer)
+
+    FillRoots()
+    if layer_editing {
+         AllLayers.map[selected_layer] := true
+        _MergeLayer(selected_layer)
+    }
+    UpdLayers()
+    ChangePath()
+
+    form.Destroy()
+    form := false
 }
 
 
@@ -160,6 +269,7 @@ ChangeFormPlaceholder(unode, layers, save_type:=0, is_up:=0, is_layer_editing:=0
     ]
 
     layer := layers.Length > 1 ? form["LayersDDL"].Text : layers[1]
+    name := [" value ", " value ", " chord ", " gesture "][save_type + 1]
 
     is_ddl := false
     try is_ddl := form["DDL"]
@@ -182,6 +292,7 @@ ChangeFormPlaceholder(unode, layers, save_type:=0, is_up:=0, is_layer_editing:=0
         val := unode.layers[layer][0]
         irrevoc := val.is_irrevocable
         instant := val.is_instant
+        child_behavior := val.child_behavior
         gui_name := val.gui_shortname
         lp := val.custom_lp_time
         nk := val.custom_nk_time
@@ -194,10 +305,10 @@ ChangeFormPlaceholder(unode, layers, save_type:=0, is_up:=0, is_layer_editing:=0
             inp.Text := is_up ? val.up_val : val.down_val
         }
 
-        title := "Existing value on layer '" . layer . "'"
+        title := "Existing" . name . "on layer '" . layer . "'"
     }
 
-    form.Title := title ?? "New value for layer '" . layer . "'"
+    form.Title := title ?? "New" . name . "for layer '" . layer . "'"
 
     if save_type !== 0 {
         try form["CustomLP"].Visible := 0
@@ -215,15 +326,19 @@ ChangeFormPlaceholder(unode, layers, save_type:=0, is_up:=0, is_layer_editing:=0
     if save_type !== 2 {
         form["Shortname"].Text := gui_name ?? ""
     }
+    if save_type < 2 {
+        form["ChildBehaviorDDL"].Value := child_behavior ?? (4 + (form["DDL"].Text == "Modifier"))
+    }
+
     form["CBIrrevocable"].Value := irrevoc ?? 0
     form["CBInstant"].Value := instant ?? 0
 
     curr_type == "Function" ? SetUpFunction(is_up) : inp.Focus()
     if curr_type == "Default" || curr_type == "Disabled" {
         inp.Text := ""
-        inp.Opt("+Disabled")
+        inp.Visible := false
     } else {
-        inp.Opt("-Disabled")
+        inp.Visible := true
     }
 
     if is_up && curr_type !== "Disabled" && !form["UpDDL"].Visible {
@@ -474,17 +589,17 @@ FuncFormClose(*) {
 
 WriteValue(is_hold, *) {
     vals := Map()
-    names := ["LayersDDL", "DDL", "Input", "UpDDL", "UpInput", "CustomLP", "CustomNK", "Shortname"]
-    for name in names {
+    for name in [
+        "LayersDDL", "DDL", "Input", "UpDDL", "UpInput", "CustomLP", "CustomNK", "Shortname"
+    ] {
         vals[name] := false
         try vals[name] := form[name].Text
     }
+    for name in ["CBIrrevocable", "CBInstant", "ChildBehaviorDDL"] {
+        vals[name] := false
+        try vals[name] := form[name].Value
+    }
     vals["DDL"] := vals["DDL"] || "Modifier"
-    vals["CBIrrevocable"] := false
-    vals["CBInstant"] := false
-    try vals["CBIrrevocable"] := form["CBIrrevocable"].Value
-    try vals["CBInstant"] := form["CBInstant"].Value
-
 
     if !StrLen(vals["Input"]) && vals["DDL"] !== "Default" && vals["DDL"] !== "Disabled" {
         MsgBox("Write any value. For empty behavior use the 'Disabled' type.",
@@ -511,7 +626,7 @@ WriteValue(is_hold, *) {
         vals["CBInstant"], vals["CBIrrevocable"],
         (vals["CustomLP"] != CONF.MS_LP ? vals["CustomLP"] : false),
         (vals["CustomNK"] != CONF.MS_NK ? vals["CustomNK"] : false),
-        vals["Shortname"]
+        vals["ChildBehaviorDDL"], vals["Shortname"]
     )
     CloseForm()
 }

@@ -69,13 +69,15 @@ class CombNode {
 class UnifiedNode {
     __New() {
         this.layers := OrderedMap()
+        this.fin := false
+
         this.scancodes := Map()
         this.chords := Map()
+        this.gestures := Map()
 
         this.active_scancodes := Map()
         this.active_chords := Map()
-
-        this.fin := false
+        this.active_gestures := Map()
     }
 
     ToArray() {
@@ -84,7 +86,8 @@ class UnifiedNode {
         for c_node in this.layers.GetAll() {
             res[-1].Push([__NodeToArray(c_node[1]), __NodeToArray(c_node[0])])
         }
-        for t in [this.scancodes, this.chords, this.active_scancodes, this.active_chords] {
+        for t in [this.scancodes, this.chords, this.gestures,
+            this.active_scancodes, this.active_chords, this.active_gestures] {
             res.Push(Map())
             for sc, mods in t {
                 res[-1][sc] := Map()
@@ -97,17 +100,19 @@ class UnifiedNode {
         return res
     }
 
-    Get(schex, md:=0, is_chord:=false, is_active:=false) {
+    GetNode(schex, md:=0, is_chord:=false, is_gesture:=false, is_active:=false) {
         mp := is_chord
             ? is_active ? this.active_chords : this.chords
-            : is_active ? this.active_scancodes : this.scancodes
+            : is_gesture
+                ? is_active ? this.active_gestures : this.gestures
+                : is_active ? this.active_scancodes : this.scancodes
         return mp.Has(schex) ? mp[schex].Get(md, false) : false
     }
 
-    GetBaseHoldMod(schex, md:=0, is_chord:=false, is_active:=false, is_fin:=true) {
+    GetBaseHoldMod(schex, md:=0, is_chord:=false, is_gesture:=false, is_active:=false, is_fin:=true) {
         res := {}
 
-        if !is_chord && !is_active {
+        if !is_chord && !is_gesture && !is_active {
             if !this.scancodes.Has(schex) {
                 this.scancodes[schex] := Map()
             }
@@ -117,9 +122,9 @@ class UnifiedNode {
             }
         }
 
-        res.ubase := this.Get(schex, md, is_chord, is_active)
-        res.uhold := this.Get(schex, md+1, is_chord, is_active)
-        mod_unode := md ? this.Get(schex, 1, is_chord, is_active) : res.uhold
+        res.ubase := this.GetNode(schex, md, is_chord, is_gesture, is_active)
+        res.uhold := this.GetNode(schex, md+1, is_chord, is_gesture, is_active)
+        mod_unode := md ? this.GetNode(schex, 1, is_chord, is_gesture, is_active) : res.uhold
 
         if is_fin {
             res.umod := mod_unode && mod_unode.fin && mod_unode.fin.down_type == TYPES.Modifier
@@ -133,7 +138,7 @@ class UnifiedNode {
     }
 
     GetModFin(sc) {
-        md := this.Get(sc, 1)
+        md := this.GetNode(sc, 1)
         return md && md.fin && md.fin.down_type == TYPES.Modifier ? md.fin : false
     }
 
@@ -149,7 +154,11 @@ class UnifiedNode {
             this.layers.Add(layer_name, c_node)
         }
 
-        for arr in [[raw_node[-2], this.scancodes], [raw_node[-1], this.chords]] {
+        for arr in [
+            [raw_node[-4], this.scancodes],
+            [raw_node[-3], this.chords],
+            [raw_node[-2], this.gestures]
+        ] {
             checked_map := arr[2]
             for c_sc, mods in arr[1] {
                 if !checked_map.Has(c_sc) {
@@ -159,9 +168,7 @@ class UnifiedNode {
                     if !checked_map[c_sc].Has(c_md) {
                         checked_map[c_sc][c_md] := UnifiedNode()
                     }
-                    checked_map[c_sc][c_md].MergeNodeRecursive(
-                        child, c_sc, c_md, layer_name, is_g
-                    )
+                    checked_map[c_sc][c_md].MergeNodeRecursive(child, c_sc, c_md, layer_name, is_g)
                 }
             }
         }
@@ -170,6 +177,7 @@ class UnifiedNode {
     BuildActives(prior_layers, sc:=0, md:=0) {
         this.active_scancodes := Map()
         this.active_chords := Map()
+        this.active_gestures := Map()
         this.fin := false
 
         next_priors := []
@@ -193,7 +201,11 @@ class UnifiedNode {
             }
         }
 
-        for arr in [[this.scancodes, this.active_scancodes], [this.chords, this.active_chords]] {
+        for arr in [
+            [this.scancodes, this.active_scancodes],
+            [this.chords, this.active_chords],
+            [this.gestures, this.active_gestures]
+        ] {
             for schex, mods in arr[1] {
                 for md, next_unode in mods {
                     for layer in next_priors {
@@ -211,7 +223,8 @@ class UnifiedNode {
             }
         }
 
-        return this.active_scancodes.Count || this.active_chords.Count || this.fin
+        return this.active_scancodes.Count || this.active_chords.Count
+            || this.active_gestures.Count  || this.fin
     }
 }
 
@@ -224,7 +237,8 @@ __NodeToArray(node) {
     res := []
     for name in [
         "down_type", "down_val", "up_type", "up_val", "is_instant", "is_irrevocable",
-        "custom_lp_time", "custom_nk_time", "gui_shortname", "sc", "md", "layer_name"
+        "custom_lp_time", "custom_nk_time", "child_behavior",
+        "gui_shortname", "sc", "md", "layer_name"
     ] {
         try res.Push(node.%name%)
     }
@@ -233,11 +247,11 @@ __NodeToArray(node) {
 
 
 _BuildNode(raw_node, sc, md, down_type:=false) {
-    b := raw_node.Length == 2  ; root
+    b := raw_node.Length == 4  ; root
     node_obj := {sc: sc, md: md}
     for i, name in [
         "down_type", "down_val", "up_type", "up_val", "is_instant", "is_irrevocable",
-        "custom_lp_time", "custom_nk_time", "gui_shortname"
+        "custom_lp_time", "custom_nk_time", "child_behavior", "gui_shortname"
     ] {
         node_obj.%name% := b ? 0 : raw_node[i]
     }
@@ -250,14 +264,13 @@ _BuildNode(raw_node, sc, md, down_type:=false) {
 
 
 GetDefaultNode(sc, md) {
-    node_obj := {up_type: TYPES.Disabled, up_val: "", is_instant: 0, is_irrevocable: 0,
-        custom_lp_time: 0, custom_nk_time: 0, sc: sc, md: md}
-    if !md {
-        node_obj.down_type := TYPES.Default
-        node_obj.down_val := (sc is Number ? "{Blind}" . SC_STR_BR[sc] : "{Blind}{" . sc . "}")
-    } else {
-        node_obj.down_type := TYPES.Disabled
-        node_obj.down_val := ""
+    node_obj := {
+        down_type: TYPES.Default,
+        down_val: (sc is Number ? "{Blind}" . SC_STR_BR[sc] : "{Blind}{" . sc . "}"),
+        up_type: TYPES.Disabled, up_val: "",
+        is_instant: 0, is_irrevocable: 0,
+        custom_lp_time: 0, custom_nk_time: 0,
+        child_behavior: 4, sc: sc, md: md
     }
     return node_obj
 }
@@ -285,6 +298,7 @@ _EqualNodes(f_node, s_node) {
         && f_node.is_irrevocable == s_node.is_irrevocable
         && f_node.custom_lp_time == s_node.custom_lp_time
         && f_node.custom_nk_time == s_node.custom_nk_time
+        && f_node.child_behavior == s_node.child_behavior
 }
 
 
@@ -378,7 +392,7 @@ _MergeLayer(layer) {
 _CountLangMappings(raw_roots) {
     res := Map()
     for lang, root in raw_roots {
-        stack := [root[-1], root[-2]]
+        stack := [root[-4], root[-3], root[-2]]
         cnt := 0
         while stack.Length {
             mp := stack.Pop()
@@ -387,7 +401,7 @@ _CountLangMappings(raw_roots) {
                     if node[1] !== TYPES.Chord || node[3] !== TYPES.Disabled {
                         cnt += 1
                     }
-                    stack.Push(node[-1], node[-2])
+                    stack.Push(node[-4], node[-3], node[-2])
                 }
             }
         }
@@ -407,7 +421,8 @@ _WalkJson(json_node, path, is_hold:=false) {
         sc := arr[1]
         md := arr[2] + (i == last_i ? is_hold : 0)
         is_chord := arr[3]
-        curr_map := json_node[-2 + (is_chord is String)]
+        is_gesture := arr[4]
+        curr_map := json_node[-4 + (is_chord is String) + is_gesture * 2]
 
         if !curr_map.Has(sc) {
             curr_map[sc] := Map()
@@ -415,7 +430,9 @@ _WalkJson(json_node, path, is_hold:=false) {
         entry := curr_map[sc]
         if !entry.Has(md) {
             d_type := md || is_chord ? TYPES.Disabled : TYPES.Default
-            entry[md] := [d_type, "", TYPES.Disabled, "", 0, 0, 0, 0, "", Map(), Map()]
+            entry[md] := [
+                d_type, "", TYPES.Disabled, "", 0, 0, 0, 0, 4, "", Map(), Map(), Map(), ""
+            ]
         }
 
         json_node := entry[md]

@@ -1,12 +1,14 @@
 ﻿#Include "gui_draw.ahk"
 #Include "gui_fill.ahk"
 #Include "gui_layers.ahk"
+#Include "gui_gestures.ahk"
 #Include "gui_chords.ahk"
 #Include "gui_forms.ahk"
 
 
 current_path := []
 selected_chord := ""
+selected_gesture := ""
 root_text := "root"
 
 selected_layer := ""
@@ -58,15 +60,15 @@ _GetFirst(node, certain_layer:="") {
 }
 
 
-OneNodeDeeper(schex, md:=-1, is_chord:=false) {
+OneNodeDeeper(schex, md:=-1, is_chord:=false, is_gesture:=false) {
     global current_path, gui_entries, gui_mod_val
 
     if md == -1 {
         md := gui_mod_val
     }
-    current_path.Push([schex, md, is_chord])
+    current_path.Push([schex, md, is_chord, is_gesture])
     gui_mod_val := 0
-    gui_entries := gui_entries.ubase.GetBaseHoldMod(schex, md, is_chord)
+    gui_entries := gui_entries.ubase.GetBaseHoldMod(schex, md, is_chord, is_gesture)
     CloseForm()
     UpdateKeys()
 }
@@ -94,7 +96,7 @@ ChangePath(len:=-1, *) {
     current_path.Length := len
 
     for arr in current_path {
-        gui_entries := gui_entries.ubase.GetBaseHoldMod(arr[1], arr[2], arr[3])
+        gui_entries := gui_entries.ubase.GetBaseHoldMod(arr*)
     }
 
     UpdateKeys()
@@ -120,6 +122,7 @@ UpdateKeys() {
     _FillSetButtons()
     _FillKeyboard()
     _FillLayers()
+    _FillGestures()
     _FillChords()
 
     if prev_lang {
@@ -189,7 +192,7 @@ ButtonRBM(sc, *) {
         return
     }
 
-    res := gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val, false, false, false)
+    res := gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val, false, false, false, false)
 
     h_node := _GetFirst(res.uhold)
     if h_node && h_node.down_type == TYPES.Chord {
@@ -223,12 +226,12 @@ _Move(sc, is_hold) {
 SaveValue(
     is_hold, layer, down_type, down_val:="",
     up_type:=false, up_val:="", is_instant:=false, is_irrevocable:=false,
-    custom_lp_time:=false, custom_nk_time:=false, shortname:=""
+    custom_lp_time:=false, custom_nk_time:=false, child_behavior:=false, shortname:=""
 ) {
     json_root := DeserializeMap(layer)
 
     if !json_root.Has(gui_lang) {
-        json_root[gui_lang] := [Map(), Map()]
+        json_root[gui_lang] := [Map(), Map(), Map(), ""]
     }
     json_node := _WalkJson(json_root[gui_lang], current_path, is_hold)
     json_node[1] := down_type
@@ -239,7 +242,8 @@ SaveValue(
     json_node[6] := Integer(is_irrevocable)
     json_node[7] := Integer(custom_lp_time)
     json_node[8] := Integer(custom_nk_time)
-    json_node[9] := shortname
+    json_node[9] := Integer(child_behavior)
+    json_node[10] := shortname
     SerializeMap(json_root, layer)
 
     FillRoots()
@@ -309,10 +313,11 @@ ClearNested(is_hold, layer:="", *) {
         json_root := DeserializeMap(layer)
 
         if !json_root.Has(gui_lang) {
-            json_root[gui_lang] := [Map(), Map()]
+            json_root[gui_lang] := [Map(), Map(), Map(), ""]
         }
         json_node := _WalkJson(json_root[gui_lang], current_path, is_hold)
-        json_node[-1] := Map()
+        json_node[-4] := Map()
+        json_node[-3] := Map()
         json_node[-2] := Map()
         SerializeMap(json_root, layer)
     }
@@ -405,7 +410,10 @@ UpdateOverlayPos(*) {
     }
 
     try {
-        WinGetPos &x, &y, , , "ahk_id " . UI.Hwnd
+        pt := Buffer(8, 0)
+        DllCall("ClientToScreen", "ptr", UI.Hwnd, "ptr", pt)
+        x := NumGet(pt, 0, "int")
+        y := NumGet(pt, 4, "int")
         if overlay_x !== x || overlay_y !== y
             || !DllCall("IsWindowVisible", "Ptr", overlay.Hwnd) {
             overlay.Show("x" . x . " y" . y)

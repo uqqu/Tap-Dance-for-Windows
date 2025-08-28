@@ -1,3 +1,4 @@
+CoordMode "Mouse", "Screen"
 A_HotkeyInterval := 0
 version := 0
 s_gui := false
@@ -63,22 +64,22 @@ CheckConfig() {
         FileAppend(
             "[Main]"
             . "`nLayoutFormat=ANSI"
-            . "`nWideMode=0"
             . "`nExtraFRow=0"
             . "`nExtraKRow=0"
             . "`nHelpTexts=0"
             . "`nHideMouseWarnings=0"
-            . "`nUnassignedUnderModsBehavior=5"
-            . "`nUnassignedNonRootBehavior=2"
             . "`nGuiAltIgnore=1"
             . "`nGuiScale=1.25"
             . "`nFontScale=1"
             . "`nFontName=Segoe UI"
+            . "`nGestureColor=0x0000FF"
             . "`nReferenceHeight=314"
             . "`nKeynameType=1"
             . "`nActiveLayers="  ; TODO?
             . "`nLongPressDuration=150"
             . "`nNextKeyWaitDuration=250"
+            . "`nMinGestureLen=150"
+            . "`nMinCosSimilarity=0.9"
             . "`nWheelLRUnlockTime=150"
             . "`nUserLayouts="
             . "`nIgnoreInactiveLayers=0"
@@ -96,6 +97,8 @@ CheckConfig() {
     CONF.MS_NK := Integer(IniRead("config.ini", "Main", "NextKeyWaitDuration", 250))
     CONF.MS_LP := Integer(IniRead("config.ini", "Main", "LongPressDuration", 150))
     CONF.T := "T" . CONF.MS_LP / 1000
+    CONF.min_gesture_len := Integer(IniRead("config.ini", "Main", "MinGestureLen", 150))
+    CONF.min_cos_similarity := Float(IniRead("config.ini", "Main", "MinCosSimilarity", 0.90))
     CONF.wheel_unlock_time := Integer(IniRead("config.ini", "Main", "WheelLRUnlockTime", 150))
     CONF.layout_format := IniRead("config.ini", "Main", "LayoutFormat", "ANSI")
     CONF.extra_k_row := Integer(IniRead("config.ini", "Main", "ExtraKRow", 0))
@@ -103,16 +106,10 @@ CheckConfig() {
     CONF.help_texts := Integer(IniRead("config.ini", "Main", "HelpTexts", 0))
     CONF.gui_alt_ignore := Integer(IniRead("config.ini", "Main", "GuiAltIgnore", 1))
     CONF.hide_mouse_warnings := Integer(IniRead("config.ini", "Main", "HideMouseWarnings", 0))
-    CONF.unassigned_under_mods := Integer(IniRead(
-        "config.ini", "Main", "UnassignedUnderModsBehavior", 5
-    ))
-    CONF.unassigned_non_root := Integer(IniRead(
-        "config.ini", "Main", "UnassignedNonRootBehavior", 2
-    ))
     CONF.keyname_type := Integer(IniRead("config.ini", "Main", "KeynameType", 1))
     CONF.ref_height := Integer(IniRead("config.ini", "Main", "ReferenceHeight", 314))
-    CONF.wide_mode := Integer(IniRead("config.ini", "Main", "WideMode", 0))
     CONF.font_name := IniRead("config.ini", "Main", "FontName", "Segoe UI")
+    CONF.gest_color := IniRead("config.ini", "Main", "GestureColor", "0x0000FF")
     CONF.font_scale := Float(IniRead("config.ini", "Main", "FontScale", 1))
     CONF.gui_scale := Float(IniRead(
         "config.ini", "Main", "GuiScale", scale_defaults.Get(A_ScreenWidth, 1.0)
@@ -167,7 +164,7 @@ Watch() {
     }
     last_hkl := hkl
     if !LANGS.Has(hkl) {
-        LANGS.Add(hkl, GetLayoutNameFromHKL(hkl))
+        LANGS.Add(hkl, "Layout: " . GetLayoutNameFromHKL(hkl))
         layout_gui["Cnt"].Text := "Found: " . LANGS.Length - 1
     } else if hkl == start_hkl && LANGS.Length > 1 {
         layout_gui["Cnt"].Text := "Great! Enjoy using it."
@@ -206,6 +203,9 @@ ShowSettings(*) {
         ["LongPressDuration Number", "Longpress duration (ms):", CONF.MS_LP],
         ["NextKeyWaitDuration Number", "Next key wait dur. (ms):", CONF.MS_NK],
         ["WheelLRUnlockTime Number", "Unlock l/r mouse wheel (ms):", CONF.wheel_unlock_time],
+        ["MinGestureLen Number", "Gesture min length:", CONF.min_gesture_len],
+        ["MinCosSimilarity Number", "Gesture min similarity:", Round(CONF.min_cos_similarity, 2)],
+        ["GestureColor", "Gesture color:", CONF.gest_color],
     ]
 
     for arr in str_settings {
@@ -215,14 +215,6 @@ ShowSettings(*) {
 
     ddl_settings := [
         ["LayoutFormat", "Layout format:", ["ANSI", "ISO"], 1, CONF.layout_format],
-        ["UnassignedUnderModsBehavior", "Behavior for unassigned events under mods:",
-            ["Backsearch", "Send current + backsearch",
-                "To root", "Send current + to root", "Block"],
-            0, CONF.unassigned_under_mods],
-        ["UnassignedNonRootBehavior", "Behavior for unassigned non-root events:",
-            ["Backsearch", "Send current + backsearch",
-                "To root", "Send current + to root", "Block"],
-            0, CONF.unassigned_non_root],
     ]
 
     for arr in ddl_settings {
@@ -302,7 +294,6 @@ ShowSettings(*) {
 
     chb_gui := [
         ["HelpTexts", "Show &help texts", CONF.help_texts],
-        ["WideMode", "Enable &wide mode", CONF.wide_mode],
         ["GuiAltIgnore", "Ignore physical &Alt presses on the GUI", CONF.gui_alt_ignore],
         ["HideMouseWarnings", "Hide warnings about disabling drag &behavior for LBM/RBM/MBM",
             CONF.hide_mouse_warnings],
@@ -345,19 +336,21 @@ PasteSCToInput(sc) {
 SaveConfig(*) {
     global s_gui
 
+    CancelChordEditing(0, true)
+
     old_extra_f := CONF.extra_f_row
     old_extra_k := CONF.extra_k_row
 
     for name in [  ; texts/numbers
         "LayoutFormat", "LongPressDuration", "NextKeyWaitDuration", "WheelLRUnlockTime",
-        "GuiScale", "FontScale", "FontName", "ReferenceHeight", "GuiBack", "GuiSet", "GuiSetHold"
+        "MinGestureLen", "MinCosSimilarity", "GestureColor", "GuiScale", "FontScale",
+        "FontName", "ReferenceHeight", "GuiBack", "GuiSet", "GuiSetHold"
     ] {
         IniWrite(s_gui[name].Text, "config.ini", "Main", name)
     }
 
     for name in [  ; checkboxes/ddl values
-        "UnassignedUnderModsBehavior", "UnassignedNonRootBehavior",
-        "HelpTexts", "WideMode", "KeynameType", "OverlayType", "GuiAltIgnore", "HideMouseWarnings",
+        "HelpTexts", "KeynameType", "OverlayType", "GuiAltIgnore", "HideMouseWarnings",
         "CollectUnfamiliarLayouts", "IgnoreInactiveLayers", "ExtraKRow", "ExtraFRow"
     ] {
         val := s_gui[name].Value

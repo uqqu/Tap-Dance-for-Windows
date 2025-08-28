@@ -4,12 +4,12 @@
     }
     json := Dump(mp, "", conv)
     try FileDelete("layers/" . filename . ".json")
-    FileAppend(json, "layers/" . filename . ".json", "UTF-8")
+    FileAppend("// 0.70`n" . json, "layers/" . filename . ".json", "UTF-8")
 }
 
 
 _CleanMap(mp, parent_md:=0) {
-    for opt in [mp[-1], mp[-2]] {
+    for opt in [mp[-4], mp[-3], mp[-2]] {
         to_del_sc := []
         for schex, mods in opt {
             to_del_md := []
@@ -30,7 +30,7 @@ _CleanMap(mp, parent_md:=0) {
         }
     }
     ref := parent_md ? TYPES.Disabled : TYPES.Default
-    if mp.Length > 2 && !mp[-1].Count && !mp[-2].Count && mp[1] == ref && !mp[2]
+    if mp.Length > 2 && !mp[-4].Count && !mp[-3].Count && !mp[-2].Count && mp[1] == ref && !mp[2]
         && mp[3] == TYPES.Disabled && !mp[4] && !mp[5] && !mp[6] && !mp[7] && !mp[8] {
         return false
     }
@@ -39,7 +39,106 @@ _CleanMap(mp, parent_md:=0) {
 
 
 DeserializeMap(filename) {
-    return Load(FileRead("layers/" . filename . ".json"))
+    data := FileRead("layers/" . filename . ".json")
+    ver := GetLayerVersion(data)
+    struct := Load(StripLineComments(data))
+    if ver < 0.7 {
+        UpdateLayerVersionFrom06To07(struct)
+    }
+    return struct
+}
+
+
+GetLayerVersion(data) {
+    first_line := Trim(StrSplit(data, "`n",, 2)[1], "`r`n`t ")
+    if RegExMatch(first_line, "^//\s*([0-9]+(?:\.[0-9]+)?)", &m) {
+        return Number(m[1])
+    }
+    return 0.6
+}
+
+
+UpdateLayerVersionFrom06To07(data) {
+    stack := []
+    for lang, vals in data {
+        if vals.Length {
+            stack.Push(vals)
+        }
+    }
+
+    while stack.Length {
+        p := stack.RemoveAt(1)
+        for t in [p[-1], p[-2]] {
+            for _, schex_val in t {
+                for _, md_val in schex_val {
+                    stack.Push(md_val)
+                }
+            }
+        }
+
+        p.Push(Map(), "")  ; gestures map + gestures options
+        if p.Length !== 4 {
+            p.InsertAt(9, (p[1] == TYPES.Modifier ? 5 : 4))  ; unassigned child behavior
+        }
+    }
+}
+
+
+StripLineComments(s) {
+    out := ""
+    inStr := false
+    esc := false
+    i := 1
+    len := StrLen(s)
+    while (i <= len) {
+        ch := SubStr(s, i, 1)
+        if (!inStr) {
+            if (ch == "`"") {
+                inStr := true
+                out .= ch
+                i++
+                continue
+            }
+            if (ch == "/" && SubStr(s, i+1, 1) == "/") {
+                j := i + 2
+                while (j <= len) {
+                    ch2 := SubStr(s, j, 1)
+                    if (ch2 == "`n") {
+                        break
+                    }
+                    j++
+                }
+                i := j
+                continue
+            }
+            out .= ch
+            i++
+            continue
+        } else {
+            if (esc) {
+                esc := false
+                out .= ch
+                i++
+                continue
+            }
+            if (ch == "\") {
+                esc := true
+                out .= ch
+                i++
+                continue
+            }
+            if (ch == "`"") {
+                inStr := false
+                out .= ch
+                i++
+                continue
+            }
+            out .= ch
+            i++
+            continue
+        }
+    }
+    return out
 }
 
 

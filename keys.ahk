@@ -27,12 +27,20 @@ HotIf
 
 
 UpCheck(sc, *) {
+    if gest_node || (init_drawing && sc == "RButton") {
+        EndDraw()
+        return true
+    }
     return current_presses.Has(sc)
 }
 
 
 GuiCheck(sc, *) {
     global catched_gui_func
+
+    if gest_overlay && !gest_node {
+        DestroyGestOverlay()
+    }
 
     if current_presses.Has(sc) {
         return false
@@ -51,8 +59,15 @@ GuiCheck(sc, *) {
 
 
 CheckMouse(sc, *) {
+    if init_drawing && sc == "RButton" {
+        StartDraw()
+        return true
+    }
     active := WinActive("A")
     if UI.Hwnd && active == UI.Hwnd || s_gui && s_gui.Hwnd && active == s_gui.Hwnd {
+        if gest_overlay && !gest_node {
+            DestroyGestOverlay()
+        }
         return false
     }
 

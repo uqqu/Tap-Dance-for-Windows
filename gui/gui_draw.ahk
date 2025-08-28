@@ -26,8 +26,7 @@ DrawLayout() {
     UI.buttons := Map()
 
     UI.SetFont("s" . Round(7 * CONF.font_scale), CONF.font_name)
-    UI.Add("DropDownList", "vLangs "
-        . Scale(CONF.wide_mode ? 1370 : 1125, CONF.ref_height + 3, 105), LANGS.GetAll())
+    UI.Add("DropDownList", "vLangs " . Scale(1125, CONF.ref_height + 3, 105), LANGS.GetAll())
     for code, val in LANGS.map {
         if code == gui_lang {
             UI["Langs"].Text := val
@@ -37,27 +36,32 @@ DrawLayout() {
     UI["Langs"].OnEvent("Change", (*) => ChangeLang(UI["Langs"].Value))
     UI.SetFont("Norm s" . Round(8 * CONF.font_scale))
 
-    UI.Add("Text", "vSettings " . Scale(CONF.wide_mode ? 1470 : 1252, CONF.ref_height + 3), "🔧")
+    UI.Add("Text", "vSettings " . Scale(1252, CONF.ref_height + 3), "🔧")
     UI["Settings"].OnEvent("Click", ShowSettings)
 
     _DrawKeys()
     _DrawLayersLV()
+    _DrawGesturesLV()
     _DrawChordsLV()
     _DrawHelp()
     _DrawCurrentValues()
 
     uncat := [UI["BtnAddNewLayer"], UI["BtnBackToRoot"]]
-    for arr in [UI.layer_ctrl_btns, UI.layer_move_btns, UI.chs_back, UI.chs_front, uncat] {
+    for arr in [
+        UI.layer_ctrl_btns, UI.layer_move_btns, UI.chs_back, UI.chs_front, UI.gest_btns, uncat
+    ] {
         for btn in arr {
             f := SubStr(btn.Name, 4)
             btn.OnEvent("Click", %f%)
         }
     }
 
-    ToggleVisibility(0, UI.chs_back, UI["BtnBackToRoot"])
+    ToggleVisibility(0, UI.chs_back)
+    ToggleVisibility(selected_layer, UI["BtnBackToRoot"])
+    ToggleVisibility(!selected_layer, UI.layer_move_btns, UI.layer_ctrl_btns, UI["BtnAddNewLayer"])
 
     UI.SetFont("Norm")
-    UI.Show(CONF.wide_mode ? Scale(,, 1745) : Scale(,, 1294))
+    UI.Show(Scale(,, 1294))
 
     ChangePath()
 }
@@ -69,7 +73,7 @@ _DrawKeys() {
 
     ALL_SCANCODES := []
     len := keyboard_layouts[CONF.layout_format].Length
-    x_offset := CONF.wide_mode ? 263 : 10
+    x_offset := 10
     y_offset := 50 * CONF.gui_scale
     spacing := 5
     height := (CONF.ref_height * CONF.gui_scale - (spacing * (len - 1)) - y_offset)
@@ -118,18 +122,15 @@ _DrawKeys() {
 
 
 _DrawLayersLV() {
-    p := CONF.wide_mode
-        ? Scale(0, 0, 255, CONF.ref_height)
-        : Scale(10, CONF.ref_height + 27, 638, CONF.ref_height)
+    p := Scale(10, CONF.ref_height + 27, 425, CONF.ref_height)
     UI.AddListView("vLV_layers " . p . " Checked", ["?", "P", "Layer", "Base", "→", "Hold", "→"])
     UI["LV_layers"].OnEvent("DoubleClick", LVLayerDoubleClick)
     UI["LV_layers"].OnEvent("Click", LVLayerClick)
     UI["LV_layers"].OnEvent("ItemCheck", LVLayerCheck)
-    for i, w in (CONF.wide_mode ? [15, 15, 75, 40, 21, 40, 21] : [25, 30, 230, 135, 40, 135, 40]) {
+    for i, w in [20, 20, 120, 100, 30, 100, 30] {
         UI["LV_layers"].ModifyCol(i, Max(w * CONF.gui_scale, 16 * USER_DPI))
     }
-    btns_wh := "w" . ((CONF.wide_mode ? 256 : 635) * CONF.gui_scale / 6)
-            . " h" . (20 * CONF.gui_scale)
+    btns_wh := "w" . (428 * CONF.gui_scale / 6) . " h" . (20 * CONF.gui_scale)
 
     for i, arr in [
         ["vBtnAddNewLayer", "✨ New layer"],
@@ -139,15 +140,12 @@ _DrawLayersLV() {
         ["vBtnMoveUpSelectedLayer", "🔼 Move up"],
         ["vBtnMoveDownSelectedLayer", "🔽 Move down"]]
     {
-        p := i == 1 ? " xp-1 y+0 " : " x+0 yp0 "
-        UI.Add("Button", arr[1] . p . btns_wh, CONF.wide_mode ? SubStr(arr[2], 1, 2) : arr[2])
+        UI.Add("Button", arr[1] . (i == 1 ? " xp-1 y+0 " : " x+0 yp0 ") . btns_wh, arr[2])
     }
-    UI.Add("Button", "vBtnBackToRoot " . (CONF.wide_mode ? Scale(0, CONF.ref_height, 256, 20)
-        : ("x" . (10 * CONF.gui_scale) . " yp0"
-        . " w" . (635 * CONF.gui_scale)
-        . " h" . (20 * CONF.gui_scale))
-        ),
-        CONF.wide_mode ? "🔙" : "🔙 Back to all active layers"
+    UI.Add("Button", "vBtnBackToRoot " . ("x" . (10 * CONF.gui_scale) . " yp0"
+        . " w" . (426 * CONF.gui_scale)
+        . " h" . (20 * CONF.gui_scale)
+        ), "🔙 Back to all active layers"
     )
 
     UI.layer_move_btns := [UI["BtnMoveUpSelectedLayer"], UI["BtnMoveDownSelectedLayer"]]
@@ -157,26 +155,49 @@ _DrawLayersLV() {
 }
 
 
+_DrawGesturesLV() {
+    p := Scale(434, CONF.ref_height + 27, 425, CONF.ref_height)
+    UI.AddListView("vLV_gestures " . p, ["Gesture name", "Value", "→", "Layer", "roll it back"])
+    UI["LV_gestures"].OnEvent("DoubleClick", LVGestureDoubleClick)
+    UI["LV_gestures"].OnEvent("Click", LVGestureClick)
+    for i, w in [120, 170, 30, 100, 0] {
+        UI["LV_gestures"].ModifyCol(i, w * CONF.gui_scale)
+    }
+
+    btns_wh := "w" . (426 * CONF.gui_scale / 4) . " h" . (20 * CONF.gui_scale)
+    UI.gest_btns := []
+    UI.gest_btns.Push(
+        UI.Add("Button", "vBtnAddNewGesture xp0 y+0 " . btns_wh, "✨ New"),
+        UI.Add("Button", "vBtnShowSelectedGesture x+0 yp0 " . btns_wh, "👀 Show"),
+        UI.Add("Button", "vBtnChangeSelectedGesture x+0 yp0 " . btns_wh, "✏️ Change"),
+        UI.Add("Button", "vBtnDeleteSelectedGesture x+0 yp0 " . btns_wh, "🗑️ Delete")
+    )
+    UI.gest_toggles := [
+        UI["BtnShowSelectedGesture"],
+        UI["BtnChangeSelectedGesture"],
+        UI["BtnDeleteSelectedGesture"]
+    ]
+    ToggleEnabled(0, UI.gest_toggles)
+}
+
+
 _DrawChordsLV() {
-    p := CONF.wide_mode
-        ? Scale(1490, 0, 255, CONF.ref_height)
-        : Scale(647, CONF.ref_height + 27, 638, CONF.ref_height)
+    p := Scale(859, CONF.ref_height + 27, 425, CONF.ref_height)
     UI.AddListView("vLV_chords " . p, ["Chord", "Value", "→", "Layer"])
     UI["LV_chords"].OnEvent("DoubleClick", LVChordDoubleClick)
     UI["LV_chords"].OnEvent("Click", LVChordClick)
-    for i, w in (CONF.wide_mode ? [90, 60, 25, 75] : [200, 270, 35, 120]) {
+    for i, w in [120, 170, 30, 100] {
         UI["LV_chords"].ModifyCol(i, w * CONF.gui_scale)
     }
 
-    btns_wh := "w" . ((CONF.wide_mode ? 256 : 635) * CONF.gui_scale / 3)
-            . " h" . (20 * CONF.gui_scale)
+    btns_wh := "w" . (426 * CONF.gui_scale / 3) . " h" . (20 * CONF.gui_scale)
     UI.chs_front := []
     UI.chs_front.Push(
         UI.Add("Button", "vBtnAddNewChord xp0 y+0 " . btns_wh, "✨ New"),
         UI.Add("Button", "vBtnChangeSelectedChord x+0 yp0 " . btns_wh, "✏️ Change"),
         UI.Add("Button", "vBtnDeleteSelectedChord x+0 yp0 " . btns_wh, "🗑️ Delete")
     )
-    x := "xp-" . ((CONF.wide_mode ? 256 : 635) * CONF.gui_scale / 3 * 2)
+    x := "xp-" . (426 * CONF.gui_scale / 3 * 2)
     UI.chs_back := []
     UI.chs_back.Push(
         UI.Add("Button", "vBtnSaveEditedChord " . x . " yp0 " . btns_wh, "✔ Save"),
@@ -190,7 +211,7 @@ _DrawChordsLV() {
 
 _DrawCurrentValues() {
     UI.SetFont("Norm")
-    sh := CONF.wide_mode ? 0 : 255
+    sh := 255
     UI.current_values.Push(
         UI.Add("Text", Scale(1270 - sh, 0, 50, 23) . " +0x200 Center vTextBase"),
         UI.Add("Text", Scale(1270 - sh, 23, 50, 23) . " +0x200 Center vTextHold"),
@@ -223,7 +244,7 @@ _DrawHelp() {
     if !CONF.help_texts {
         return
     }
-    _AddHelpText("Italic cGray", Scale(CONF.wide_mode ? 265 : 9, CONF.ref_height + 3),
+    _AddHelpText("Italic cGray", Scale(9, CONF.ref_height + 3),
         "Borders (hold behavior):")
     _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
     _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")
@@ -237,7 +258,7 @@ _DrawHelp() {
     _AddHelpText("Italic Bold cPurple", "x+5 yp0", "custom long press time;")
     _AddHelpText("Italic Bold cFuchsia", "x+5 yp0", "custom next key waiting time.")
 
-    _AddHelpText("Italic cGray", Scale(CONF.wide_mode ? 265 : 11, 31),
+    _AddHelpText("Italic cGray", Scale(11, 31),
         "The arrows indicate the type of transition: ➤ – base, ▲ – hold, ▼ – chord; "
         . "if it's with a number – the used modifier's designation."
     )
@@ -267,7 +288,7 @@ _CreateOverlay() {
     overlay.Opt("-DPIScale")
     overlay.BackColor := "FFFFFF"
     overlay.SetFont("s" . 6 * CONF.font_scale . " cGreen")
-    overlay.Show(CONF.wide_mode ? Scale(,, 1745, 335) : Scale(,, 1240, 675))
+    overlay.Show(Scale(,, 1294, CONF.ref_height * 2))
     DllCall("SetWindowLongPtr", "Ptr", overlay.Hwnd, "Int", -8, "Ptr", UI.Hwnd)
     WinActivate("ahk_id " . UI.Hwnd)
     SetTimer(UpdateOverlayPos, 100)
