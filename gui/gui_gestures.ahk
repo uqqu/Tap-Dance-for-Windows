@@ -1,21 +1,31 @@
 LVGestureClick(lv, row) {
     global selected_gesture
 
-    ToggleEnabled(0, UI.layer_move_btns, UI.layer_ctrl_btns)
+    ToggleEnabled(0, UI.layer_move_btns, UI.layer_ctrl_btns, UI.chs_toggles)
 
-    if lv.GetText(row, 1) !== "Gesture name" {
-        selected_gesture := lv.GetText(row, 5)
-        ToggleEnabled(1, UI.gest_toggles)
-    } else {
+    if row == 0 || lv.GetText(0, 1) == "Has nested gestures" {
         selected_gesture := ""
         ToggleEnabled(0, UI.gest_toggles)
+    } else {
+        selected_gesture := lv.GetText(row, 5)
+        ToggleEnabled(1, UI.gest_toggles)
     }
 }
 
 
 LVGestureDoubleClick(lv, row, from_selected:=false) {
-    if lv.GetText(row, 1) !== "Gesture name" {
-        OneNodeDeeper(lv.GetText(row, 5), gui_mod_val, false, true)
+    if row == 0 {
+        return
+    }
+
+    if lv.GetText(0, 1) == "Has nested gestures" {
+        try {
+            HandleKeyPress(Integer(lv.GetText(row, 5)))
+        } catch {
+            HandleKeyPress(lv.GetText(row, 5))
+        }
+    } else {
+        OneNodeDeeper(lv.GetText(row, 5), gui_mod_val, false, lv.GetText(row, 1))
     }
 }
 

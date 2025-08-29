@@ -1,13 +1,13 @@
 LVLayerClick(lv, row) {
     global selected_layer, selected_layer_priority
 
-    ToggleEnabled(0, UI.chs_toggles)
+    ToggleEnabled(0, UI.chs_toggles, UI.gest_toggles)
     if layer_editing {
         return
     }
 
     selected_layer_priority := 0
-    if lv.GetText(row, 1) !== "?" {
+    if row !== 0 {
         selected_layer := lv.GetText(row, 3)
         ToggleEnabled(1, UI.layer_ctrl_btns)
         if lv.GetText(row, 2) {
@@ -25,6 +25,10 @@ LVLayerClick(lv, row) {
 
 LVLayerDoubleClick(lv, row, from_selected:=false) {
     global layer_editing, root_text, selected_layer
+
+    if row == 0 {
+        return
+    }
 
     layer_editing := true
     if !from_selected {

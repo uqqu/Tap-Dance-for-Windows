@@ -159,6 +159,10 @@ PreCheck(sc, *) {
         return true
     }
 
+    if curr_unode.fin is Integer {
+        return false
+    }
+
     ; continue the chain of transitions, if the previous unsent push had a table of transitions
     ; case: {a down (with hold assignment)}[keywait start]{b down}
     if pending {

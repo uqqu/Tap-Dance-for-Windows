@@ -62,7 +62,10 @@ CheckMouse(sc, *) {
     if init_drawing && sc == "RButton" {
         StartDraw()
         return true
+    } else if curr_unode.fin is Integer {
+        return false
     }
+
     active := WinActive("A")
     if UI.Hwnd && active == UI.Hwnd || s_gui && s_gui.Hwnd && active == s_gui.Hwnd {
         if gest_overlay && !gest_node {

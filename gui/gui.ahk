@@ -115,7 +115,7 @@ UpdateKeys() {
     }
 
     ToggleEnabled(1, UI.layer_ctrl_btns, UI.layer_move_btns)
-    ToggleEnabled(0, UI.layer_ctrl_btns, UI.chs_toggles)
+    ToggleEnabled(0, UI.layer_ctrl_btns, UI.chs_toggles, UI.gest_toggles)
 
     _CreateOverlay()
     _FillPathline()

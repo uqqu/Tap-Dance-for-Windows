@@ -1,12 +1,12 @@
 ﻿LVChordClick(lv, row) {
     global selected_chord
 
-    ToggleEnabled(0, UI.layer_move_btns, UI.layer_ctrl_btns)
+    ToggleEnabled(0, UI.layer_move_btns, UI.layer_ctrl_btns, UI.gest_toggles)
     if start_temp_chord {
         return
     }
 
-    if lv.GetText(row, 1) !== "Chord" {
+    if row !== 0 {
         selected_chord := ChordToStr(lv.GetText(row, 1))
         ToggleEnabled(1, UI.chs_toggles)
     } else {
@@ -17,7 +17,7 @@
 
 
 LVChordDoubleClick(lv, row, from_selected:=false) {
-    if lv.GetText(row, 1) !== "Chord" && !start_temp_chord {
+    if row !== 0 && !start_temp_chord {
         OneNodeDeeper(ChordToStr(lv.GetText(row, 1)), gui_mod_val, lv.GetText(row, 1))
     }
 }
@@ -249,7 +249,7 @@ WriteChord(chord:=false, *) {
     json_chords[chord_txt][gui_mod_val] := [
         TYPES.%form["DDL"].Text%, form["Input"].Text . "", TYPES.Disabled, "",
         Integer(form["CBInstant"].Value), Integer(form["CBIrrevocable"].Value),
-        0, Integer(form["CustomNK"].Text), Integer(form["ChildBehaviorDDL"]),
+        0, Integer(form["CustomNK"].Text), Integer(form["ChildBehaviorDDL"].Value),
         "", Map(), Map(), Map(), ""
     ]
 

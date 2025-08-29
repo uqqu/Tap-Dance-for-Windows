@@ -422,7 +422,7 @@ _WalkJson(json_node, path, is_hold:=false) {
         md := arr[2] + (i == last_i ? is_hold : 0)
         is_chord := arr[3]
         is_gesture := arr[4]
-        curr_map := json_node[-4 + (is_chord is String) + is_gesture * 2]
+        curr_map := json_node[-4 + (is_chord is String) + (is_gesture is String) * 2]
 
         if !curr_map.Has(sc) {
             curr_map[sc] := Map()

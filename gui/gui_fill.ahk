@@ -115,6 +115,11 @@ _FillKeyboard() {
 
         btxt := _GetKeyName(sc, true)
         if b_node {
+            if res.ubase.active_gestures.Count {
+                t := CONF.gest_color
+                _rgb := ((t & 0xFF) << 16) | (t & 0xFF00) | ((t >> 16) & 0xFF)
+                btn.Opt("+Background" . Format("{:#06x}", _rgb))
+            }
             UI["BtnBaseClear"].Opt("-Disabled")
             _AddIndicators(res.ubase, btn)
             switch b_node.down_type {
@@ -332,11 +337,33 @@ _IsCounted(node) {
 
 _FillGestures() {
     UI["LV_gestures"].Delete()
-    if gui_entries && gui_entries.ubase && gui_entries.ubase == ROOTS[gui_lang] {  ; TODO
-        ToggleEnabled(0, UI["BtnAddNewGesture"])
+
+    if !current_path.Length || current_path[-1][4] || current_path[-1][3]
+        || SYS_MODIFIERS.Has(current_path[-1][1]) {
+        ToggleEnabled(0, UI["BtnAddNewGesture"], UI.gest_toggles)
+        for i, val in ["Has nested gestures", "→", "", ""] {
+            UI["LV_gestures"].ModifyCol(i, , val)
+        }
+        for sc, mods in gui_entries.ubase.active_scancodes {
+            for md, node in mods {
+                cnt := node.active_gestures.Count
+                if cnt {
+                    UI["LV_gestures"].Add(
+                        "",
+                        node.fin.gui_shortname || _GetKeyName(sc, true),
+                        cnt,
+                        md || "",
+                        "", sc
+                    )
+                }
+            }
+        }
         return
     }
 
+    for i, val in ["Gesture name", "Value", "→", "Layer", "roll it back"] {
+        UI["LV_gestures"].ModifyCol(i, , val)
+    }
     ToggleEnabled(1, UI["BtnAddNewGesture"])
     checked_layers := layer_editing ? [selected_layer] : ActiveLayers.order
     for vec_str, mods in gui_entries.ubase.gestures {

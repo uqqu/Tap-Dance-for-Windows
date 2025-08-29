@@ -205,7 +205,7 @@ ShowSettings(*) {
         ["WheelLRUnlockTime Number", "Unlock l/r mouse wheel (ms):", CONF.wheel_unlock_time],
         ["MinGestureLen Number", "Gesture min length:", CONF.min_gesture_len],
         ["MinCosSimilarity Number", "Gesture min similarity:", Round(CONF.min_cos_similarity, 2)],
-        ["GestureColor", "Gesture color:", CONF.gest_color],
+        ["GestureColor", "Gesture color (BGR):", CONF.gest_color],
     ]
 
     for arr in str_settings {
