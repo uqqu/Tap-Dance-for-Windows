@@ -200,8 +200,8 @@ ShowSettings(*) {
     tabs.UseTab("Main")
 
     str_settings := [
-        ["LongPressDuration Number", "Longpress duration (ms):", CONF.MS_LP],
-        ["NextKeyWaitDuration Number", "Next key wait dur. (ms):", CONF.MS_NK],
+        ["LongPressDuration Number", "Hold threshold (ms):", CONF.MS_LP],
+        ["NextKeyWaitDuration Number", "Nested event waiting time (ms):", CONF.MS_NK],
         ["WheelLRUnlockTime Number", "Unlock l/r mouse wheel (ms):", CONF.wheel_unlock_time],
         ["MinGestureLen Number", "Gesture min length:", CONF.min_gesture_len],
         ["MinCosSimilarity Number", "Gesture min similarity:", Round(CONF.min_cos_similarity, 2)],
@@ -209,8 +209,8 @@ ShowSettings(*) {
     ]
 
     for arr in str_settings {
-        s_gui.Add("Text", "x20 y+13 h20 w180", arr[2])
-        s_gui.Add("Edit", "Center x+10 yp-2 h20 w180 v" . arr[1], arr[3])
+        s_gui.Add("Text", "x20 y+13 h20 w190", arr[2])
+        s_gui.Add("Edit", "Center x+0 yp-2 h20 w180 v" . arr[1], arr[3])
     }
 
     ddl_settings := [
@@ -257,12 +257,12 @@ ShowSettings(*) {
         ["KeynameType", "Keyname type:",
             ["Always use keynames", "Always use scancodes", "Scancodes on empty keys"],
             0, CONF.keyname_type],
-        ["OverlayType", "Overlay type:", ["Disabled", "Indicators only", "With counters"],
+        ["OverlayType", "Indicator overlay type:", ["Disabled", "Indicators only", "With counters"],
             0, CONF.overlay_type],
     ]
 
     for arr in ddl_gui {
-        double := StrLen(arr[2]) > 20
+        double := StrLen(arr[2]) > 23
         s_gui.Add("Text", "x20 y+" . (double ? 3 : 10) . " h45 w180", arr[2])
         elem := s_gui.Add("DropDownList",
             "Center x+10 yp" . (double ? 10 : 0) . " w180 v" . arr[1], arr[3])

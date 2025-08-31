@@ -57,8 +57,8 @@ DrawLayout() {
     }
 
     ToggleVisibility(0, UI.chs_back)
-    ToggleVisibility(selected_layer, UI["BtnBackToRoot"])
-    ToggleVisibility(!selected_layer, UI.layer_move_btns, UI.layer_ctrl_btns, UI["BtnAddNewLayer"])
+    ToggleVisibility(root_text !== "root", UI["BtnBackToRoot"])
+    ToggleVisibility(root_text == "root", UI.layer_move_btns, UI.layer_ctrl_btns, UI["BtnAddNewLayer"])
 
     UI.SetFont("Norm")
     UI.Show(Scale(,, 1294))
@@ -248,18 +248,21 @@ _DrawHelp() {
         "Borders (hold behavior):")
     _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
     _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")
-    _AddHelpText("Italic Bold cAAAA11", "x+5 yp0", "chord part.")
+    _AddHelpText("Italic Bold cAAAA11", "x+5 yp0", "chord part;")
+    t := CONF.gest_color
+    _rgb := ((t & 0xFF) << 16) | (t & 0xFF00) | ((t >> 16) & 0xFF)
+    _AddHelpText("Italic Bold c" . Format("{:#06x}", _rgb), "x+5 yp0", "gesture start.")
 
     _AddHelpText("Italic cGray", "x+" . 60 / USER_DPI . " yp0", "Indicators: ")
     _AddHelpText("Italic Bold cGray", "x+5 yp0", "irrevocable;")
     _AddHelpText("Italic Bold cTeal", "x+5 yp0", "instant;")
     _AddHelpText("Italic Bold cBlue", "x+5 yp0", "with up value;")
-    _AddHelpText("Italic Bold cRed", "x+5 yp0", "has next map;")
     _AddHelpText("Italic Bold cPurple", "x+5 yp0", "custom long press time;")
-    _AddHelpText("Italic Bold cFuchsia", "x+5 yp0", "custom next key waiting time.")
+    _AddHelpText("Italic Bold cFuchsia", "x+5 yp0", "custom next key waiting time;")
+    _AddHelpText("Italic Bold cRed", "x+5 yp0", "has nested.")
 
     _AddHelpText("Italic cGray", Scale(11, 31),
-        "The arrows indicate the type of transition: ➤ – base, ▲ – hold, ▼ – chord; "
+        "The arrows indicate the type of transition: ➤ – base, ▲ – hold, ▼ – chord, • – gesture; "
         . "if it's with a number – the used modifier's designation."
     )
 

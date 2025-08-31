@@ -209,27 +209,25 @@ GetEntries(sc, extra_mod:=0) {
         return entries  ; has at least one assignment; there's a point in further processing
     }
 
-    ;; if the scancode or both events (base/hold [+mod]) are missing in the current node
-
-    is_root := curr_unode == ROOTS[CurrentLayout]
-
-    if curr_unode.fin.child_behavior == 5 {  ; block unassigned
-        return 2  ; do nothing else
-    } else if (curr_unode.fin.child_behavior == 1 || curr_unode.fin.child_behavior == 2)
-        && prev_unode {  ; backsearch
-        if last_val && curr_unode.fin.child_behavior == 2 {  ; force sending stored value
-            delayed := true
-            SendKbd(last_val[1].fin.down_type, last_val[1].fin.down_val)
+    if curr_unode !== ROOTS[CurrentLayout] {
+        if curr_unode.fin.child_behavior == 5 {  ; block unassigned
+            return 2  ; do nothing else
+        } else if (curr_unode.fin.child_behavior == 1 || curr_unode.fin.child_behavior == 2)
+            && prev_unode {  ; backsearch
+            if last_val && curr_unode.fin.child_behavior == 2 {  ; force sending stored value
+                delayed := true
+                SendKbd(last_val[1].fin.down_type, last_val[1].fin.down_val)
+            }
+            StepBack(extra_mod)
+            return GetEntries(sc)  ; repeat scmod check from previous step
+        } else {
+            if last_val && curr_unode.fin.child_behavior == 4 {
+                delayed := true
+                SendKbd(last_val[1].fin.down_type, last_val[1].fin.down_val)
+            }
+            ToRoot(extra_mod)
+            return GetEntries(sc)
         }
-        StepBack(extra_mod)
-        return GetEntries(sc)  ; repeat scmod check from previous step
-    } else if !is_root {
-        if last_val && curr_unode.fin.child_behavior == 4 {
-            delayed := true
-            SendKbd(last_val[1].fin.down_type, last_val[1].fin.down_val)
-        }
-        ToRoot(extra_mod)
-        return GetEntries(sc)
     }
 
     ;; root reached, not assigned, not blocked, not found on the prev node/root (if configured so)

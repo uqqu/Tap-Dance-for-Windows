@@ -184,6 +184,11 @@ SetGesture(*) {
 WriteGesture(as_base:=false, *) {
     global form
 
+    if !form["Shortname"].Text {
+        MsgBox("Set GUI name for this gesture.", "Empty name", "Icon!")
+        return
+    }
+
     if !last_gesture_raw && selected_gesture {
         out := selected_gesture
     } else {
