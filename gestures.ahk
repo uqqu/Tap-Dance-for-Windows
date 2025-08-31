@@ -16,7 +16,7 @@ CreateGestOverlay() {
     global gest_overlay
 
     try gest_overlay.Destroy()
-    gest_overlay := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x20")
+    gest_overlay := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x20 -DPIScale")
     gest_overlay.BackColor := "F0F1F2"
     gest_overlay.Show("Hide x0 y0 w" . A_ScreenWidth . " h" . A_ScreenHeight)
     WinSetTransColor("F0F1F2", gest_overlay)
@@ -398,6 +398,9 @@ DrawExisting(gesture) {
     prev_w := w_min
     i := 3
     while i < out.Length {
+        if !gest_overlay {
+            return
+        }
         x := out[i] * 1000 + hx
         y := out[i+1] * 1000 + hy
         dx := x - prev_x
