@@ -9,7 +9,7 @@ Scale(x?, y?, w?, h?) {
 }
 
 
-DrawLayout() {
+DrawLayout(init:=false) {
     global UI
 
     SetTimer(UpdateOverlayPos, 0)
@@ -58,18 +58,22 @@ DrawLayout() {
 
     ToggleVisibility(0, UI.chs_back)
     ToggleVisibility(root_text !== "root", UI["BtnBackToRoot"])
-    ToggleVisibility(root_text == "root", UI.layer_move_btns, UI.layer_ctrl_btns, UI["BtnAddNewLayer"])
+    ToggleVisibility(
+        root_text == "root", UI.layer_move_btns, UI.layer_ctrl_btns, UI["BtnAddNewLayer"]
+    )
 
     UI.SetFont("Norm")
-    UI.Show(Scale(,, 1294))
 
-    ChangePath()
+    if !init || !CONF.start_minimized {
+        UI.Show(Scale(,, 1294))
+        ChangePath()
+    }
 }
 
 
 _DrawKeys() {
     global ALL_SCANCODES
-    static keyboard_layouts := Map("ANSI", _BuildLayout("ANSI"), "ISO", _BuildLayout("ISO"))
+    static keyboard_layouts:=Map("ANSI", _BuildLayout("ANSI"), "ISO", _BuildLayout("ISO"))
 
     ALL_SCANCODES := []
     len := keyboard_layouts[CONF.layout_format].Length
@@ -127,7 +131,7 @@ _DrawLayersLV() {
     UI["LV_layers"].OnEvent("DoubleClick", LVLayerDoubleClick)
     UI["LV_layers"].OnEvent("Click", LVLayerClick)
     UI["LV_layers"].OnEvent("ItemCheck", LVLayerCheck)
-    for i, w in [20, 20, 120, 100, 30, 100, 30] {
+    for i, w in [20, 20, 110, 100, 30, 100, 30] {
         UI["LV_layers"].ModifyCol(i, Max(w * CONF.gui_scale, 16 * USER_DPI))
     }
     btns_wh := "w" . (428 * CONF.gui_scale / 6) . " h" . (20 * CONF.gui_scale)
@@ -157,10 +161,11 @@ _DrawLayersLV() {
 
 _DrawGesturesLV() {
     p := Scale(434, CONF.ref_height + 27, 425, CONF.ref_height)
-    UI.AddListView("vLV_gestures " . p, ["Gesture name", "Value", "→", "Layer", "roll it back"])
+    UI.AddListView("vLV_gestures " . p,
+        ["Gesture name", "Value", "Options", "→", "Layer", "roll it back"])
     UI["LV_gestures"].OnEvent("DoubleClick", LVGestureDoubleClick)
     UI["LV_gestures"].OnEvent("Click", LVGestureClick)
-    for i, w in [120, 170, 30, 100, 0] {
+    for i, w in [100, 110, 100, 30, 70, 0] {
         UI["LV_gestures"].ModifyCol(i, w * CONF.gui_scale)
     }
 
@@ -249,9 +254,12 @@ _DrawHelp() {
     _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
     _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")
     _AddHelpText("Italic Bold cAAAA11", "x+5 yp0", "chord part;")
-    t := CONF.gest_color
-    _rgb := ((t & 0xFF) << 16) | (t & 0xFF00) | ((t >> 16) & 0xFF)
-    _AddHelpText("Italic Bold c" . Format("{:#06x}", _rgb), "x+5 yp0", "gesture start.")
+    try {
+        _AddHelpText("Italic Bold c"
+            . Format("{:#06x}", CONF.gest_colors[1][1]), "x+5 yp0", "gesture start.")
+    } catch {
+        _AddHelpText("Italic Bold cRed", "x+5 yp0", "gesture start.")
+    }
 
     _AddHelpText("Italic cGray", "x+" . 60 / USER_DPI . " yp0", "Indicators: ")
     _AddHelpText("Italic Bold cGray", "x+5 yp0", "irrevocable;")
@@ -299,7 +307,7 @@ _CreateOverlay() {
 
 
 _AddOverlayItem(x, y, colour, txt:="") {
-    if CONF.overlay_type == 1 {
+    if !overlay || CONF.overlay_type == 1 {
         return
     }
 
@@ -312,7 +320,7 @@ _AddOverlayItem(x, y, colour, txt:="") {
 
 
 _GetKeyName(sc, with_keytype:=false, to_short:=false, from_sc_str:=false) {
-    static fixed_names := Map(
+    static fixed_names:=Map(
         "PrintScreen", "Print`nScreen", "ScrollLock", "Scroll`nLock", "Numlock", "Num`nLock",
         "Volume_Mute", "Mute", "Volume_Down", "VolD", "Volume_Up", "VolU", "Media_Next", "Next",
         "Media_Prev", "Prev", "Media_Stop", "Stop", "Media_Play_Pause", "Play",
@@ -323,7 +331,7 @@ _GetKeyName(sc, with_keytype:=false, to_short:=false, from_sc_str:=false) {
         "MButton", "Wheel`nClick", "XButton1", "XBM1", "XButton2", "XBM2", "WheelLeft", "Wheel`n🡐",
         "WheelDown", "Wheel`n🡓", "WheelUp", "Wheel`n🡑", "WheelRight", "Wheel`n🡒"
     )
-    static short_names := Map(
+    static short_names:=Map(
         "PrintScreen", "PrtSc", "ScrollLock", "ScrLk", "Numlock", "NumLk",
         "Backspace", "BS", "LControl", "LCtrl", "RControl", "RCtrl", "AppsKey", "Menu",
         "WheelLeft", "WhLeft", "WheelDown", "WhDown", "WheelUp", "WhUp", "WheelRight", "WhRight",

@@ -29,7 +29,7 @@ A_TrayMenu.Add("tdfw", TrayClick)
 A_TrayMenu.Default := "tdfw"
 A_TrayMenu.ClickCount := 1
 
-DrawLayout()
+DrawLayout(true)
 
 
 _GetFirst(node, certain_layer:="") {
@@ -224,14 +224,14 @@ _Move(sc, is_hold) {
 
 
 SaveValue(
-    is_hold, layer, down_type, down_val:="",
-    up_type:=false, up_val:="", is_instant:=false, is_irrevocable:=false,
-    custom_lp_time:=false, custom_nk_time:=false, child_behavior:=false, shortname:=""
+    is_hold, layer, down_type, down_val:="", up_type:=false, up_val:="",
+    is_instant:=false, is_irrevocable:=false, custom_lp_time:=false, custom_nk_time:=false,
+    child_behavior:=false, shortname:="", gest_opts:=""
 ) {
     json_root := DeserializeMap(layer)
 
     if !json_root.Has(gui_lang) {
-        json_root[gui_lang] := [Map(), Map(), Map(), ""]
+        json_root[gui_lang] := ["", Map(), Map(), Map()]
     }
     json_node := _WalkJson(json_root[gui_lang], current_path, is_hold)
     json_node[1] := down_type
@@ -244,6 +244,7 @@ SaveValue(
     json_node[8] := Integer(custom_nk_time)
     json_node[9] := Integer(child_behavior)
     json_node[10] := shortname
+    json_node[11] := gest_opts
     SerializeMap(json_root, layer)
 
     FillRoots()
@@ -313,12 +314,12 @@ ClearNested(is_hold, layer:="", *) {
         json_root := DeserializeMap(layer)
 
         if !json_root.Has(gui_lang) {
-            json_root[gui_lang] := [Map(), Map(), Map(), ""]
+            json_root[gui_lang] := ["", Map(), Map(), Map()]
         }
         json_node := _WalkJson(json_root[gui_lang], current_path, is_hold)
-        json_node[-4] := Map()
         json_node[-3] := Map()
         json_node[-2] := Map()
+        json_node[-1] := Map()
         SerializeMap(json_root, layer)
     }
 
@@ -344,8 +345,12 @@ ChangeLang(lang, *) {
 TrayClick(*) {
     if !DllCall("IsWindowVisible", "ptr", UI.Hwnd) {
         UI.Show()
-        SetTimer(UpdateOverlayPos, 100)
+        ChangePath()
+        if !overlay {
+            _CreateOverlay()
+        }
         overlay.Show()
+        SetTimer(UpdateOverlayPos, 100)
     } else {
         UI.Hide()
         SetTimer(UpdateOverlayPos, 0)
@@ -403,13 +408,13 @@ ToggleVisibility(state, arrs*) {
 UpdateOverlayPos(*) {
     global overlay, overlay_x, overlay_y
 
-    if !UI.Hwnd || !WinExist("ahk_id " . UI.Hwnd)
-        || !(WinActive("A") == UI.Hwnd) && !(WinActive("A") == overlay.Hwnd) {
+    if !UI || !UI.Hwnd || !WinExist("ahk_id " . UI.Hwnd)
+        || WinActive("A") !== UI.Hwnd && WinActive("A") !== overlay.Hwnd {
         overlay.Hide()
         return
     }
 
-    try {
+    try {  ; TODO
         pt := Buffer(8, 0)
         DllCall("ClientToScreen", "ptr", UI.Hwnd, "ptr", pt)
         x := NumGet(pt, 0, "int")

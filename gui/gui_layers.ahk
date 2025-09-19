@@ -7,7 +7,7 @@ LVLayerClick(lv, row) {
     }
 
     selected_layer_priority := 0
-    if row !== 0 {
+    if row {
         selected_layer := lv.GetText(row, 3)
         ToggleEnabled(1, UI.layer_ctrl_btns)
         if lv.GetText(row, 2) {
@@ -26,7 +26,7 @@ LVLayerClick(lv, row) {
 LVLayerDoubleClick(lv, row, from_selected:=false) {
     global layer_editing, root_text, selected_layer
 
-    if row == 0 {
+    if !row || temp_chord {
         return
     }
 

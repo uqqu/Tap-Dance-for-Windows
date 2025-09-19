@@ -6,7 +6,7 @@
         return
     }
 
-    if row !== 0 {
+    if row {
         selected_chord := ChordToStr(lv.GetText(row, 1))
         ToggleEnabled(1, UI.chs_toggles)
     } else {
@@ -17,7 +17,7 @@
 
 
 LVChordDoubleClick(lv, row, from_selected:=false) {
-    if row !== 0 && !start_temp_chord {
+    if row && !start_temp_chord {
         OneNodeDeeper(ChordToStr(lv.GetText(row, 1)), gui_mod_val, lv.GetText(row, 1))
     }
 }
@@ -109,8 +109,8 @@ DeleteSelectedChord(_, without_confirmation:=false) {
 	    json_root := DeserializeMap(layer)
         res := current_path.Length ? _WalkJson(json_root[gui_lang], current_path)
             : json_root[gui_lang]
-        json_scancodes := res[-4]
-        json_chords := res[-3]
+        json_scancodes := res[-3]
+        json_chords := res[-2]
         if json_chords[selected_chord].Count !== 1 {
             json_chords[selected_chord].Delete(gui_mod_val)
         } else {
@@ -210,7 +210,7 @@ WriteChord(chord:=false, *) {
         : (layers.Length == 1 ? layers[1] : form["LayersDDL"].Text)
     json_root := DeserializeMap(temp_layer)
     if !json_root.Has(gui_lang) {
-        json_root[gui_lang] := [Map(), Map(), Map(), ""]
+        json_root[gui_lang] := ["", Map(), Map(), Map()]
     }
     if chord {
         path := current_path.Clone()
@@ -221,8 +221,8 @@ WriteChord(chord:=false, *) {
         res := current_path.Length ? _WalkJson(json_root[gui_lang], current_path)
             : json_root[gui_lang]
     }
-    json_scancodes := res[-4]
-    json_chords := res[-3]
+    json_scancodes := res[-3]
+    json_chords := res[-2]
     if json_chords.Has(chord_txt) && json_chords[chord_txt].Has(gui_mod_val)
         && MsgBox("Chord with these keys already exists on the selected layer. "
             . "Do you want to overwrite it?", "Confirmation", "YesNo Icon?") == "No" {
@@ -238,7 +238,7 @@ WriteChord(chord:=false, *) {
             json_scancodes[sc][gui_mod_val+1][2] := ""
         } else {
             json_scancodes[sc][gui_mod_val+1] := [
-                TYPES.Chord, "", TYPES.Disabled, "", 0, 0, 0, 0, 4, "", Map(), Map(), Map(), ""
+                TYPES.Chord, "", TYPES.Disabled, "", 0, 0, 0, 0, 4, "", "", Map(), Map(), Map(),
             ]
         }
     }
@@ -246,11 +246,13 @@ WriteChord(chord:=false, *) {
     if !json_chords.Has(chord_txt) {
         json_chords[chord_txt] := Map()
     }
+    try sc_mp := json_chords[chord_txt][gui_mod_val][-3]
+    try ch_mp := json_chords[chord_txt][gui_mod_val][-2]
     json_chords[chord_txt][gui_mod_val] := [
-        TYPES.%form["DDL"].Text%, form["Input"].Text . "", TYPES.Disabled, "",
+        TYPES.%form["TypeDDL"].Text%, form["ValInp"].Text . "", TYPES.Disabled, "",
         Integer(form["CBInstant"].Value), Integer(form["CBIrrevocable"].Value),
         0, Integer(form["CustomNK"].Text), Integer(form["ChildBehaviorDDL"].Value),
-        "", Map(), Map(), Map(), ""
+        "", "", sc_mp ?? Map(), ch_mp ?? Map(), Map(),
     ]
 
     SerializeMap(json_root, temp_layer)
@@ -263,7 +265,7 @@ WriteChord(chord:=false, *) {
                 break
             }
         }
-    } else {
+    } else if temp_chord && start_temp_chord {
         equal := false
     }
 
@@ -280,7 +282,7 @@ WriteChord(chord:=false, *) {
     UpdLayers()
     ChangePath()
 
-    form.Destroy()
+    try form.Destroy()
     form := false
 }
 

@@ -3,29 +3,29 @@ LVGestureClick(lv, row) {
 
     ToggleEnabled(0, UI.layer_move_btns, UI.layer_ctrl_btns, UI.chs_toggles)
 
-    if row == 0 || lv.GetText(0, 1) == "Has nested gestures" {
+    if !row || lv.GetText(0, 1) == "Has nested gestures" {
         selected_gesture := ""
         ToggleEnabled(0, UI.gest_toggles)
     } else {
-        selected_gesture := lv.GetText(row, 5)
+        selected_gesture := lv.GetText(row, 6)
         ToggleEnabled(1, UI.gest_toggles)
     }
 }
 
 
 LVGestureDoubleClick(lv, row, from_selected:=false) {
-    if row == 0 {
+    if !row {
         return
     }
 
     if lv.GetText(0, 1) == "Has nested gestures" {
         try {
-            HandleKeyPress(Integer(lv.GetText(row, 5)))
+            HandleKeyPress(Integer(lv.GetText(row, 6)))
         } catch {
-            HandleKeyPress(lv.GetText(row, 5))
+            HandleKeyPress(lv.GetText(row, 6))
         }
     } else {
-        OneNodeDeeper(lv.GetText(row, 5), gui_mod_val, false, lv.GetText(row, 1))
+        OneNodeDeeper(lv.GetText(row, 6), gui_mod_val, false, lv.GetText(row, 1))
     }
 }
 
@@ -40,7 +40,12 @@ AddNewGesture(*) {
 
 
 ShowSelectedGesture(*) {
-    DrawExisting(selected_gesture)
+    parent_opts := _GetFirst(gui_entries.ubase).gesture_opts
+    gest := _GetFirst(
+        gui_entries.ubase.GetBaseHoldMod(selected_gesture, gui_mod_val, false, true
+    ).ubase)
+    SetOverlayOpts(parent_opts, gest.opts.pool)
+    DrawExisting(gest)
 }
 
 
@@ -73,7 +78,7 @@ DeleteSelectedGesture(*) {
 
     json_root := DeserializeMap(gest_layer)
     res := current_path.Length ? _WalkJson(json_root[gui_lang], current_path) : json_root[gui_lang]
-    json_gestures := res[-2]
+    json_gestures := res[-1]
     if json_gestures[selected_gesture].Count !== 1 {
         json_gestures[selected_gesture].Delete(gui_mod_val)
     } else {
@@ -86,4 +91,9 @@ DeleteSelectedGesture(*) {
     FillRoots()
     UpdLayers()
     ChangePath()
+}
+
+
+_ReturnButtonText(*) {
+    try form["SetGesture"].Text := "Redraw saved gesture"
 }

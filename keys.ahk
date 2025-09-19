@@ -1,6 +1,6 @@
 ﻿for sc in ALL_SCANCODES {
     if !(sc is Number) {
-        if sc == "LButton" || sc == "RButton" {
+        if sc == "LButton" || sc == "RButton" || sc == "WheelUp" || sc == "WheelDown" {
             HotIf CheckMouse.Bind(sc)
                 Hotkey(sc, ((sc) => (*) => OnKeyDown(sc))(sc))
             HotIf UpCheck.Bind(sc)
@@ -79,7 +79,7 @@ CheckMouse(sc, *) {
 
 
 SetSysModHotkeys() {
-    static first_start := true
+    static first_start:=true
 
     if first_start {
         first_start := false
@@ -88,7 +88,7 @@ SetSysModHotkeys() {
 
     stack := []
     for lang, root in ROOTS {
-        if lang !== 0 {
+        if lang {
             stack.Push(root)
         }
     }

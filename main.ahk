@@ -3,6 +3,7 @@
 #Include "serializing.ahk"
 #Include "structs.ahk"
 #Include "config.ahk"
+#Include "gesture_processing.ahk"
 #Include "gestures.ahk"
 #Include "gui/gui.ahk"
 #Include "user_functions.ahk"
@@ -177,7 +178,7 @@ PreCheck(sc, *) {
     if entries !== 2 {
         SetTimer(TimerSendCurrent, 0)
     }
-    if entries == 0 {  ; no assignments found
+    if !entries {  ; no assignments found
         if !delayed {  ; allow native press in the base case
             return false
         }
@@ -206,6 +207,16 @@ GetEntries(sc, extra_mod:=0) {
     }
 
     if entries.ubase || entries.uhold {
+        if !entries.uhold && entries.ubase.fin.down_type == TYPES.Default  ; TODO?
+            && entries.ubase.fin.up_type == TYPES.Disabled
+            && !entries.ubase.active_scancodes.Count && !entries.ubase.active_chords.Count
+            && entries.ubase.active_gestures.Count {
+                CollectPool(entries.ubase.active_gestures)
+                if !pool_gestures.Length {
+                    return 0
+                }
+            }
+
         return entries  ; has at least one assignment; there's a point in further processing
     }
 
@@ -263,8 +274,11 @@ TreatMod(entries, sc) {
     last_val := entries.ubase ? [entries.ubase, sc] : GetDefaultSim(sc, true)
 
     if last_val[1].active_gestures.Count {
-        gest_node := last_val[1]
-        StartDraw()
+        CollectPool(last_val[1].active_gestures)
+        if pool_gestures.Length {
+            gest_node := last_val[1]
+            StartDraw()
+        }
     }
 
     current_mod |= 1 << val
@@ -336,8 +350,11 @@ OnKeyDown(sc) {
     current_presses[sc] := true  ; store current press for repetition and chord checks
 
     if catched_entries.ubase && catched_entries.ubase.active_gestures.Count {
-        gest_node := catched_entries.ubase
-        StartDraw()
+        CollectPool(catched_entries.ubase.active_gestures)
+        if pool_gestures.Length {
+            gest_node := catched_entries.ubase
+            StartDraw()
+        }
     }
 
     ; only tap assigned or insignificant hold
@@ -388,7 +405,7 @@ CheckLayout() {
     global CurrentLayout
 
     layout := GetCurrentLayout()
-    if layout == CurrentLayout || !ROOTS.Has(layout) && CurrentLayout == 0 {
+    if layout == CurrentLayout || !ROOTS.Has(layout) && !CurrentLayout {
         return
     }
 

@@ -1,58 +1,274 @@
-global is_drawing := false
-global prev_x := 0
-global prev_y := 0
-global points := []
-global gest_overlay := false
-global track_period := 8
-global cum_len := 0.0
-global prev_width := 0
-global last_gesture_raw := false
+#Include "_grad_colors.ahk"
 
-global w_min := 2
-global w_max := 18
+track_period := 8
+w_max := 20
+
+gdip_token := 0
+gdip_state := false
+gest_overlay := false
+g_mem_dc := 0
+g_hbm := 0
+g_bits := 0
+
+pool_gestures := false
+is_drawing := false
+overlay_opts := false
+points := []
+prev_x := 0
+prev_y := 0
+cum_len := 0.0
+cur_grad_len := 0.0
+prev_width := 0
+
+OnExit(GdipShutdown)
+
+
+GdipStartup() {
+    global gdip_token, gdip_state
+
+    if gdip_state {
+        return true
+    }
+
+    DllCall("LoadLibrary", "str", "gdiplus", "ptr")
+    si := Buffer(A_PtrSize == 8 ? 24 : 16, 0)
+    NumPut("UInt", 1, si, 0)  ; GdiplusVersion = 1
+    NumPut("Ptr",  0, si, 4)  ; DebugEventCallback = null
+    NumPut("Int",  0, si, 4 + A_PtrSize)  ; SuppressBackgroundThread = false
+    NumPut("Int",  0, si, 8 + A_PtrSize)  ; SuppressExternalCodecs = false
+
+    loop 5 {  ; in case of a startup error
+        if !DllCall("gdiplus\GdiplusStartup", "ptr*", &token:=0, "ptr", si, "ptr", 0, "UInt") {
+            gdip_token := token
+            gdip_state := true
+            return true
+        }
+        Sleep(100)
+    }
+    return false
+}
+
+
+GdipShutdown(*) {
+    global gdip_token, gdip_state
+
+    if gdip_state {
+        DllCall("gdiplus\GdiplusShutdown", "ptr", gdip_token)
+        gdip_token := 0
+        gdip_state := false
+    }
+}
 
 
 CreateGestOverlay() {
-    global gest_overlay
+    global gest_overlay, g_mem_dc, g_hbm, g_bits
 
     try gest_overlay.Destroy()
-    gest_overlay := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x20 -DPIScale")
-    gest_overlay.BackColor := "F0F1F2"
+
+    if !GdipStartup() {
+        return
+    }
+
+    gest_overlay := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x80020 -DPIScale")
     gest_overlay.Show("Hide x0 y0 w" . A_ScreenWidth . " h" . A_ScreenHeight)
-    WinSetTransColor("F0F1F2", gest_overlay)
+
+    hdc := DllCall("GetDC", "ptr", 0, "ptr")
+    g_mem_dc := DllCall("gdi32\CreateCompatibleDC", "ptr", hdc, "ptr")
+    DllCall("ReleaseDC", "ptr", 0, "ptr", hdc)
+
+    bi := Buffer(40, 0)
+    NumPut("UInt", 40, bi, 0)
+    NumPut("Int", A_ScreenWidth, bi, 4)
+    NumPut("Int", -A_ScreenHeight, bi, 8)
+    NumPut("UShort", 1, bi, 12)
+    NumPut("UShort", 32, bi, 14)
+    NumPut("UInt", 0, bi, 16)
+
+    g_hbm := DllCall("gdi32\CreateDIBSection",
+        "ptr", 0, "ptr", bi, "UInt", 0, "ptr*", &g_bits:=0, "ptr", 0, "UInt", 0, "ptr")
+    if g_hbm {
+        DllCall("gdi32\SelectObject", "ptr", g_mem_dc, "ptr", g_hbm, "ptr")
+        ClearOverlay()
+        PresentOverlay()
+    }
+}
+
+
+ClearOverlay() {
+    if !g_bits {
+        return
+    }
+    DllCall("msvcrt\memset", "ptr", g_bits, "int", 0, "uptr", A_ScreenWidth * A_ScreenHeight * 4)
+}
+
+
+GetOverlayGraphics() {
+    global g_bits
+    static bmp:=0, g:=0, cached_bits:=0
+
+    if !g_bits {
+        return 0
+    }
+
+    if g_bits !== cached_bits || !g {
+        if g {
+            DllCall("gdiplus\GdipDeleteGraphics", "ptr", g)
+            g := 0
+        }
+        if bmp {
+            DllCall("gdiplus\GdipDisposeImage", "ptr", bmp)
+            bmp := 0
+        }
+
+        if DllCall(
+            "gdiplus\GdipCreateBitmapFromScan0", "int", A_ScreenWidth, "int", A_ScreenHeight,
+            "int", A_ScreenWidth*4, "int", 0xE200B, "ptr", g_bits, "ptr*", &bmp:=0
+        ) {
+            return 0
+        }
+
+        if DllCall("gdiplus\GdipGetImageGraphicsContext", "ptr", bmp, "ptr*", &g:=0) {
+            DllCall("gdiplus\GdipDisposeImage", "ptr", bmp)
+            bmp := 0
+            return 0
+        }
+        DllCall("gdiplus\GdipSetCompositingMode", "ptr", g, "int", 0)  ; SourceOver
+        DllCall("gdiplus\GdipSetCompositingQuality", "ptr", g, "int", 4)  ; HighQuality
+        DllCall("gdiplus\GdipSetSmoothingMode", "ptr", g, "int", 4)  ; AntiAlias
+        DllCall("gdiplus\GdipSetPixelOffsetMode", "ptr", g, "int", 3)  ; Half
+
+        cached_bits := g_bits
+    }
+    return g
+}
+
+
+PresentOverlay() {
+    global gest_overlay
+    static size:=0, blend:=0, last_opacity:=-1, pt_zero:=Buffer(8, 0)
+
+    if !(gest_overlay && g_mem_dc) {
+        return
+    }
+
+    if !size {
+        size := Buffer(8, 0)
+        NumPut("Int", A_ScreenWidth, size, 0)
+        NumPut("Int", A_ScreenHeight, size, 4)
+    }
+
+    if !blend || (last_opacity !== CONF.overlay_opacity) {
+        blend := Buffer(4, 0)
+        NumPut("UChar", 0, blend, 0)
+        NumPut("UChar", 0, blend, 1)
+        NumPut("UChar", CONF.overlay_opacity, blend, 2)
+        NumPut("UChar", 1, blend, 3)
+        last_opacity := CONF.overlay_opacity
+    }
+
+    DllCall(
+        "user32\UpdateLayeredWindow", "ptr", gest_overlay.Hwnd, "ptr", 0, "ptr", 0,
+        "ptr", size, "ptr", g_mem_dc, "ptr", pt_zero, "UInt", 0, "ptr", blend, "UInt", 2
+    )
 }
 
 
 DestroyGestOverlay() {
-    global gest_overlay
+    global gest_overlay, g_mem_dc, g_hbm
 
-    try gest_overlay.Destroy()
-    gest_overlay := false
+    if gest_overlay {
+        try gest_overlay.Destroy()
+        gest_overlay := false
+    }
+    if g_hbm {
+        DllCall("gdi32\DeleteObject", "ptr", g_hbm)
+        g_hbm := 0
+    }
+    if g_mem_dc {
+        DllCall("gdi32\DeleteDC", "ptr", g_mem_dc)
+        g_mem_dc := 0
+    }
 }
 
 
-StartDraw(*) {
-    global is_drawing, prev_x, prev_y, points, cum_len, prev_width
+CollectPool(gestures) {
+    global pool_gestures
+
+    MouseGetPos(&x, &y)
+    pool := GetPool(x, y)
+    pool_gestures := []
+    for _, mod_mp in gestures {
+        if mod_mp.Has(current_mod) && mod_mp[current_mod].fin.opts.pool == pool {
+            pool_gestures.Push(mod_mp[current_mod])
+        }
+    }
+}
+
+
+StartDraw(gestures:=false, *) {
+    global is_drawing, prev_x, prev_y, points, cum_len, prev_width, cur_grad_len
 
     if is_drawing {
         return
     }
 
     CreateGestOverlay()
-    last_gesture_raw := false
-
+    if !gest_overlay {
+        return
+    }
     is_drawing := true
+    ClearOverlay()
+    PresentOverlay()
     gest_overlay.Show("NA")
     MouseGetPos(&prev_x, &prev_y)
+    SetOverlayOpts((gest_node ? gest_node.fin.gesture_opts : ""), GetPool(prev_x, prev_y))
     SetTimer(TrackMouse, track_period)
     points := [[prev_x, prev_y]]
     cum_len := 0.0
-    prev_width := w_min
+    cur_grad_len := 0.0
+    prev_width := 0
+}
+
+
+SetOverlayOpts(opts, pool) {
+    global overlay_opts
+
+    vals := StrSplit(opts, ";")
+    sh := pool == 5 ? 0 : (Mod(pool, 2) ? 6 : 3)
+    overlay_opts := {pool: pool, live_hints: (vals.Length
+        ? (vals[1] == 1 ? CONF.gest_live_hint : vals[1] - 1)
+        : CONF.gest_live_hint)
+    }
+    for arr in [["gest_colors", 2+sh], ["grad_len", 3+sh], ["grad_loop", 4+sh]] {
+        try {
+            overlay_opts.%arr[1]% := vals[arr[2]]
+        } catch {
+            overlay_opts.%arr[1]% := CONF.%arr[1]%[Integer(sh/3) + 1]
+        }
+        if A_Index == 1 {
+            v := overlay_opts.%arr[1]%
+            overlay_opts.%arr[1]% := []
+            if RegExMatch(v, "random\((\d+)\)", &m) {
+                loop m[1] {
+                    overlay_opts.%arr[1]%.Push(
+                        (Random(0, 255) << 16) | (Random(0, 255) << 8) | Random(0, 255)
+                    )
+                }
+            } else {
+                for colour in StrSplit(v, ",") {
+                    overlay_opts.%arr[1]%.Push(Integer("0x" . Trim(colour)))
+                }
+            }
+            if !overlay_opts.%arr[1]%.Length {
+                overlay_opts.%arr[1]% := [0xFF0000]
+            }
+        }
+    }
 }
 
 
 EndDraw(*) {
-    global is_drawing, init_drawing, points, last_gesture_raw
+    global is_drawing, init_drawing, points, overlay_opts, pool_gestures
 
     if !is_drawing {
         return
@@ -62,72 +278,98 @@ EndDraw(*) {
     is_drawing := false
     DestroyGestOverlay()
 
-    raw_pts := []
-    for p in points {
-        raw_pts.Push([p[1], p[2]])
-    }
-
-    last_gesture_raw := raw_pts
-
     if init_drawing {
         init_drawing := false
-        form["SetGesture"].Text := "Saved!"
-        SetTimer(_ReturnButtonText, -2000)
         try form["Save"].Opt("-Disabled")
-        WinActivate "ahk_id " . form.Hwnd
+        try form["SetGesture"].Text := "Saved!"
+        SetTimer(_ReturnButtonText, -2000)
+
+        res := Resample(points)
+        pts := res[1]
+        if Sqrt((pts[1][1]-pts[-1][1])**2 + (pts[1][2]-pts[-1][2])**2) < (res[2] / 10) {
+            try form["Phase"].Opt("-Disabled")
+        }
+        try WinActivate "ahk_id " . form.Hwnd
     } else {
-        SetTimer(() => ProtractorRecognize(raw_pts), -1)
+        SetTimer(Fin.Bind(points, pool_gestures), -1)
     }
 
-    points := []
+    overlay_opts := false
+    pool_gestures := false
 }
 
 
-_ReturnButtonText(*) {
-    try form["SetGesture"].Text := "Redraw saved gesture"
-}
-
-
-ProtractorRecognize(raw_pts) {
+Fin(pts, gestures) {
     global gest_node
 
-    input_vec := NormalizeForProtractor(raw_pts)
-    if !(input_vec.Length == 0 || cum_len < CONF.min_gesture_len) {
-        best_gesture := ""
-        best_score := -1.0
-        for name, node in gest_node.active_gestures {
-            vals := StrSplit(name, " ")
-            out := []
-            for v in vals {
-                if v !== "" {
-                    out.Push(v + 0.0)
-                }
-            }
-            cos := CosineSim(input_vec, out)
-            if cos > best_score {
-                best_score := cos
-                best_gesture := name
-            }
-        }
+    res := cum_len > Max(CONF.min_gesture_len, 10) ? Recognize(pts, gestures) : false
 
-        if best_score >= CONF.min_cos_similarity {
-            res := gest_node.GetNode(best_gesture, current_mod, false, true)
-            gest_node := false
-            TransitionProcessing(res)
-            DestroyGestOverlay()
-            return
-        }
-    }
     gest_node := false
-    if gest_pending {
+    if res && res[1] >= CONF.min_cos_similarity && res[2] !== "" {
+        TransitionProcessing(res[2])
+    } else if gest_pending {
         gest_pending()
     }
     DestroyGestOverlay()
 }
 
 
+DrawLine(x1, y1, x2, y2, width) {
+    global cur_grad_len
+    static pen:=0
+
+    SetTimer(DestroyGestOverlay, 0)
+
+    if !g_bits {
+        return
+    }
+
+    g := GetOverlayGraphics()
+    if !g {
+        return
+    }
+
+    if !pen {
+        if DllCall("gdiplus\GdipCreatePen1",
+            "uint", (255<<24)|0, "float", width, "int", 2, "ptr*", &pen:=0) {
+            return
+        }
+        DllCall("gdiplus\GdipSetPenLineJoin", "ptr", pen, "int", 2)
+        DllCall("gdiplus\GdipSetPenStartCap", "ptr", pen, "int", 2)
+        DllCall("gdiplus\GdipSetPenEndCap", "ptr", pen, "int", 2)
+    } else {
+        DllCall("gdiplus\GdipSetPenWidth", "ptr", pen, "float", width)
+    }
+
+    dx := x2 - x1
+    dy := y2 - y1
+    seg_len := Sqrt(dx*dx + dy*dy)
+    parts := overlay_opts.gest_colors.Length > 1 ? Max(Ceil(seg_len / 3), 1) : 1
+
+    loop parts {
+        try {  ; TODO
+            t0 := (A_Index - 1) / parts
+            t1 := A_Index / parts
+            mid := (A_Index - 0.5) / parts
+
+            colour := ColorAtProgress((cur_grad_len + seg_len * mid) / overlay_opts.grad_len)
+            DllCall("gdiplus\GdipSetPenColor", "ptr", pen, "uint", (255<<24)|colour)
+
+            xa := x1 + dx * t0
+            ya := y1 + dy * t0
+            xb := x1 + dx * t1
+            yb := y1 + dy * t1
+
+            DllCall("gdiplus\GdipDrawLine", "ptr", g, "ptr", pen,
+                "float", xa, "float", ya, "float", xb, "float", yb)
+        }
+    }
+    cur_grad_len += seg_len
+}
+
+
 TrackMouse() {
-    global is_drawing, prev_x, prev_y, points, cum_len, prev_width
+    global prev_x, prev_y, cum_len, prev_width
 
     if !is_drawing {
         SetTimer(TrackMouse, 0)
@@ -144,7 +386,7 @@ TrackMouse() {
         target := BrushWidth(cum_len)
         width := target
         if target > prev_width {
-            width := Min(target, prev_width + 2)
+            width := Min(target, prev_width + 1)
         }
 
         DrawLine(prev_x, prev_y, x, y, width)
@@ -152,257 +394,198 @@ TrackMouse() {
         prev_x := x
         prev_y := y
         prev_width := width
-
         points.Push([x, y])
+
+        if pool_gestures && cum_len > Max(CONF.min_gesture_len, 10)
+            && overlay_opts.live_hints !== 4 {
+            SetTimer(LiveHint.Bind(points, pool_gestures), -1)
+        } else {
+            PresentOverlay()
+        }
     }
 }
 
 
 BrushWidth(len) {
-    global w_min, w_max
-
-    t := 0.012 * (len - 300)
-    sigma := (t > 30) ? 1.0 : (t < -30) ? 0.0 : 1.0 / (1.0 + Exp(-t))
-    w := w_min + (w_max - w_min) * sigma
-    if w < w_min {
-        w := w_min
-    } else if w > w_max {
+    t := 0.01 * (len - A_ScreenHeight / 6)
+    w := w_max * ((t > 30) ? 1.0 : (t < -30) ? 0.0 : 1.0 / (1.0 + Exp(-t)))
+    if w > w_max {
         w := w_max
     }
     return Round(w)
 }
 
 
-DrawLine(x1, y1, x2, y2, width:=3) {
-    global gest_overlay
+LiveHint(pts, gestures) {
+    global g_bits
+    static inited:=false, fam:=0, fnt:=0, fmt:=0,
+        brush_bg:=0, brush_fg:=0, brush_shad:=0, brush_clear:=0,
+        last_sig:="", lbbox:=0, lbx:=-1.0, lby:=-1.0, lbw:=-1.0, lbh:=-1.0, last_fs:=-1.0
 
-    if !gest_overlay {
+    if overlay_opts.live_hints == 4 {
         return
     }
 
-    hdc := DllCall("GetDC", "ptr", gest_overlay.Hwnd, "ptr")
-    if !hdc {
+    res := Recognize(pts, gestures)
+
+    try {
+        if res[1] < CONF.min_cos_similarity {
+            txt := !CONF.live_hint_extended ? "" : ("Not recognized. Best match: '"
+                . res[2].fin.gui_shortname . "' " . Round(res[1], 2))
+        } else {
+            txt := res[2].fin.gui_shortname
+        }
+    } catch {
+        txt := ""  ; TODO
+    }
+
+    if !inited {
+        if DllCall("gdiplus\GdipCreateFontFamilyFromName",
+            "wstr", "Segoe UI", "ptr", 0, "ptr*", &fam:=0) {
+            return
+        }
+        if DllCall("gdiplus\GdipCreateFont",
+            "ptr", fam, "float", CONF.font_size_lh, "int", 1, "int", 2, "ptr*", &fnt:=0) {
+            return
+        }
+
+        DllCall("gdiplus\GdipStringFormatGetGenericDefault", "ptr*", &fmt:=0)
+        DllCall("gdiplus\GdipSetStringFormatAlign", "ptr", fmt, "int", 1)
+        DllCall("gdiplus\GdipSetStringFormatLineAlign", "ptr", fmt, "int", 1)
+
+        bg := (215 << 24) | (0x22 << 16) | (0x22 << 8) | 0x22
+        DllCall("gdiplus\GdipCreateSolidFill", "uint", bg, "ptr*", &brush_bg:=0)
+        DllCall("gdiplus\GdipCreateSolidFill", "uint", (255<<24)|0x000000, "ptr*", &brush_shad:=0)
+        DllCall("gdiplus\GdipCreateSolidFill", "uint", (255<<24)|0xFFFFFF, "ptr*", &brush_fg:=0)
+        DllCall("gdiplus\GdipCreateSolidFill", "uint", 0x00000000, "ptr*", &brush_clear:=0)
+        inited := true
+        last_fs := CONF.font_size_lh
+    }
+
+    g := GetOverlayGraphics()
+    if !g {
         return
     }
 
-    pen := DllCall("gdi32\CreatePen", "int", 0, "int", width, "uint", CONF.gest_color, "ptr")
-    old := DllCall("gdi32\SelectObject", "ptr", hdc, "ptr", pen, "ptr")
-    DllCall("gdi32\MoveToEx", "ptr", hdc, "int", x1, "int", y1, "ptr", 0)
-    DllCall("gdi32\LineTo",   "ptr", hdc, "int", x2, "int", y2)
-    DllCall("gdi32\SelectObject", "ptr", hdc, "ptr", old, "ptr")
-    DllCall("gdi32\DeleteObject", "ptr", pen)
-    DllCall("ReleaseDC", "ptr", gest_overlay.Hwnd, "ptr", hdc)
+    fs := CONF.font_size_lh
+    if fs !== last_fs {
+        if fnt {
+            DllCall("gdiplus\GdipDeleteFont", "ptr", fnt)
+        }
+        if DllCall("gdiplus\GdipCreateFont", "ptr", fam,
+            "float", fs, "int", 1, "int", 2, "ptr*", &fnt:=0) {
+            return
+        }
+        last_fs := fs
+        lbbox := 0
+        last_sig := ""
+    }
+
+    DllCall("gdiplus\GdipGetFontHeight", "ptr", fnt, "ptr", g, "float*", &line_h:=0)
+
+    pad_x := Round(Max(fs * 0.60, 10.0))
+    pad_y := Round(Max(fs * 0.35,  6.0))
+    margin_y := Round(Max(fs * 0.80, 12.0))
+    shadow_off := Round(Max(fs * 0.06, 1.0))
+    bar_h := line_h + pad_y * 2
+
+    y := overlay_opts.live_hints == 1 ? margin_y
+        : (overlay_opts.live_hints == 2 ? ((A_ScreenHeight - bar_h) / 2.0)
+            : (A_ScreenHeight - bar_h - margin_y))
+
+    rect := Buffer(16, 0)
+    NumPut("float", 0.0, rect, 0)
+    NumPut("float", y, rect, 4)
+    NumPut("float", A_ScreenWidth*1.0, rect, 8)
+    NumPut("float", bar_h, rect, 12)
+
+    sig := txt . "|" . fs
+    if sig !== last_sig || !lbbox {
+        lbbox := Buffer(16, 0)
+        DllCall("gdiplus\GdipMeasureString", "ptr", g, "wstr", txt, "int", StrLen(txt),
+            "ptr", fnt, "ptr", rect, "ptr", fmt, "ptr", lbbox, "uint*", &cp:=0, "uint*", &lns:=0)
+        last_sig := sig
+    }
+
+    tx := NumGet(lbbox, 0, "float")
+    ty := NumGet(lbbox, 4, "float")
+    tw := NumGet(lbbox, 8, "float")
+    th := NumGet(lbbox, 12, "float")
+
+    bx := Floor(tx - pad_x)
+    by := Floor(ty - pad_y)
+    bw := Ceil(tw + pad_x * 2)
+    bh := Ceil(th + pad_y * 2)
+
+    if lbw > 0 && lbh > 0 {
+        DllCall("gdiplus\GdipSetCompositingMode", "ptr", g, "int", 1)  ; SourceCopy
+        DllCall("gdiplus\GdipFillRectangle", "ptr", g, "ptr", brush_clear,
+            "float", lbx-1, "float", lby-1, "float", lbw+2, "float", lbh+2)
+        DllCall("gdiplus\GdipSetCompositingMode", "ptr", g, "int", 0)  ; SourceOver
+    }
+
+    DllCall("gdiplus\GdipFillRectangle", "ptr", g, "ptr", brush_bg,
+        "float", bx, "float", by, "float", bw, "float", bh)
+
+    if shadow_off > 0 {
+        rect_sh := Buffer(16, 0)
+        NumPut("float", 0.0 + shadow_off, rect_sh, 0)
+        NumPut("float", y + shadow_off, rect_sh, 4)
+        NumPut("float", A_ScreenWidth*1.0, rect_sh, 8)
+        NumPut("float", bar_h, rect_sh, 12)
+        try DllCall("gdiplus\GdipDrawString", "ptr", g, "wstr", txt, "int", StrLen(txt),
+            "ptr", fnt, "ptr", rect_sh, "ptr", fmt, "ptr", brush_shad)  ; TODO
+    }
+
+    try DllCall("gdiplus\GdipDrawString", "ptr", g, "wstr", txt, "int", StrLen(txt),
+        "ptr", fnt, "ptr", rect, "ptr", fmt, "ptr", brush_fg)
+
+    lbx := bx
+    lby := by
+    lbw := bw
+    lbh := bh
+    PresentOverlay()
 }
 
 
-Resample(pts, dots) {
-    if pts.Length == 0 {
-        return []
-    }
-    if dots <= 2 {
-        return dots == 1 ? [pts[1]] : [pts[1], pts[pts.Length]]
-    }
+DrawExisting(gesture_obj) {
+    global cur_grad_len
 
-    total := 0.0
-    seg_len := []
-    for i, _ in pts {
-        if i == pts.Length {
-            break
-        }
-        d := Sqrt((pts[i+1][1]-pts[i][1])**2 + (pts[i+1][2]-pts[i][2])**2)
-        seg_len.Push(d)
-        total += d
-    }
-
-    if total == 0 {
-        out := []
-        loop dots {
-            out.Push([pts[1][1], pts[1][2]])
-        }
-        return out
-    }
-
-    step := total / (dots-1)
-    out := [[pts[1][1], pts[1][2]]]
-
-    target := step
-    acc := 0.0
-    i := 1
-    while out.Length < dots-1 {
-        while i <= seg_len.Length && seg_len[i] == 0 {
-            acc += 0
-            i++
-        }
-
-        if i > seg_len.Length {
-            break
-        }
-
-        if acc + seg_len[i] < target - 1e-9 {
-            acc += seg_len[i]
-            i++
-            continue
-        }
-
-        p1 := pts[i]
-        p2 := pts[i+1]
-        d := seg_len[i]
-        t := (target - acc) / (d || 1)
-        qx := p1[1] + (p2[1]-p1[1]) * t
-        qy := p1[2] + (p2[2]-p1[2]) * t
-        out.Push([qx, qy])
-
-        target += step
-    }
-
-    out.Push([pts[pts.Length][1], pts[pts.Length][2]])
-
-    while out.Length > dots {
-        out.Pop()
-    }
-    while out.Length < dots {
-        out.Push([pts[pts.Length][1], pts[pts.Length][2]])
-    }
-
-    return out
-}
-
-
-ScaleAndTranslate(pts, target_size:=250, centering:=true) {
-    minX := pts[1][1]
-    maxX := pts[1][1]
-    minY := pts[1][2]
-    maxY := pts[1][2]
-    for p in pts {
-        if p[1] < minX {
-            minX := p[1]
-        }
-        if p[1] > maxX {
-            maxX := p[1]
-        }
-        if p[2] < minY {
-            minY := p[2]
-        }
-        if p[2] > maxY {
-            maxY := p[2]
-        }
-    }
-
-    w := maxX - minX
-    h := maxY - minY
-    if w == 0 && h == 0 {
-        return pts.Clone()
-    }
-
-    scale := target_size / (Max(w, h) || 1)
-
-    scaled := []
-    for p in pts {
-        scaled.Push([(p[1] - minX) * scale, (p[2] - minY) * scale])
-    }
-
-    if !centering {
-        cx := scaled[1][1]
-        cy := scaled[1][2]
-    } else {
-        sx := 0.0
-        sy := 0.0
-        for p in scaled {
-            sx += p[1]
-            sy += p[2]
-        }
-        cx := sx / scaled.Length
-        cy := sy / scaled.Length
-    }
-
-    moved := []
-    for p in scaled {
-        moved.Push([p[1] - cx, p[2] - cy])
-    }
-    return moved
-}
-
-
-Vectorize(pts) {
-    vec := []
-    sum2 := 0.0
-
-    for p in pts {
-        vec.Push(p[1], p[2])
-    }
-    for v in vec {
-        sum2 += v * v
-    }
-
-    len := Sqrt(sum2)
-    if len !== 0 {
-        for i, v in vec {
-            vec[i] := v / len
-        }
-    }
-
-    return vec
-}
-
-
-CosineSim(vec_a, vec_b) {
-    dot := 0.0
-    for i, a in vec_a {
-        dot += a * vec_b[i]
-    }
-    return dot
-}
-
-
-NormalizeForProtractor(raw_pts, dots:=64, target_size:=250, centering:=true) {
-    if raw_pts.Length < 2 {
-        return []
-    }
-
-    total := 0.0
-    loop raw_pts.Length - 1 {
-        dx := raw_pts[A_Index+1][1] - raw_pts[A_Index][1]
-        dy := raw_pts[A_Index+1][2] - raw_pts[A_Index][2]
-        total += Sqrt(dx*dx + dy*dy)
-        if total > 1.0 {
-            break
-        }
-    }
-    if total <= 1.0 {
-        return []
-    }
-
-    pts := Resample(raw_pts, dots)
-    pts := ScaleAndTranslate(pts, target_size, centering)
-    return Vectorize(pts)
-}
-
-
-DrawExisting(gesture) {
     SetTimer(DestroyGestOverlay, 0)
     CreateGestOverlay()
+    ClearOverlay()
     gest_overlay.Show("NA")
-    vals := StrSplit(gesture, " ")
-    len := 0
-    out := []
-    for v in vals {
-        if v !== "" {
-            out.Push(v + 0.0)
-        }
-    }
 
-    hx := A_ScreenWidth // 2
-    hy := A_ScreenHeight // 2
-    prev_x := out[1] * 1000 + hx
-    prev_y := out[2] * 1000 + hy
-    prev_w := w_min
+    e := CONF.edge_size // 2
+    hx := Mod(gesture_obj.opts.pool, 3)
+    hx := hx == 1 ? e : hx == 2 ? A_ScreenWidth // 2 : A_ScreenWidth - e
+    hy := (gesture_obj.opts.pool - 1) // 3
+    hy := !hy ? e : hy == 1 ? A_ScreenHeight // 2 : A_ScreenHeight - e
+    h := gesture_obj.opts.scaling = 0 ? A_ScreenHeight : 1
+    vec := gesture_obj.vec
+    if gesture_obj.opts.dirs && Random(0, 1) > 0.5 {  ; show bidir
+        vec := []
+        i := 1
+        while i < gesture_obj.vec.Length {
+            vec.Push(gesture_obj.vec[-i - 1], gesture_obj.vec[-i])
+            i += 2
+        }
+    } else {
+        vec := gesture_obj.vec
+    }
+    prev_x := vec[1] * h + hx
+    prev_y := vec[2] * h + hy
+    prev_w := 0
+    len := 0
     i := 3
-    while i < out.Length {
+    b := true
+    Critical
+    while i < vec.Length {
         if !gest_overlay {
             return
         }
-        x := out[i] * 1000 + hx
-        y := out[i+1] * 1000 + hy
+        x := vec[i] * h + hx
+        y := vec[i+1] * h + hy
         dx := x - prev_x
         dy := y - prev_y
         d := Sqrt(dx*dx + dy*dy)
@@ -411,19 +594,25 @@ DrawExisting(gesture) {
         target := BrushWidth(len)
         width := target
         if target > prev_w {
-            width := Min(target, prev_w + 2)
+            width := Min(target, prev_w + 1)
         }
 
         try {
             DrawLine(prev_x, prev_y, x, y, width)
         } catch {
+            SetTimer(DestroyGestOverlay, 0)
             return
         }
         prev_x := x
         prev_y := y
         prev_w := width
         i += 2
-        Sleep(1)
+        PresentOverlay()
+        if b {
+            Sleep(1)
+        }
+        b := !b
     }
+    cur_grad_len := 0
     SetTimer(DestroyGestOverlay, -2000)
 }

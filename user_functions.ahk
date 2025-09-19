@@ -1,3 +1,4 @@
+; TODO all :(
 outs := Map(
     "Output: SendText", (txt, _) => SendText(txt),
     "Output: Clipboard", (txt, _) => (A_Clipboard := txt, 0),
@@ -57,11 +58,13 @@ ToggleLayers(layers*) {
 
 
 ActivateApp(path, process_name:="") {
-    if process_name {
-        name := "ahk_exe" . process_name
+    try {
+        name := "ahk_exe " . process_name
         WinActive(name) ? WinMinimize(name) : WinActivate(name)
-    } else {
-        Run(path)
+    } catch {
+        if path {
+            Run(path)
+        }
     }
 }
 
@@ -73,18 +76,18 @@ ToggleMod(md) {
 }
 
 
-GetDateTime(val, out, t:=false) {
+GetDateTime(val, out:="Ouptut: Tooltip", t:=false) {
     outs[out](FormatTime(, val), t)
 }
 
 
-GetCustomDateTime(val, out, t:=false) {
+GetCustomDateTime(val, out:="Ouptut: Tooltip", t:=false) {
     outs[out](FormatTime(, val), t)
 }
 
 
-GetWeather(city_name, out, t:=false) {
-    static weather_key := RegRead("HKEY_CURRENT_USER\Environment", "OPENWEATHERMAP", 0)
+GetWeather(city_name, out:="Ouptut: Tooltip", t:=false) {
+    static weather_key:=RegRead("HKEY_CURRENT_USER\Environment", "OPENWEATHERMAP", 0)
 
     if !weather_key {
         MsgBox("The api key was not found in the environment variables.",
@@ -111,8 +114,8 @@ GetWeather(city_name, out, t:=false) {
 }
 
 
-ExchRates(from_currency, to_currency, out, t:=false) {
-    static currency_key := RegRead("HKEY_CURRENT_USER\Environment", "GETGEOAPI", 0)
+ExchRates(from_currency, to_currency, out:="Ouptut: Tooltip", t:=false) {
+    static currency_key:=RegRead("HKEY_CURRENT_USER\Environment", "GETGEOAPI", 0)
 
     if !currency_key {
         MsgBox("The api key was not found in the environment variables.", "GETGEOAPI", "IconX")
@@ -130,7 +133,7 @@ ExchRates(from_currency, to_currency, out, t:=false) {
 }
 
 
-WikiSummary(lang, inp, out, t:=false) {
+WikiSummary(lang:="en", inp:="Input: InputBox", out:="Ouptut: Tooltip", t:=false) {
     url := "https://" . lang . ".wikipedia.org/api/rest_v1/page/summary/" . inps[inp]()
     web_request := ComObject("WinHttp.WinHttpRequest.5.1")
     web_request.Open("GET", url)
@@ -199,7 +202,7 @@ _MPPTimer() {
 }
 
 
-ChangeTextCase(change_name, inp, out, t:=false) {
+ChangeTextCase(change_name, inp:="Input: InputBox", out:="Ouptut: Tooltip", t:=false) {
     txt := inps[inp]()
     switch change_name {
         case "Normalize":
@@ -233,14 +236,14 @@ ChangeTextCase(change_name, inp, out, t:=false) {
 }
 
 
-SmartTranslit(inp, out, t:=false) {
-    static to_cyr := Map(
+SmartTranslit(inp:="Input: InputBox", out:="Ouptut: Tooltip", t:=false) {
+    static to_cyr:=Map(
         "shch", "щ", "yo", "ё", "zh", "ж", "kh", "х", "ts", "ц", "ch", "ч", "sh", "ш", "yu", "ю",
         "ya", "я", "a", "а", "b", "б", "v", "в", "g", "г", "d", "д", "e", "е", "z", "з", "i", "и",
         "y", "й", "k", "к", "l", "л", "m", "м", "n", "н", "o", "о", "p", "п", "r", "р", "s", "с",
         "t", "т", "u", "у", "f", "ф", "h", "х", "c", "ц", "'", "ь", "``", "ъ"
     )
-    static to_lat := Map()
+    static to_lat:=Map()
     for k, v in to_cyr {
         if !to_lat.Has(v) {
             to_lat[v] := k
@@ -311,7 +314,7 @@ _SortByLengthDesc(arr) {
 }
 
 
-IncrDecr(n) {
+IncrDecr(n:=1) {
     saved := ClipboardAll()
     A_Clipboard := ""
     SendInput("^{SC02E}")
@@ -361,18 +364,18 @@ IncrDecr(n) {
 }
 
 
-CustomString(txt, out, t:=false) {
+CustomString(txt, out:="Ouptut: Tooltip", t:=false) {
     outs[out](txt, t)
 }
 
 
-RemoveTextFormatting(inp, out, t:=false) {
+RemoveTextFormatting(inp:="Input: InputBox", out:="Ouptut: Tooltip", t:=false) {
     str := inps[inp]()
     outs[out](str, t)
 }
 
 
-ShortenURL(inp, out, t:=false) {
+ShortenURL(inp:="Input: InputBox", out:="Ouptut: Tooltip", t:=false) {
     url := inps[inp]()
     if !RegExMatch(url, "^https?://[^\s`"']+$") {
         outs[out](url, t)
@@ -410,7 +413,7 @@ MinimizeWindows() {
 }
 
 
-GenerateRandomPass(len, extra_symbs, out, t:=false) {  ; !@#$%^&*()-_=+[]{};:,.<>/?
+GenerateRandomPass(len:=12, extra_symbs:="", out:="Ouptut: Tooltip", t:=false) {
     chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" . extra_symbs
     pass := ""
     loop len {
@@ -418,6 +421,110 @@ GenerateRandomPass(len, extra_symbs, out, t:=false) {  ; !@#$%^&*()-_=+[]{};:,.<
     }
     outs[out](pass, t)
 }
+
+
+ChangeDefaultHoldTime(new_val:=5) {
+    CONF.MS_LP += Integer(new_val)
+    IniWrite(CONF.MS_LP, "config.ini", "Main", "LongPressDuration")
+}
+
+
+g_autoscroll := {active: false}
+
+AutoScrollStart(direction:="down", speed:=100, target:="cursor", accel:=0, stop_on_any_press:=true) {
+    AutoScrollStop()
+
+    dir := (direction == "down") ? [1, 0]
+        : (direction == "up") ? [1, 1]
+        : (direction == "right") ? [0, 1]
+        : (direction == "left") ? [0, 0]
+        : false
+
+    if !dir {
+        return false
+    }
+
+    if target == "cursor" {
+        MouseGetPos &x, &y, &win, &ctl, 3
+        hwnd := ctl ? ctl : win
+    } else {
+        hwnd := WinGetID("A")
+    }
+    if !hwnd {
+        return false
+    }
+
+    tick_ms := 10
+    px_per_tick := Integer(speed) * (tick_ms/1000.0)
+    wheel_delta_per_px := 120.0 / 40.0
+    base_delta := Round(px_per_tick * wheel_delta_per_px)
+    if base_delta < 1 {
+        base_delta := 1
+    }
+
+    g_autoscroll.active := true
+    g_autoscroll.hwnd := hwnd
+    g_autoscroll.tick_ms := tick_ms
+    g_autoscroll.dir := dir
+    g_autoscroll.base_delta := base_delta
+    g_autoscroll.accel := Integer(accel)
+    g_autoscroll.t0 := A_TickCount
+
+    if Integer(stop_on_any_press) {
+        _AS_InstallStopHooks()
+    }
+
+    SetTimer(_AS_Tick, -g_autoscroll.tick_ms)
+    return true
+}
+
+AutoScrollStop(*) {
+    if g_autoscroll.active {
+        g_autoscroll.active := false
+        _AS_RemoveStopHooks()
+    }
+}
+
+_AS_Tick() {
+    if !g_autoscroll.active {
+        return
+    }
+
+    if !DllCall("IsWindow", "ptr", g_autoscroll.hwnd, "int") {
+        AutoScrollStop()
+        return
+    }
+
+    delta := g_autoscroll.base_delta
+    if g_autoscroll.accel > 0 {
+        elapsed := (A_TickCount - g_autoscroll.t0) / 1000.0
+        factor := 1 + (g_autoscroll.accel == 1 ? 0.5 : 1.2) * elapsed
+        delta := Round(delta * (factor > 4 ? 4 : factor))
+    }
+
+    signed_delta := delta * (g_autoscroll.dir[2] ? 1 : -1)
+
+    MouseGetPos &mx, &my
+    PostMessage (g_autoscroll.dir[1] ? 0x20A : 0x20E),
+        (signed_delta & 0xFFFF) << 16,
+        (my & 0xFFFF) << 16 | (mx & 0xFFFF),
+        , g_autoscroll.hwnd
+    SetTimer(_AS_Tick, -g_autoscroll.tick_ms)
+}
+
+
+_AS_InstallStopHooks() {
+    for sc in ALL_SCANCODES {
+        Hotkey "~*" . (sc is Number ? SC_STR[sc] : sc), AutoScrollStop, "On"
+    }
+}
+
+_AS_RemoveStopHooks() {
+    for sc in ALL_SCANCODES {
+        Hotkey "~*" . (sc is Number ? SC_STR[sc] : sc), "Off"
+    }
+}
+
 
 
 ; don't look here
@@ -453,7 +560,7 @@ custom_funcs := Map(
         . "(requires API key GETGEOAPI in the environment variables).",
         "From currency", "To currency", 2
     ],
-    "WikiSummary", ["Get the first paragraph from wiki article", "Language code (en/ru/es)", 1, 2],
+    "WikiSummary", ["Get the first paragraph from wiki article", "Language code (en/ru/es) [en]", 1, 2],
     "Reminder", ["Set a reminder after a specified number of minutes. "
         . "If value is ommited you will be asked for input when you call the function",
         "Number of minutes"
@@ -467,21 +574,28 @@ custom_funcs := Map(
         . "`nI naoborot, konechno.", 1, 2
     ],
     "IncrDecr", ["Increase/decrease number or symbol (by unicode table) under the cursor",
-        "Increase/decrease value (int). 1, -1, 42, …"],
+        "Increase/decrease value (int). 1, -1, 42, … [1]"],
     "CustomString", ["Just return custom text to chosen output.", "Text", 2],
     "RemoveTextFormatting", ["Removing formatting (italic, bold, etc.) from a given text", 1, 2],
     "ShortenURL", ["Get short url with tinyurl api", 1, 2],
     "ClipboardSwap", ["Paste clipboard and save selected as a new clipboard value"],
     "MinimizeWindows", ["Carefully minimize all windows"],
     "GenerateRandomPass", ["Generate new password with alphanumerical range and your own extra "
-        . "symbols", "Password length", "Extra symbols", 2],
+        . "symbols", "Password length [12]", "Extra symbols", 2],
+    "ChangeDefaultHoldTime", ["Increase/decrease the hold time value from the config on fly.",
+        "+5 / -20 / … [+5]"],
+    "AutoScrollStart", ["Start smooth scrolling.",
+        "Direction ('up'/'down'/'right'/'left') [down]",
+        "Speed of scrolling [100]", "Target ('active' window or under 'cursor') [cursor]", "Acceleration (0-2) [0]",
+        "Stop on any press (0/1) [1]"],
+    "AutoScrollStop", ["Pair to the previous function, in case you want to manually stop scrolling."],
 )
 
 custom_func_keys := ["SetActiveLayers", "ToggleLayers", "TreatAsOtherNode", "ActivateApp",
     "ToggleMod", "GetDateTime", "GetCustomDateTime", "GetWeather", "ExchRates", "WikiSummary",
     "Reminder", "DelayedMediaPlayPause", "ChangeTextCase", "SmartTranslit", "IncrDecr",
     "CustomString", "RemoveTextFormatting", "ShortenURL", "ClipboardSwap", "MinimizeWindows",
-    "GenerateRandomPass",
+    "GenerateRandomPass", "ChangeDefaultHoldTime", "AutoScrollStart", "AutoScrollStop"
 ]
 
 custom_func_ddls := [

@@ -1,6 +1,6 @@
 ﻿_FillPathline() {
     UI.SetFont("Italic")
-    root := UI.Add("Button", "+0x80 -Wrap" . Scale(10, 5, 50), root_text)
+    root := UI.Add("Button", "+0x80 -Wrap" . Scale(10, 5), root_text)
     ToggleVisibility(0, UI.path)
     UI.path := []
     UI.path.Push(root)
@@ -116,9 +116,11 @@ _FillKeyboard() {
         btxt := _GetKeyName(sc, true)
         if b_node {
             if res.ubase.active_gestures.Count {
-                t := CONF.gest_color
-                _rgb := ((t & 0xFF) << 16) | (t & 0xFF00) | ((t >> 16) & 0xFF)
-                btn.Opt("+Background" . Format("{:#06x}", _rgb))
+                try {
+                    btn.Opt("+Background" . Format("{:#06x}", CONF.gest_colors[1][1]))
+                } catch {
+                    btn.Opt("+BackgroundRed")
+                }
             }
             UI["BtnBaseClear"].Opt("-Disabled")
             _AddIndicators(res.ubase, btn)
@@ -341,7 +343,7 @@ _FillGestures() {
     if !current_path.Length || current_path[-1][4] || current_path[-1][3]
         || SYS_MODIFIERS.Has(current_path[-1][1]) {
         ToggleEnabled(0, UI["BtnAddNewGesture"], UI.gest_toggles)
-        for i, val in ["Has nested gestures", "→", "", ""] {
+        for i, val in ["Has nested gestures", "→", "", "", ""] {
             UI["LV_gestures"].ModifyCol(i, , val)
         }
         for sc, mods in gui_entries.ubase.active_scancodes {
@@ -353,7 +355,7 @@ _FillGestures() {
                         node.fin.gui_shortname || _GetKeyName(sc, true),
                         cnt,
                         md || "",
-                        "", sc
+                        "", "", sc
                     )
                 }
             }
@@ -361,7 +363,7 @@ _FillGestures() {
         return
     }
 
-    for i, val in ["Gesture name", "Value", "→", "Layer", "roll it back"] {
+    for i, val in ["Gesture name", "Value", "Options", "→", "Layer", "roll it back"] {
         UI["LV_gestures"].ModifyCol(i, , val)
     }
     ToggleEnabled(1, UI["BtnAddNewGesture"])
@@ -395,6 +397,7 @@ _FillGestures() {
             "",
             child_node.gui_shortname,
             val,
+            _GestOptsToText(child_node.gesture_opts),
             cnt || "",
             layer_text,
             vec_str
@@ -403,6 +406,25 @@ _FillGestures() {
     ToggleEnabled(gui_entries && gui_entries.ubase && gui_entries.ubase !== ROOTS[gui_lang],
         UI["BtnAddNewGesture"])
     UI["LV_gestures"].ModifyCol(1, "Sort")
+}
+
+
+_GestOptsToText(opts) {
+    vals := StrSplit(opts, ";")
+    str := ["LT", "T", "RT", "L", "C", "R", "LB", "B", "RB"][Integer(vals[1])]
+    if vals[2] + 1 != CONF.gest_rotate {
+        str .= ", rotate: " . ["no", "de-noise", "invar."][Integer(vals[2]) + 1]
+    }
+    if vals[3] != CONF.scale_impact {
+        str .= ", scale imp.: " . Round(Float(vals[3]), 2)
+    }
+    if vals[4] !== "0" {
+        str .= ", bidir."
+    }
+    if vals[5] !== "0" {
+        str .= ", closed."
+    }
+    return str
 }
 
 

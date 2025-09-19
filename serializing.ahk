@@ -4,12 +4,12 @@
     }
     json := Dump(mp, "", conv)
     try FileDelete("layers/" . filename . ".json")
-    FileAppend("// 0.70`n" . json, "layers/" . filename . ".json", "UTF-8")
+    FileAppend("// 0.71`n" . json, "layers/" . filename . ".json", "UTF-8")
 }
 
 
 _CleanMap(mp, parent_md:=0) {
-    for opt in [mp[-4], mp[-3], mp[-2]] {
+    for opt in [mp[-3], mp[-2], mp[-1]] {
         to_del_sc := []
         for schex, mods in opt {
             to_del_md := []
@@ -30,7 +30,7 @@ _CleanMap(mp, parent_md:=0) {
         }
     }
     ref := parent_md ? TYPES.Disabled : TYPES.Default
-    if mp.Length > 2 && !mp[-4].Count && !mp[-3].Count && !mp[-2].Count && mp[1] == ref && !mp[2]
+    if mp.Length > 2 && !mp[-3].Count && !mp[-2].Count && !mp[-1].Count && mp[1] == ref && !mp[2]
         && mp[3] == TYPES.Disabled && !mp[4] && !mp[5] && !mp[6] && !mp[7] && !mp[8] {
         return false
     }
@@ -42,8 +42,8 @@ DeserializeMap(filename) {
     data := FileRead("layers/" . filename . ".json")
     ver := GetLayerVersion(data)
     struct := Load(StripLineComments(data))
-    if ver < 0.7 {
-        UpdateLayerVersionFrom06To07(struct)
+    if ver < 0.71 {
+        UpdateLayerVersion(struct, ver)
     }
     return struct
 }
@@ -58,7 +58,7 @@ GetLayerVersion(data) {
 }
 
 
-UpdateLayerVersionFrom06To07(data) {
+UpdateLayerVersion(data, from) {
     stack := []
     for lang, vals in data {
         if vals.Length {
@@ -68,17 +68,34 @@ UpdateLayerVersionFrom06To07(data) {
 
     while stack.Length {
         p := stack.RemoveAt(1)
-        for t in [p[-1], p[-2]] {
-            for _, schex_val in t {
-                for _, md_val in schex_val {
-                    stack.Push(md_val)
+
+        if from < 0.7 {
+            for t in [p[-1], p[-2]] {
+                for _, schex_val in t {
+                    for _, md_val in schex_val {
+                        stack.Push(md_val)
+                    }
                 }
             }
-        }
-
-        p.Push(Map(), "")  ; gestures map + gestures options
-        if p.Length !== 4 {
-            p.InsertAt(9, (p[1] == TYPES.Modifier ? 5 : 4))  ; unassigned child behavior
+            p.Push(Map())  ; gestures map
+            if p.Length !== 4 {
+                p.InsertAt(9, (p[1] == TYPES.Modifier ? 5 : 4))  ; unassigned child behavior
+                p.InsertAt(11, "")  ; gesture options
+            }
+        } else if from == 0.7 {  ; fix wrong 0.7 gesture_options position
+            for t in [p[-2], p[-3], p[-4]] {
+                for _, schex_val in t {
+                    for _, md_val in schex_val {
+                        stack.Push(md_val)
+                    }
+                }
+            }
+            if p.Length !== 4 {
+                p.InsertAt(11, p.Pop())
+            } else {
+                p.InsertAt(1, p.Pop())
+            }
+            p[-4] := "5;0;0.00;0;0;1"
         }
     }
 }

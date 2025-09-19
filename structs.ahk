@@ -51,7 +51,7 @@ class CombNode {
     }
 
     __Item[field] {
-        get => (field == 0 ? this.global_obj
+        get => (!field ? this.global_obj
             : (field == 1 || this.specific_obj ? this.specific_obj
             : this.global_obj))
     }
@@ -109,7 +109,9 @@ class UnifiedNode {
         return mp.Has(schex) ? mp[schex].Get(md, false) : false
     }
 
-    GetBaseHoldMod(schex, md:=0, is_chord:=false, is_gesture:=false, is_active:=false, is_fin:=true) {
+    GetBaseHoldMod(
+        schex, md:=0, is_chord:=false, is_gesture:=false, is_active:=false, is_fin:=true
+    ) {
         res := {}
 
         if !is_chord && !is_gesture && !is_active {
@@ -154,21 +156,16 @@ class UnifiedNode {
             this.layers.Add(layer_name, c_node)
         }
 
-        for arr in [
-            [raw_node[-4], this.scancodes],
-            [raw_node[-3], this.chords],
-            [raw_node[-2], this.gestures]
-        ] {
-            checked_map := arr[2]
-            for c_sc, mods in arr[1] {
-                if !checked_map.Has(c_sc) {
-                    checked_map[c_sc] := Map()
+        for i, mp in [this.gestures, this.chords, this.scancodes] {
+            for c_sc, mods in raw_node[-i] {
+                if !mp.Has(c_sc) {
+                    mp[c_sc] := Map()
                 }
                 for c_md, child in mods {
-                    if !checked_map[c_sc].Has(c_md) {
-                        checked_map[c_sc][c_md] := UnifiedNode()
+                    if !mp[c_sc].Has(c_md) {
+                        mp[c_sc][c_md] := UnifiedNode()
                     }
-                    checked_map[c_sc][c_md].MergeNodeRecursive(child, c_sc, c_md, layer_name, is_g)
+                    mp[c_sc][c_md].MergeNodeRecursive(child, c_sc, c_md, layer_name, is_g)
                 }
             }
         }
@@ -238,7 +235,7 @@ __NodeToArray(node) {
     for name in [
         "down_type", "down_val", "up_type", "up_val", "is_instant", "is_irrevocable",
         "custom_lp_time", "custom_nk_time", "child_behavior",
-        "gui_shortname", "sc", "md", "layer_name"
+        "gui_shortname", "gesture_opts", "sc", "md", "layer_name",
     ] {
         try res.Push(node.%name%)
     }
@@ -247,13 +244,37 @@ __NodeToArray(node) {
 
 
 _BuildNode(raw_node, sc, md, down_type:=false) {
+    static default_opts:={pool: 5, rotate: 0, scaling: 0, dirs: 0, closed: 0, len: 1}  ; temp
+
     b := raw_node.Length == 4  ; root
     node_obj := {sc: sc, md: md}
     for i, name in [
         "down_type", "down_val", "up_type", "up_val", "is_instant", "is_irrevocable",
-        "custom_lp_time", "custom_nk_time", "child_behavior", "gui_shortname"
+        "custom_lp_time", "custom_nk_time", "child_behavior", "gui_shortname", "gesture_opts",
     ] {
         node_obj.%name% := b ? 0 : raw_node[i]
+    }
+
+    if StrLen(sc) > 256 {  ; gesture ^^'
+        node_obj.opts := {}
+        vals := StrSplit(node_obj.gesture_opts, ";")
+        for i, name in ["pool", "rotate", "scaling", "dirs", "closed", "len"] {
+            try {
+                node_obj.opts.%name% := name == "scaling" ? Float(vals[i]) : Integer(vals[i])
+            } catch {
+                node_obj.opts.%name% := default_opts.%name%
+            }
+        }
+        vals := StrSplit(sc, " ")
+        node_obj.vec := []
+        for v in vals {
+            if A_Index == 1 && StrLen(v) == 1 {
+                continue
+            }
+            if v !== "" {
+                node_obj.vec.Push(Float(v))
+            }
+        }
     }
 
     if down_type {
@@ -270,7 +291,8 @@ GetDefaultNode(sc, md) {
         up_type: TYPES.Disabled, up_val: "",
         is_instant: 0, is_irrevocable: 0,
         custom_lp_time: 0, custom_nk_time: 0,
-        child_behavior: 4, sc: sc, md: md
+        child_behavior: 4, gui_shortname: "", gesture_opts: "",
+        sc: sc, md: md
     }
     return node_obj
 }
@@ -392,7 +414,7 @@ _MergeLayer(layer) {
 _CountLangMappings(raw_roots) {
     res := Map()
     for lang, root in raw_roots {
-        stack := [root[-4], root[-3], root[-2]]
+        stack := [root[-3], root[-2], root[-1]]
         cnt := 0
         while stack.Length {
             mp := stack.Pop()
@@ -401,7 +423,7 @@ _CountLangMappings(raw_roots) {
                     if node[1] !== TYPES.Chord || node[3] !== TYPES.Disabled {
                         cnt += 1
                     }
-                    stack.Push(node[-4], node[-3], node[-2])
+                    stack.Push(node[-3], node[-2], node[-1])
                 }
             }
         }
@@ -422,7 +444,7 @@ _WalkJson(json_node, path, is_hold:=false) {
         md := arr[2] + (i == last_i ? is_hold : 0)
         is_chord := arr[3]
         is_gesture := arr[4]
-        curr_map := json_node[-4 + (is_chord is String) + (is_gesture is String) * 2]
+        curr_map := json_node[-3 + (is_chord is String) + (is_gesture is String) * 2]
 
         if !curr_map.Has(sc) {
             curr_map[sc] := Map()
@@ -431,7 +453,7 @@ _WalkJson(json_node, path, is_hold:=false) {
         if !entry.Has(md) {
             d_type := md || is_chord ? TYPES.Disabled : TYPES.Default
             entry[md] := [
-                d_type, "", TYPES.Disabled, "", 0, 0, 0, 0, 4, "", Map(), Map(), Map(), ""
+                d_type, "", TYPES.Disabled, "", 0, 0, 0, 0, 4, "", "", Map(), Map(), Map(),
             ]
         }
 
