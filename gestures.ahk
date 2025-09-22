@@ -235,7 +235,7 @@ SetOverlayOpts(opts, pool) {
 
     vals := StrSplit(opts, ";")
     sh := pool == 5 ? 0 : (Mod(pool, 2) ? 6 : 3)
-    overlay_opts := {pool: pool, live_hints: (vals.Length
+    overlay_opts := {pool: pool, live_hints: (vals.Length && vals[1]
         ? (vals[1] == 1 ? CONF.gest_live_hint : vals[1] - 1)
         : CONF.gest_live_hint)
     }
