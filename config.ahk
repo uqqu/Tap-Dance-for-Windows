@@ -72,6 +72,7 @@ CheckConfig() {
             . "ExtraFRow=0`n"
             . "ExtraKRow=0`n"
             . "CollectUnfamiliarLayouts=0`n"
+            . "UseSendTextOutput=0`n"
             . "IgnoreInactiveLayers=0`n"
             . "StartMinimized=0`n"
             . "`n[GUI]`n"
@@ -121,6 +122,7 @@ CheckConfig() {
     CONF.extra_k_row := Integer(IniRead("config.ini", "Main", "ExtraKRow", 0))
     CONF.extra_f_row := Integer(IniRead("config.ini", "Main", "ExtraFRow", 0))
     CONF.unfam_layouts := Integer(IniRead("config.ini", "Main", "CollectUnfamiliarLayouts", 0))
+    CONF.sendtext_output := Integer(IniRead("config.ini", "Main", "UseSendTextOutput", 0))
     CONF.ignore_inactive := Integer(IniRead("config.ini", "Main", "IgnoreInactiveLayers", 0))
     CONF.start_minimized := Integer(IniRead("config.ini", "Main", "StartMinimized", 0))
 
@@ -266,9 +268,16 @@ ShowSettings(*) {
         [0, "CollectUnfamiliarLayouts", "Collect unfamiliar kbd &layouts from layers",
             CONF.unfam_layouts],
     )
+    sendtext_help_txt := "Temporary test option."
+        . "`nTo minimize bugs with sticking and inputting unwanted characters "
+        . "when over-holding a hotkey with long text assignment, the "
+        . "SendInput {Raw} is currently in test use. If this leads to undesirable consequences, "
+        . "turn on this option to return to usual SendText and report to Issues."
+    _AddElems("h_checkbox",, [0, sendtext_help_txt, "Use SendText mode",
+        "UseSendTextOutput", "Use Send&Text mode", CONF.sendtext_output])
     inactive_help_txt := "With this option, the program doesn’t parse inactive layer values "
-        . "into a core structure. "
-        . "`nTurn off only temporarily for work with GUI to view cross-values for all layers. "
+        . "into a core structure."
+        . "`nTurn off only temporarily for work with GUI to view cross-values for all layers."
         . "`n⚠Turn on after adjusting the layers."
     _AddElems("h_checkbox",, [0, inactive_help_txt, "Ignore inactive layers",
         "IgnoreInactiveLayers", "&Ignore inactive layers", CONF.ignore_inactive])
@@ -478,8 +487,8 @@ SaveConfig(*) {
     }
 
     for arr in [  ; checkboxes/ddl values (int)
-        ["Main", ["ExtraFRow", "ExtraKRow", "CollectUnfamiliarLayouts", "IgnoreInactiveLayers",
-            "StartMinimized"]],
+        ["Main", ["ExtraFRow", "ExtraKRow", "CollectUnfamiliarLayouts", "UseSendTextOutput",
+            "IgnoreInactiveLayers", "StartMinimized"]],
         ["GUI", ["KeynameType", "OverlayType", "HelpTexts", "GuiAltIgnore", "HideMouseWarnings"]],
         ["Gestures", ["EdgeGestures", "Rotate", "LiveHint", "LiveHintExtended",
             "GradientLoop", "GradientLoopEdges", "GradientLoopCorners"]]
@@ -490,7 +499,8 @@ SaveConfig(*) {
     }
 
     if s_gui["ExtraFRow"].Value !== CONF.extra_f_row
-        || s_gui["ExtraKRow"].Value !== CONF.extra_k_row {
+        || s_gui["ExtraKRow"].Value !== CONF.extra_k_row
+        || s_gui["UseSendTextOutput"].Value !== CONF.sendtext_output {
         Run(A_ScriptFullPath)  ; rerun with new keys
     }
 

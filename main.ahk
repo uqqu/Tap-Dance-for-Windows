@@ -483,8 +483,13 @@ SendKbd(action_type, action_val) {
 
     switch action_type {
         case TYPES.Text:
-            delayed ? SetTimer((val := action_val) => (SendText(val), delayed := false), -1)
-                : SendText(action_val)
+            if CONF.sendtext_output {  ; temp
+                delayed ? SetTimer((val := action_val) => (SendText(val), delayed := false), -1)
+                    : SendText(action_val)
+            } else {
+                delayed ? SetTimer((val := action_val) => (SendInput("{Raw}" . val), delayed := false), -1)
+                    : SendInput("{Raw}" . action_val)
+            }
         case TYPES.Default, TYPES.KeySimulation:
             delayed ? SetTimer((val := action_val) => (SendInput(val), delayed := false), -1)
                 : SendInput(action_val)

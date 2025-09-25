@@ -184,7 +184,18 @@ SaveEditedChord(*) {
         MsgBox("Chord must include at least 2 keys.", "Not enough keys", "Icon!")
         return
     }
-    if layer_editing || ActiveLayers.order.Length == 1 {
+    equal := true
+    if temp_chord.Count == start_temp_chord.Count {
+        for key, value in temp_chord {
+            if !start_temp_chord.Has(key) {
+                equal := false
+                break
+            }
+        }
+    } else {
+        equal := false
+    }
+    if !equal && (layer_editing || ActiveLayers.order.Length == 1) {
         layer := layer_editing ? selected_layer : ActiveLayers.order[1]
         chord_txt := ChordToStr(temp_chord)
         if gui_entries.ubase.chords.Has(chord_txt)
@@ -230,6 +241,7 @@ WriteChord(chord:=false, *) {
     }
 
     for sc, _ in chord_scs {
+        try sc := Integer(sc)
         if !json_scancodes.Has(sc) {
             json_scancodes[sc] := Map()
         }
