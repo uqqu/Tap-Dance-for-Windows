@@ -12,42 +12,42 @@ Welcome to **TDFW** — a global remapper of any input events. Set dozens and hu
 ### **> Tap-Hold**  
 Basic events of any key, branching of which opens the first level of variability. Add two assignments to a key – one for a quick press and one for a short hold.  
 
-![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/1.gif)  
+<img src="https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/1.gif" width="400">
   
   
 Here and hereafter: no functionality overrides native behavior in general. If there is no assignment, as here for holding a particular key, there will be the expected system result.  
 
-![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/2.gif)  
+<img src="https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/2.gif" width="400">
   
   
 ### **> Sequences of events**  
 Each event doesn't just perform the assigned action, but is a chain element for unique nested assignments. With support for tap and hold branching, of course.  
 With each new triggered event, you move on to the next assignment until you reach the end of the chain, performing the final action, and return to the beginning. If an event at the first level has no child assignments, it is also a chain, just of one element, and the action is performed immediately.  
 
-![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/3.gif)  
+<img src="https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/3.gif" width="400">
   
   
 The chain can also be interrupted by performing an action of the current element before reaching the final one. In the most basic case, this is a timer interrupt. If the next event has not occurred, we perform the action of the current one.
 There are no depth limitations for chains – Morse code, autocorrect for words, whatever you can think of. Each press is potentially a new level and a new field for assignments.  
 
-![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/4.gif)  
+<img src="https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/4.gif" width="400">
   
   
 You can use chains only for final actions, where intermediate events are ignored, or you can specify additional actions, at any level. As in the following example – the most common input is performed, but it's actually a progression through the chain with an additional final action. It's a bit of a joke, but it works.  
 
-![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/5.gif)  
+<img src="https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/5.gif" width="400">
   
   
 ### **> Custom modifier keys**  
 Also any key/button on hold can be assigned as a modifier for other events with more and more fields for assignments. Modifier combinations also have their own “fields”. Pressing a modifier is not a separate transition in the chain, but it modifies the others on its own level.  
 
-![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/6.gif)  
+<img src="https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/6.gif" width="400">
   
   
 ### **> Chords/combo**  
 Add an assignment to an entire combination of keys at once, which will trigger when they are pressed together. This too can be a chain element, up to and including a chain of just chords.  
 
-![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/7.gif)  
+<img src="https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/7.gif" width="400">
 
 > Each level of each sequence is assigned independently of the others, and a single key can be both a modifier and part of a chord, and have its own events and transitions. Each new level is a new, clean field for assignments.  
 `\[mod]+e, \ (tap), \ (hold), chord(\+z+x) 🡒 ƒ Turn on Pomodoro-timer`
@@ -72,7 +72,7 @@ The last example is not artificial, but one of the preset layers in action, whic
 ### **> Final actions and fine-tuning assignment options**  
 As final and intermediate actions you can set... anything? Character, text, simulation of other keys, native behavior, execution of any function. And the last ones don't necessarily have to be related to input.  
 
-![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/10.gif)  
+<img src="https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/10.gif" width="600">
   
 And to configure any desired behavior, assignments can also be used to specify parameters for triggering related events by overriding global ones – hold threshold, child event waiting time (if there is any), behavior at child events without assignments, instant/intermediate execution, saving at this level of transitions, additional action when releasing a key, as well as suggestive text in the GUI and color settings when drawing child gestures.
 
