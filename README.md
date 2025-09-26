@@ -2,80 +2,97 @@
 
 # Tap-Dance-for-Windows
 
-Welcome to **Tap-Dance-for-Windows** — an interactive playground for adding hundreds of single assignments and their chains, of any type for any events. No firmware, drivers, or special hardware required — works with any keyboard and mouse.
+Welcome to **TDFW** — a global remapper of any input events. Set dozens and hundreds of assignments for any, up to the most exotic events for any keys, mouse buttons or its movement – gestures. Create chains of assignments with your own unique actions, from typing template text to accessing external api. Without firmware, drivers or special hardware – works with any device.
 
----
 
 ## 🚀 Key Features & Interactions
 
-> The examples are made up for illustrative purposes; any similarities are purely coincidental. Examples of real-life assignment scenarios are provided in the layer descriptions. You are free to change, add, remove, any assignments and use only those features that you need.
+> All animations and their individual frames are slowed down for readability.
 
-### **> Tap vs Hold**  
-The basic events of any key/button, the branching of which opens up a myriad of chains for assignments. Assign two behaviors to the key – one for a quick press, the second for a short hold.  
-`x (tap) 🡒 x [default]`  
-`x (hold) 🡒 @`
+### **> Tap-Hold**  
+Basic events of any key, branching of which opens the first level of variability. Add two assignments to a key – one for a quick press and one for a short hold.  
 
-### **> Multipresses**  
-Each click is not just the execution of an assigned action, it is a path to new unique nested assignments. Add an action to any sequence of events.  
-`Backspase 🡒 Backspace [default]`  
-`Backspace, Backspace 🡒 Ctrl+Backspace [delete word]`  
-`Backspace, Enter 🡒 Shift+Home, Backspace [delete before the beginning of the line]`  
+![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/1.gif)  
+  
+  
+Here and hereafter: no functionality overrides native behavior in general. If there is no assignment, as here for holding a particular key, there will be the expected system result.  
 
-Expands by branching on hold at any level.  
-`Backspace, Enter (hold) 🡒 Shift+End, Backspace [delete to the end of the line]`  
-`Backspace (hold), Enter 🡒 End, Shift+Home, Backspace [clear the line]`  
-`Backspace (hold), Enter (hold) 🡒 Ctrl+Right, Ctrl+Backspace [delete the following line]`
+![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/2.gif)  
+  
+  
+### **> Sequences of events**  
+Each event doesn't just perform the assigned action, but is a chain element for unique nested assignments. With support for tap and hold branching, of course.  
+With each new triggered event, you move on to the next assignment until you reach the end of the chain, performing the final action, and return to the beginning. If an event at the first level has no child assignments, it is also a chain, just of one element, and the action is performed immediately.  
 
-### **> Unlimited nesting**  
-Assign actions at any depth: whether it’s Morse code or auto-correction of words. Each press is a new level and a new field for assignments for all keys, with no length restrictions.  
-`Space (tap), Space (tap), Space (tap), Space (hold) 🡒 v`  
-`Space (tap), Space (hold), Space (hold), Space (tap) 🡒 p`  
-…  
-`d, a, m, n 🡒 🤬`  
-`s, o, Space, l, o, n, g, Space, s, t, r, i, n, g 🡒 👌`
+![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/3.gif)  
+  
+  
+The chain can also be interrupted by performing an action of the current element before reaching the final one. In the most basic case, this is a timer interrupt. If the next event has not occurred, we perform the action of the current one.
+There are no depth limitations for chains – Morse code, autocorrect for words, whatever you can think of. Each press is potentially a new level and a new field for assignments.  
 
+![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/4.gif)  
+  
+  
+You can use chains only for final actions, where intermediate events are ignored, or you can specify additional actions, at any level. As in the following example – the most common input is performed, but it's actually a progression through the chain with an additional final action. It's a bit of a joke, but it works.  
+
+![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/5.gif)  
+  
+  
 ### **> Custom modifier keys**  
-Any key can also be assigned as a modifier for new assignments, whether it be Alt, Space, side mouse button, CapsLock, or any other key.  
-`Alt+h 🡒 Left`, `Alt+j 🡒 Down`, …  
-`Shift+Backspace 🡒 Delete`  
+Also any key/button on hold can be assigned as a modifier for other events with more and more fields for assignments. Modifier combinations also have their own “fields”. Pressing a modifier is not a separate transition in the chain, but it modifies the others on its own level.  
 
-`\+e 🡒 "example@gmail.com"`  
-`\+d 🡒 ƒ Insert the current date`  
-`\+d (hold) 🡒 ƒ Insert the current datetime`  
+![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/6.gif)  
+  
+  
+### **> Chords/combo**  
+Add an assignment to an entire combination of keys at once, which will trigger when they are pressed together. This too can be a chain element, up to and including a chain of just chords.  
 
-`MouseXButton1+WheelUp 🡒 VolumeUp`  
-`MouseXButton2+WheelUp 🡒 NextTab [browser, editor, …]`  
-`MouseXButton2+LBM 🡒 Copy`  
-`MouseXButton2+LBM (hold) 🡒 ƒ Copy the link and convert it into a short tinyurl`
+![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/7.gif)  
 
-Any combination of modifiers also has its own fields for assignments!  
-`Alt+Shift+h 🡒 Shift+Left`  
-`\+Alt+e 🡒 ƒ Generate a random password`  
-`XButton1+XButton2+WheelUp 🡒 Ctrl+z [Redo]`
+> Each level of each sequence is assigned independently of the others, and a single key can be both a modifier and part of a chord, and have its own events and transitions. Each new level is a new, clean field for assignments.  
+`\[mod]+e, \ (tap), \ (hold), chord(\+z+x) 🡒 ƒ Turn on Pomodoro-timer`
 
-### **> Chords**  
-Create complex chords from any set of keys and assign any actions and functions to them.  
-`l+o+r+e 🡒 "Lorem ipsum dolor sit amet, consectetur adipiscing elit..."`  
-`\[mod] + chord(q+w+e) 🡒 "abcdefghijklmnopqrstuvwxyz"`
+### **> Gestures**
+And at the same time, each assignment (except for chords) can also be a trigger for new events – gestures. If one or more child gestures are added to an assignment, mouse movements will leave a trace while holding down the assigned key, and releasing it will execute the action of the gesture if a match is found. Gestures are complete elements of chains, and in the same way can be continued by any further events, including assignments with all new gestures. Having gestures under an assignment does not override other child assignments, but complements them, and you can continue the chain with a gesture or any other event. Whichever event is triggered, we'll move on to that one.  
 
-Chords, like all other events, can also have nested assignments, including new nested chords.  
-`q+w+e, a+s+d, a+s+d 🡒 ƒ Perevod s translita`
+![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/8.gif)  
+  
+  
+Each gesture can also be given its own recognition options, such as: independence from the figure rotation, from the drawing direction, the scale influence, and for closed figures the option of independence from the first point of drawing is also available, when the figure is important, not the drawing order. All options can be combined in a single gesture and in different gestures at the same level, as desired. Assignments where gestures start also have their own settings for them, but already graphical – line colors, position and visibility of the live recognition text.  
 
-### **> Fine-tuning of each event and assignment**  
-Add an additional action to any assignment when a key is released, set the hold time or the wait time for the next event, specify the type of irrevocable press or instant activation without interrupting the chain.  
+![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/9.gif)  
+  
+  
+On top of all this, gestures are divided into 9 independent pools – 4 edge pools, 4 corner pools, one center pool, depending on where the gesture was started drawing from. This not only logically separates the categories of assignments and increases their possible number, but also allows you to set more precise assignments in combinations with native behavior, because the start of drawing and recognition is triggered only when the assigned event does not just have child gestures, but when they are in the pool at the current cursor position. This means you can set assignments for part of the pools without changing the behavior outside of them, as in the example below, where there are assignments for all but the central pool under the RMB. Again, no overriding actions if they don't lead to anything.  
 
-Each event can be assigned any action, from simply entering a single character or simulating another key, to functions that call external APIs, the list of which is regularly updated.  
+![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/rbm%20gestures%20demo.gif)  
 
-> You can also add your own functions or simply suggest an idea for implementation.
+The last example is not artificial, but one of the preset layers in action, which you can try as is, and adjust to your needs if you wish.  
 
-### **> … and all of this simultaneously, at all levels of the assignment chain**  
-`Shift[mod] + Space (tap), MouseXButton1[mod] + chord(a+s+d+f), WheelUp, Esc (hold), F23 (tap) 🡒 "mysupersecretpassword"`
+### **> Final actions and fine-tuning assignment options**  
+As final and intermediate actions you can set... anything? Character, text, simulation of other keys, native behavior, execution of any function. And the last ones don't necessarily have to be related to input.  
 
-Each level of each sequence is assigned independently of the others, and a single key can simultaneously be a modifier, part of a chord, and have its own events and transitions. Each new level is a new, clean field for assignments.  
-`\[mod]+e, \ (tap), \ (hold), chord(\+z+x) 🡒 ƒ Turn on the Pomodoro timer`
+![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/10.gif)  
+  
+And to configure any desired behavior, assignments can also be used to specify parameters for triggering related events by overriding global ones – hold threshold, child event waiting time (if there is any), behavior at child events without assignments, instant/intermediate execution, saving at this level of transitions, additional action when releasing a key, as well as suggestive text in the GUI and color settings when drawing child gestures.
+
+### **> Other**
+
+### Layers
+All assignments are saved in their own files – layers – which can be separately customized, grouping assignments by logical categories and usage scenarios, and toggling work specific to the moment. Each layer is managed separately, and current assignments are collected from all active layers. Switching layers or sets of layers can be part of your assignments – add enabling a layer as an assignment action.  
+`\+1 🡒 Toggle navigation layer activity`  
+`\+2 🡒 Turn off all layers except *n*`  
+`\+3 🡒 Enable layer set *abc*`
+
+#### Individual assignments for language layouts
+In addition to global assignments, you can also link assignments to specific language layouts.  
+[en] `o (hold) 🡒 “`, `. (hold) 🡒 ”`  
+[de] `o (hold) 🡒 „`, `. (hold) 🡒 “`  
+[ru] `o (hold) 🡒 «`, `. (hold) 🡒 »`  
+[no] `a, e 🡒 æ`
 
 ### **> Any keys and buttons**  
-All keys are supported – an additional row of multimedia/office keys, virtually assigned f13-24, and all mouse events, right up to horizontal scrolling.  
+All keyboard keys are supported, including an additional row of multimedia/office keys, virtually assigned f13-24 and all mouse events up to horizontal scrolling and gestures.  
 
 > The additional multimedia-office row and mouse scroll do not support hold events, and system modifier keys are prohibited from assigning press events for security reasons. They also cannot be used for chords. Everything else is completely available.
 
@@ -84,16 +101,6 @@ Organize assignment groups into different layers: basic assignments, extended ch
 Each layer is managed separately, and current assignments are collected from all active layers.
 
 Switching layers or groups of layers can be part of your assignments – add layer activation as an action for an event.  
-`\+1 🡒 Toggle navigation layer activity`  
-`\+2 🡒 Turn off all layers except n`  
-`\+3 🡒 Enable layer set abc`
-
-### **> Individual assignments for language layouts**  
-In addition to global assignments, you can also link assignments to specific language layouts.  
-[en] `o (hold) 🡒 “`, `. (hold) 🡒 ”`  
-[de] `o (hold) 🡒 „`, `. (hold) 🡒 “`  
-[ru] `o (hold) 🡒 «`, `. (hold) 🡒 »`  
-[no] `a, e 🡒 æ`
 
 You can set assignments for different layouts on each layer.
 
@@ -101,17 +108,16 @@ You can set assignments for different layouts on each layer.
 
 All of the above is assigned and configured via the GUI.
 
-![](https://github.com/user-attachments/assets/e0ac4857-d159-4196-8a81-b09449b47680)
+![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/1i.png)
 
 Go through any sequence of events, add assignments, link them to existing layers, or create new ones.  
 All assignments, with additional indicators, the number of child transitions, and the display of cross-assignments from different layers—everything is right in front of your eyes. For example:
 
-![](https://github.com/user-attachments/assets/a5a656bd-8e46-4272-9c36-cdff8209f15f)
+![](https://raw.githubusercontent.com/uqqu/Tap-Dance-for-Windows/refs/heads/main/gifs/2i.png)
 > A modified layout is not a reassignment, it is simply a [different layout](https://github.com/uqqu/layout)
 
 All added assignments become available for use immediately. Change functionality on the fly.
 
----
 
 ## 🎮 Usage
 
@@ -129,15 +135,8 @@ All added assignments become available for use immediately. Change functionality
 - Windows 10+
 - *(optional)* AutoHotkey v2
 
----
 
-## ⚡ Experimental C Core Engine
-
-For lower latency and more functionality, there is a test reimplementation in C. So far only a working minimum without GUI, customizations, with limitations of system modifiers.
-
----
-
-## 🖥️ Detailed description of the GUI
+## 🖥️ Detailed description of the GUI  *;TODO*
 
 > Alternative description in article format [on Habr](https://habr.com/ru/articles/900000/) (in Russian)
 
@@ -295,30 +294,43 @@ Layers live in `layers/` as JSON files. Each file is a Map where:
 ```jsonc
 {
   "<LAYOUTID>": [  // "0" for global assignments
-    {  // scancodes table
+    "gesture_options",  // string (color options for gestures from this node)
+    {  // scancodes map
       "<scancode>": {
         "<modifier>": [
-          "action_type",             // int (1-7)
-          "value",                   // string
-          "up_action_type",          // int (1-7)
-          "up_value",                // string
-          "is_instant",              // bool
-          "is_irrevocable",          // bool
-          "custom_long_press_time",  // int (0 as default)
-          "custom_next_key_time",    // int (0 as default)
-          "gui_shortname",           // string (empty to display the assigned value)
-          "<nested_map>"  // -> [scancodes{}, chords{}]
+          "action_type",              // int (1-7)
+          "value",                    // string
+          "up_action_type",           // int (1-7)
+          "up_value",                 // string
+          "is_instant",               // bool
+          "is_irrevocable",           // bool
+          "custom_long_press_time",   // int (0 as default)
+          "custom_next_key_time",     // int (0 as default)
+          "unassigned_child_behavior" // int (1-5)
+          "gui_shortname",            // string
+          "<nested>"  // -> [gesture_opts, scancodes{}, chords{}, gestures{}]
         ],
         //...
       },
       //...
     },
-    {  // chords table
-      "<hex_buffer>": {
+    {  // chords map
+      "<chord_scancodes>": {
         "<modifier>": [
           "action_type",
           // …and all the same structure
-          "<nested_map>"  // -> [scancodes{}, chords{}]
+          "<nested>"
+        ],
+        //...
+      },
+      //...
+    },
+    {  // gestures map
+      "<pool+vectors>": {
+        "<modifier>": [
+          "action_type",
+          // …and all the same structure
+          "<nested>"  // (gesture_opts here contains the own recognition options)
         ],
         //...
       },
