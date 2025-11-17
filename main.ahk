@@ -90,7 +90,7 @@ TransitionProcessing(checked_unode, sc:=0) {
         last_val := [checked_unode, false]
     }
     if !checked_unode.fin.is_irrevocable {
-        SetTimer(TimerSendCurrent, -(checked_unode.fin.custom_nk_time || CONF.MS_NK))
+        SetTimer(TimerSendCurrent, -(checked_unode.fin.custom_nk_time || CONF.MS_NK.v))
     }
     if curr_unode !== checked_unode {
         prev_unode := curr_unode
@@ -137,9 +137,9 @@ PreCheck(sc, *) {
     if !(sc is Number) {
         ; simulate wheel l/r up action manually
         if sc == "WheelLeft" {
-            SetTimer(UnlockWhL, -CONF.wheel_unlock_time)
+            SetTimer(UnlockWhL, -CONF.wheel_unlock_time.v)
         } else if sc == "WheelRight" {
-            SetTimer(UnlockWhR, -CONF.wheel_unlock_time)
+            SetTimer(UnlockWhR, -CONF.wheel_unlock_time.v)
         }
     }
 
@@ -282,7 +282,7 @@ TreatMod(entries, sc) {
     }
 
     current_mod |= 1 << val
-    SetTimer(TimerResetBase, -(last_val[1].fin.custom_nk_time || CONF.MS_NK))
+    SetTimer(TimerResetBase, -(last_val[1].fin.custom_nk_time || CONF.MS_NK.v))
     return true
 }
 
@@ -321,7 +321,7 @@ SysModComboDown(sc, extra_mod) {
     if !IsObject(catched_entries) {
         current_mod &= ~extra_mod
         catched_entries := false
-        SetTimer(TimerSendCurrent, -CONF.MS_NK)
+        SetTimer(TimerSendCurrent, -CONF.MS_NK.v)
         return
     }
     OnKeyDown(sc)
@@ -376,10 +376,10 @@ OnKeyDown(sc) {
                 if catched_entries.ubase.fin.up_type !== TYPES.Disabled {
                     up_actions[sc] := catched_entries.ubase.fin
                 }
-                SetTimer(TimerResetBase, -(catched_entries.ubase.fin.custom_nk_time || CONF.MS_NK))
+                SetTimer(TimerResetBase, -(catched_entries.ubase.fin.custom_nk_time || CONF.MS_NK.v))
             } else {
                 last_val := GetDefaultSim(sc, true)
-                SetTimer(TimerResetBase, -CONF.MS_NK)
+                SetTimer(TimerResetBase, -CONF.MS_NK.v)
             }
         }
 
@@ -483,7 +483,7 @@ SendKbd(action_type, action_val) {
 
     switch action_type {
         case TYPES.Text:
-            if CONF.sendtext_output {  ; temp
+            if CONF.sendtext_output.v {  ; temp
                 delayed ? SetTimer((val := action_val) => (SendText(val), delayed := false), -1)
                     : SendText(action_val)
             } else {

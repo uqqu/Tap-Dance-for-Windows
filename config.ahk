@@ -3,6 +3,8 @@ A_HotkeyInterval := 0
 version := 0
 s_gui := false
 
+CONF := {Main: [], GUI: [], Gestures: [], GestureDefaults: []}
+
 SYS_MODIFIERS := Map(
     0x02A, "<+",
     0x036, ">+",  ; ASCII
@@ -54,8 +56,30 @@ FillRoots()
 UpdLayers()
 
 
+class ConfValue {
+    __New(sect, ini_name, form_type, val_type, def_val, descr, double_height, is_num, extra) {
+        this.ini_name := ini_name
+        this.form_type := form_type
+        this.val_type := val_type
+        this.default := def_val
+        this.descr := descr
+        this.double_height := double_height
+        this.is_num := is_num
+        this.extra_params := extra
+
+        this.v := IniRead("config.ini", sect, ini_name, def_val)
+
+        if val_type == "int" {
+            this.v := Integer(this.v)
+        } else if val_type == "float" {
+            this.v := Round(Float(this.v), 2)
+        }
+        CONF.%sect%.Push(this)
+    }
+}
+
+
 CheckConfig() {
-    global CONF
     static scale_defaults:=Map(
         1366, 1.1, 1920, 1.1, 1440, 1.15, 1536, 1.2, 1600, 1.25, 2560, 1.25, 3840, 1.5
     )
@@ -65,111 +89,132 @@ CheckConfig() {
             "[Main]`n"
             . "ActiveLayers=`n"
             . "UserLayouts=`n"
-            . "LongPressDuration=150`n"
-            . "NextKeyWaitDuration=300`n"
-            . "WheelLRUnlockTime=150`n"
-            . "LayoutFormat=ANSI`n"
-            . "ExtraFRow=0`n"
-            . "ExtraKRow=0`n"
-            . "CollectUnfamiliarLayouts=0`n"
-            . "UseSendTextOutput=0`n"
-            . "IgnoreInactiveLayers=0`n"
-            . "StartMinimized=0`n"
             . "`n[GUI]`n"
-            . "KeynameType=1`n"
-            . "OverlayType=3`n"
-            . "GuiScale=1.25`n"
-            . "FontScale=1`n"
-            . "FontName=Segoe UI`n"
-            . "ReferenceHeight=314`n"
-            . "GuiBack=74`n"
-            . "GuiSet=78`n"
-            . "GuiSetHold=284`n"
-            . "HelpTexts=0`n"
-            . "GuiAltIgnore=1`n"
-            . "HideMouseWarnings=0`n"
             . "`n[Gestures]`n"
-            . "EdgeGestures=4`n"
-            . "MinGestureLen=150`n"
-            . "MinCosSimilarity=0.9`n"
-            . "OverlayOpacity=200`n"
-            . "Rotate=1`n"
-            . "Scaling=0`n"
-            . "ColorMode=HSV`n"
-            . "LiveHint=1`n"
-            . "LiveHintExtended=1`n"
-            . "LHSize=30`n"
-            . "GradientLoop=1`n"
-            . "GradientLength=1000`n"
-            . "GestureColors=random(3)`n"
-            . "GradientLoopEdges=1`n"
-            . "GradientLengthEdges=1000`n"
-            . "GestureColorsEdges=4FC3F7,9575CD,F06292`n"
-            . "GradientLoopCorners=1`n"
-            . "GradientLengthCorners=1000`n"
-            . "GestureColorsCorners=66BB6A,26C6DA,FBC02D`n"
+            . "`n[GestureDefaults]`n"
             , "config.ini"
         )
     }
     DirCreate("layers")
 
-    CONF := {}
-    CONF.MS_LP := Integer(IniRead("config.ini", "Main", "LongPressDuration", 150))
-    CONF.MS_NK := Integer(IniRead("config.ini", "Main", "NextKeyWaitDuration", 300))
-    CONF.T := "T" . CONF.MS_LP / 1000
-    CONF.wheel_unlock_time := Integer(IniRead("config.ini", "Main", "WheelLRUnlockTime", 150))
-    CONF.layout_format := IniRead("config.ini", "Main", "LayoutFormat", "ANSI")
-    CONF.extra_k_row := Integer(IniRead("config.ini", "Main", "ExtraKRow", 0))
-    CONF.extra_f_row := Integer(IniRead("config.ini", "Main", "ExtraFRow", 0))
-    CONF.unfam_layouts := Integer(IniRead("config.ini", "Main", "CollectUnfamiliarLayouts", 0))
-    CONF.sendtext_output := Integer(IniRead("config.ini", "Main", "UseSendTextOutput", 0))
-    CONF.ignore_inactive := Integer(IniRead("config.ini", "Main", "IgnoreInactiveLayers", 0))
-    CONF.start_minimized := Integer(IniRead("config.ini", "Main", "StartMinimized", 0))
 
-    CONF.keyname_type := Integer(IniRead("config.ini", "GUI", "KeynameType", 1))
-    CONF.overlay_type := Integer(IniRead("config.ini", "GUI", "OverlayType", 3))
-    CONF.gui_scale := Float(IniRead(
-        "config.ini", "GUI", "GuiScale", scale_defaults.Get(A_ScreenWidth, 1.0)
-    ))
-    CONF.font_scale := Float(IniRead("config.ini", "GUI", "FontScale", 1))
-    CONF.font_name := IniRead("config.ini", "GUI", "FontName", "Segoe UI")
-    CONF.ref_height := Integer(IniRead("config.ini", "GUI", "ReferenceHeight", 314))
-    CONF.gui_back_sc := IniRead("config.ini", "GUI", "GuiBack", 74)
-    CONF.gui_set_sc := IniRead("config.ini", "GUI", "GuiSet", 78)
-    CONF.gui_set_hold_sc := IniRead("config.ini", "GUI", "GuiSetHold", 284)
-    CONF.help_texts := Integer(IniRead("config.ini", "GUI", "HelpTexts", 0))
-    CONF.gui_alt_ignore := Integer(IniRead("config.ini", "GUI", "GuiAltIgnore", 1))
-    CONF.hide_mouse_warnings := Integer(IniRead("config.ini", "GUI", "HideMouseWarnings", 0))
+    CONF.MS_LP := ConfValue("Main", "LongPressDuration", "str", "int", 150,
+            "Hold threshold (ms):", 0, 1, [])
+    CONF.MS_NK := ConfValue("Main", "NextKeyWaitDuration", "str", "int", 300,
+            "Nested event waiting time (ms):", 0, 1, [])
 
-    CONF.edge_gestures := Integer(IniRead("config.ini", "Gestures", "EdgeGestures", 4))
-    CONF.edge_size := Integer(IniRead("config.ini", "Gestures", "EdgeSize", 100))
-    CONF.min_gesture_len := Integer(IniRead("config.ini", "Gestures", "MinGestureLen", 150))
-    CONF.min_cos_similarity := Float(IniRead("config.ini", "Gestures", "MinCosSimilarity", 0.90))
-    CONF.overlay_opacity := Integer(IniRead("config.ini", "Gestures", "OverlayOpacity", 200))
-    CONF.font_size_lh := Integer(IniRead("config.ini", "Gestures", "LHSize", 32))
-    CONF.live_hint_extended := Integer(IniRead("config.ini", "Gestures", "LiveHintExtended", 1))
-    CONF.gest_rotate := Integer(IniRead("config.ini", "Gestures", "Rotate", 1))
-    CONF.scale_impact := Float(IniRead("config.ini", "Gestures", "Scaling", 0))
-    CONF.gest_color_mode := IniRead("config.ini", "Gestures", "ColorMode", "HSV")
-    CONF.gest_live_hint := Integer(IniRead("config.ini", "Gestures", "LiveHint", 1))
+    CONF.T := "T" . CONF.MS_LP.v / 1000
 
-    CONF.grad_loop := [
-        Integer(IniRead("config.ini", "Gestures", "GradientLoop", 1)),
-        Integer(IniRead("config.ini", "Gestures", "GradientLoopEdges", 1)),
-        Integer(IniRead("config.ini", "Gestures", "GradientLoopCorners", 1)),
+    CONF.wheel_unlock_time := ConfValue("Main", "WheelLRUnlockTime", "str", "int", 150,
+            "Unlock l/r mouse wheel (ms):", 0, 1, [])
+    CONF.layout_format := ConfValue("Main", "LayoutFormat", "ddl", "str", "ANSI",
+            "Layout format:", 0, 0,
+            [["ANSI", "ISO"], true])
+    CONF.extra_f_row := ConfValue("Main", "ExtraFRow", "checkbox", "int", 0,
+            "Use extra &f-row (13-24)", 0, 0, [])
+    CONF.extra_k_row := ConfValue("Main", "ExtraKRow", "checkbox", "int", 0,
+            "Use &special keys (media, browser, apps)", 0, 0, [])
+    CONF.unfam_layouts := ConfValue("Main", "CollectUnfamiliarLayouts", "checkbox", "int", 0,
+            "Collect unfamiliar kbd &layouts from layers", 0, 0, [])
+    CONF.sendtext_output := ConfValue("Main", "UseSendTextOutput", "h_checkbox", "int", 0,
+            "Use Send&Text mode", 0, 0,
+            ["Temporary test option."
+                . "`nTo minimize bugs with sticking and inputting unwanted characters "
+                . "when over-holding a hotkey with long text assignment, the SendInput {Raw} is "
+                . "currently in test use. If this leads to undesirable consequences, turn on this "
+                . "option to return to usual SendText and report to Issues.", "Use SendText mode"
+            ])
+    CONF.ignore_inactive := ConfValue("Main", "IgnoreInactiveLayers", "h_checkbox", "int", 0,
+            "&Ignore inactive layers", 0, 0,
+            ["With this option, the program doesn’t parse "
+                . "inactive layer values into a core structure."
+                . "`nTurn off only temporarily for work with GUI to view cross-values for all "
+                . "layers.`n⚠Turn on after adjusting the layers.", "Ignore inactive layers"
+            ])
+    CONF.start_minimized := ConfValue("Main", "StartMinimized", "checkbox", "int", 0,
+            "Start &minimized", 0, 0, [])
+
+    CONF.keyname_type := ConfValue("GUI", "KeynameType", "ddl", "int", 1,
+            "Keyname type:", 0, 0,
+            [["Always use keynames", "Always use scancodes", "Scancodes on empty keys"], false])
+    CONF.overlay_type := ConfValue("GUI", "OverlayType", "ddl", "int", 3,
+            "Indicator overlay type:", 0, 0,
+            [["Disabled", "Indicators only", "With counters"], false])
+    CONF.gui_scale := ConfValue("GUI", "GuiScale", "str", "float",
+            scale_defaults.Get(A_ScreenWidth, 1.0), "Gui scale:", 0, 0, [])
+    CONF.font_scale := ConfValue("GUI", "FontScale", "str", "float", 1,
+            "Font scale:", 0, 0, [])
+    CONF.font_name := ConfValue("GUI", "FontName", "str", "str", "Segoe UI",
+            "Font name:", 0, 0, [])
+    CONF.ref_height := ConfValue("GUI", "ReferenceHeight", "str", "int", 314,
+            "Reference height:", 0, 1, [])
+    CONF.gui_back_sc := ConfValue("GUI", "GuiBackEdit", "str", "str", 74,
+            "'Back' action GUI hotkey:", 0, 0, [])
+    CONF.gui_set_sc := ConfValue("GUI", "GuiSetEdit", "str", "str", 78,
+            "…'Set tap' action:", 0, 0, [])
+    CONF.gui_set_hold_sc := ConfValue("GUI", "GuiSetHoldEdit", "str", "str", 284,
+            "…'Set hold' action:", 0, 0, [])
+    CONF.help_texts := ConfValue("GUI", "HelpTexts", "checkbox", "int", 0,
+            "Show &help texts", 0, 0, [])
+    CONF.gui_alt_ignore := ConfValue("GUI", "GuiAltIgnore", "checkbox", "int", 1,
+            "Ignore physical &Alt presses on the GUI", 0, 0, [])
+    CONF.hide_mouse_warnings := ConfValue("GUI", "HideMouseWarnings", "checkbox", "int", 0,
+            "Hide warnings about disabling drag &behavior for LBM/RBM/MBM", 1, 0, [])
+
+    CONF.gest_color_mode := ConfValue("Gestures", "ColorMode", "ddl", "str", "HSV",
+            "Color mode:", 0, 0,
+            [["RGB", "Gamma-correct", "HSV"], true])
+    CONF.edge_gestures := ConfValue("Gestures", "EdgeGestures", "ddl", "int", 4,
+            "Use edge gestures:", 0, 0,
+            [["No", "With edges", "With corners", "With edges and corners"], false])
+    CONF.edge_size := ConfValue("Gestures", "EdgeSize", "str", "int", 100,
+            "Edge definition width:", 0, 1, [])
+    CONF.min_gesture_len := ConfValue("Gestures", "MinGestureLen", "str", "int", 150,
+            "Gesture min length:", 0, 1, [])
+    CONF.min_cos_similarity := ConfValue("Gestures", "MinCosSimilarity", "str", "float", 0.90,
+            "Gesture min similarity:", 0, 0, [])
+    CONF.overlay_opacity := ConfValue("Gestures", "OverlayOpacity", "str", "int", 200,
+            "Overlay opacity (up to 255):", 0, 1, [])
+    CONF.font_size_lh := ConfValue("Gestures", "LHSize", "str", "int", 32,
+            "Font size on live hint:", 0, 1, [])
+    CONF.live_hint_extended := ConfValue("Gestures", "LiveHintExtended", "checkbox", "int", 1,
+            "Show unrecognized gestures on live hint", 0, 0, [])
+
+    CONF.gest_rotate := ConfValue("GestureDefaults", "Rotate", "ddl", "int", 1,
+            "Rotate:", 0, 0,
+            [["No", "Remove orientation noise", "Orientation invariance"], false])
+    CONF.scale_impact := ConfValue("GestureDefaults", "Scaling", "str", "float", 0,
+            "Scale impact:", 0, 0, [])
+    CONF.gest_live_hint := ConfValue("GestureDefaults", "LiveHint", "ddl", "int", 1,
+            "Live recognition hint position:", 0, 0,
+            [["Top", "Center", "Bottom", "Disabled"], false])
+
+    CONF.gest_colors := [
+        ConfValue("GestureDefaults", "GestureColors", "str", "str", "random(3)",
+            "Gesture colors`n(more than one for gradient):", 1, 0, []),
+        ConfValue("GestureDefaults", "GestureColorsEdges", "str", "str", "4FC3F7,9575CD,F06292",
+            "Gesture colors`n(more than one for gradient):", 1, 0, []),
+        ConfValue("GestureDefaults", "GestureColorsCorners", "str", "str", "66BB6A,26C6DA,FBC02D",
+            "Gesture colors`n(more than one for gradient):", 1, 0, []),
     ]
     CONF.grad_len := [
-        Integer(IniRead("config.ini", "Gestures", "GradientLength", 1000)),
-        Integer(IniRead("config.ini", "Gestures", "GradientLengthEdges", 1000)),
-        Integer(IniRead("config.ini", "Gestures", "GradientLengthCorners", 1000)),
+        ConfValue("GestureDefaults", "GradientLength", "str", "int", 1000,
+            "Full gradient cycle length (px):", 0, 1, []),
+        ConfValue("GestureDefaults", "GradientLengthEdges", "str", "int", 1000,
+            "Full gradient cycle length (px):", 0, 1, []),
+        ConfValue("GestureDefaults", "GradientLengthCorners", "str", "int", 1000,
+            "Full gradient cycle length (px):", 0, 1, []),
     ]
-    CONF.gest_colors := [
-        IniRead("config.ini", "Gestures", "GestureColors", "random(3)"),
-        IniRead("config.ini", "Gestures", "GestureColorsEdges", "4FC3F7,9575CD,F06292"),
-        IniRead("config.ini", "Gestures", "GestureColorsCorners", "66BB6A,26C6DA,FBC02D")
+    CONF.grad_loop := [
+        ConfValue("GestureDefaults", "GradientLoop", "checkbox", "int", 1,
+            "&Gradient cycling", 0, 0, []),
+        ConfValue("GestureDefaults", "GradientLoopEdges", "checkbox", "int", 1,
+            "&Gradient cycling", 0, 0, []),
+        ConfValue("GestureDefaults", "GradientLoopCorners", "checkbox", "int", 1,
+            "&Gradient cycling", 0, 0, []),
     ]
 
-    if !IniRead("config.ini", "Main", "UserLayouts") {
+    if !IniRead("config.ini", "Main", "UserLayouts", "") {
         TrackLayouts()
         WinWaitClose(layout_gui.Hwnd)
         return
@@ -242,121 +287,58 @@ ShowSettings(*) {
 
     try s_gui.Destroy()
 
-    s_gui := Gui(, "Settings")
+    s_gui := Gui("-SysMenu", "Settings")
     s_gui.OnEvent("Close", CloseSettingsEvent)
     s_gui.OnEvent("Escape", CloseSettingsEvent)
-    s_gui.SetFont("s10")
+    s_gui.SetFont("s9")
 
-    s_gui.Add("Button", "Center x370 y0 w20 h20 Default vApply", "✔")
+    s_gui.Add("Button", "Center x270 y0 w60 h18 Default vCancel", "❌ Cancel")
+        .OnEvent("Click", CloseSettingsEvent)
+    s_gui.Add("Button", "Center x335 y0 w60 h18 Default vApply", "✔ Accept")
         .OnEvent("Click", SaveConfig)
 
     tabs := s_gui.Add("Tab3", "x0 y0 w402 h666", ["Main", "GUI", "Gestures", "Gesture defaults"])
 
     tabs.UseTab("Main")
-
-    _AddElems("str", 40,
-        [0, "LongPressDuration Number", "Hold threshold (ms):", CONF.MS_LP],
-        [0, "NextKeyWaitDuration Number", "Nested event waiting time (ms):", CONF.MS_NK],
-        [0, "WheelLRUnlockTime Number", "Unlock l/r mouse wheel (ms):", CONF.wheel_unlock_time],
-    )
-    _AddElems("ddl",,
-        [0, "LayoutFormat", "Layout format:", ["ANSI", "ISO"], true, CONF.layout_format],
-    )
-    _AddElems("checkbox",,
-        [0, "ExtraFRow", "Use extra &f-row (13-24)", CONF.extra_f_row],
-        [0, "ExtraKRow", "Use &special keys (media, browser, apps)", CONF.extra_k_row],
-        [0, "CollectUnfamiliarLayouts", "Collect unfamiliar kbd &layouts from layers",
-            CONF.unfam_layouts],
-    )
-    sendtext_help_txt := "Temporary test option."
-        . "`nTo minimize bugs with sticking and inputting unwanted characters "
-        . "when over-holding a hotkey with long text assignment, the "
-        . "SendInput {Raw} is currently in test use. If this leads to undesirable consequences, "
-        . "turn on this option to return to usual SendText and report to Issues."
-    _AddElems("h_checkbox",, [0, sendtext_help_txt, "Use SendText mode",
-        "UseSendTextOutput", "Use Send&Text mode", CONF.sendtext_output])
-    inactive_help_txt := "With this option, the program doesn’t parse inactive layer values "
-        . "into a core structure."
-        . "`nTurn off only temporarily for work with GUI to view cross-values for all layers."
-        . "`n⚠Turn on after adjusting the layers."
-    _AddElems("h_checkbox",, [0, inactive_help_txt, "Ignore inactive layers",
-        "IgnoreInactiveLayers", "&Ignore inactive layers", CONF.ignore_inactive])
-    _AddElems("checkbox",,
-        [0, "StartMinimized", "Start &minimized", CONF.start_minimized],
-    )
-
+    for c in CONF.Main {
+        _AddElems(c.form_type, A_Index == 1 ? 40 : "",
+            [c.double_height, c.ini_name . (c.is_num ? " Number" : ""),
+            c.descr, c.v, c.extra_params*])
+    }
     s_gui.Add("Button", "Center x15 y+15 w370 h20", "Reread system layouts")
         .OnEvent("Click", TrackLayouts)
 
-
     tabs.UseTab("GUI")
-
-    _AddElems("ddl", 40,
-        [0, "KeynameType", "Keyname type:",
-            ["Always use keynames", "Always use scancodes", "Scancodes on empty keys"],
-            false, CONF.keyname_type],
-        [0, "OverlayType", "Indicator overlay type:",
-            ["Disabled", "Indicators only", "With counters"], false, CONF.overlay_type],
-    )
-    _AddElems("str",,
-        [0, "GuiScale", "Gui scale:", Round(CONF.gui_scale, 2)],
-        [0, "FontScale", "Font scale:", Round(CONF.font_scale, 2)],
-        [0, "FontName", "Font name:", CONF.font_name],
-        [0, "ReferenceHeight Number", "Reference height:", CONF.ref_height],
-        [0, "GuiBackEdit", "'Back' action GUI hotkey:", ""],
-        [0, "GuiSetEdit", "…'Set tap' action:", ""],
-        [0, "GuiSetHoldEdit", "…'Set hold' action:", ""],
-    )
-    _AddElems("checkbox",,
-        [0, "HelpTexts", "Show &help texts", CONF.help_texts],
-        [0, "GuiAltIgnore", "Ignore physical &Alt presses on the GUI", CONF.gui_alt_ignore],
-        [1, "HideMouseWarnings", "Hide warnings about disabling drag &behavior for LBM/RBM/MBM",
-            CONF.hide_mouse_warnings],
-    )
-
-    s_gui["GuiBackEdit"].Text := _GetKeyName(CONF.gui_back_sc)
-    s_gui["GuiSetEdit"].Text := _GetKeyName(CONF.gui_set_sc)
-    s_gui["GuiSetHoldEdit"].Text := _GetKeyName(CONF.gui_set_hold_sc)
-
+    for c in CONF.GUI {
+        _AddElems(c.form_type, A_Index == 1 ? 40 : "", [
+            c.double_height, c.ini_name . (c.is_num ? " Number" : ""),
+            c.descr, c.v, c.extra_params*
+        ])
+    }
 
     tabs.UseTab("Gestures")
-
-    _AddElems("ddl", 40, [0, "EdgeGestures", "Use edge gestures:",
-        ["No", "With edges", "With corners", "With edges and corners"],
-            false, CONF.edge_gestures],
-        [0, "ColorMode", "Color mode:", ["RGB", "Gamma-correct", "HSV"],
-        true, CONF.gest_color_mode],
-    )
-    _AddElems("str",,
-        [0, "EdgeSize Number", "Edge definition width:", CONF.edge_size],
-        [0, "MinGestureLen Number", "Gesture min length:", CONF.min_gesture_len],
-        [0, "MinCosSimilarity", "Gesture min similarity:",
-            Round(CONF.min_cos_similarity, 2)],
-        [0, "OverlayOpacity Number", "Overlay opacity (up to 255):", CONF.overlay_opacity],
-        [0, "LHSize Number", "Font size on live hint:", CONF.font_size_lh],
-    )
-    _AddElems("checkbox",,
-        [0, "LiveHintExtended", "Show unrecognized gestures on live hint",
-            CONF.live_hint_extended],
-    )
-
+    for c in CONF.Gestures {
+        _AddElems(c.form_type, A_Index == 1 ? 40 : "", [
+            c.double_height, c.ini_name . (c.is_num ? " Number" : ""),
+            c.descr, c.v, c.extra_params*
+        ])
+    }
 
     tabs.UseTab("Gesture defaults")
-
     s_gui.Add("Text", "x20 w360 y34 h34 Center",
         "Default gesture matching and color options`n(can be overridden in each assignment)")
     s_gui.Add("Text", "x20 w360 y+8 h1 0x10")
-    _AddElems("ddl", 90,
-        [0, "Rotate", "Rotate:", ["No", "Remove orientation noise", "Orientation invariance"],
-            false, CONF.gest_rotate],
-    )
-    _AddElems("str",,
-        [0, "Scaling", "Scale impact:", Round(CONF.scale_impact, 1)],
-    )
-    _AddElems("ddl",,
-        [0, "LiveHint", "Live recognition hint position:", ["Top", "Center", "Bottom", "Disabled"],
-            false, CONF.gest_live_hint],
-    )
+
+    for c in CONF.GestureDefaults {
+        if A_Index == 4 {
+            break
+        }
+        _AddElems(c.form_type, A_Index == 1 ? 90 : "", [
+            c.double_height, c.ini_name . (c.is_num ? " Number" : ""),
+            c.descr, c.v, c.extra_params*
+        ])
+    }
+
     s_gui.Add("Text", "x110 w180 y+10 h1 0x10")
 
     s_gui.Add("Button", "vToggleColors x15 y+10 h20 w121 Disabled", "General")
@@ -369,12 +351,12 @@ ShowSettings(*) {
     for i, name in ["", "Edges", "Corners"] {
         _AddElems("str", 215,
             [1, "GestureColors" . name, "Gesture colors`n(more than one for gradient):",
-                CONF.gest_colors[i]],
+                CONF.gest_colors[i].v],
             [0, "GradientLength" . name . " Number", "Full gradient cycle length (px):",
-                CONF.grad_len[i]],
+                CONF.grad_len[i].v],
         )
         _AddElems("checkbox",,
-            [0, "GradientLoop" . name, "&Gradient cycling", CONF.grad_loop[i]]
+            [0, "GradientLoop" . name, "&Gradient cycling", CONF.grad_loop[i].v]
         )
         if i > 1 {
             s_gui["GestureColors" . name].Visible := false
@@ -382,10 +364,6 @@ ShowSettings(*) {
             s_gui["GradientLoop" . name].Visible := false
         }
     }
-
-    s_gui.Add("Edit", "Center x-1000 y-1000 w0 h0 vGuiBack", CONF.gui_back_sc)
-    s_gui.Add("Edit", "Center x-1000 y-1000 w0 h0 vGuiSet", CONF.gui_set_sc)
-    s_gui.Add("Edit", "Center x-1000 y-1000 w0 h0 vGuiSetHold", CONF.gui_set_hold_sc)
 
     s_gui.Show("w400 h400")
     DllCall("SetFocus", "ptr", s_gui["ExtraFRow"].Hwnd)
@@ -413,11 +391,11 @@ _AddElems(elem_type, y:=false, data*) {
                 h := arr[1] ? 40 : 20
                 s_gui.Add("Text", "x15 y" . cur_h . " h" . h . " w180", arr[3])
                 elem := s_gui.Add("DropDownList",
-                    "x+10 yp" . (arr[1] ? 8 : -2) . " w180 v" . arr[2], arr[4])
-                if arr[5] {
-                    elem.Text := arr[6]
+                    "x+10 yp" . (arr[1] ? 8 : -2) . " w180 v" . arr[2], arr[5])
+                if arr[6] {
+                    elem.Text := arr[4]
                 } else {
-                    elem.Value := arr[6]
+                    elem.Value := arr[4]
                 }
                 cur_h += h + _shift
             }
@@ -439,10 +417,10 @@ _AddElems(elem_type, y:=false, data*) {
         case "h_checkbox":
             for arr in data {
                 h := arr[1] ? 40 : 20
-                fn := MsgBox.Bind(arr[2], arr[3], "IconI")
+                fn := MsgBox.Bind(arr[5], arr[6], "IconI")
                 s_gui.Add("Button", "x11 y" . cur_h . " h20 w20", "?")
                     .OnEvent("Click",(*) => fn.Call())
-                s_gui.Add("CheckBox", "x+3 w330 yp+0 h20 v" . arr[4], arr[5]).Value := arr[6]
+                s_gui.Add("CheckBox", "x+3 w330 yp+0 h20 v" . arr[2], arr[3]).Value := arr[4]
                 cur_h += h + _shift
             }
     }
@@ -453,13 +431,10 @@ PasteSCToInput(sc) {
     switch ControlGetFocus("A") {
         case s_gui["GuiBackEdit"].Hwnd:
             s_gui["GuiBackEdit"].Text := _GetKeyName(sc)
-            s_gui["GuiBack"].Text := sc
         case s_gui["GuiSetEdit"].Hwnd:
             s_gui["GuiSetEdit"].Text := _GetKeyName(sc)
-            s_gui["GuiSet"].Text := sc
         case s_gui["GuiSetHoldEdit"].Hwnd:
             s_gui["GuiSetHoldEdit"].Text := _GetKeyName(sc)
-            s_gui["GuiSetHold"].Text := sc
         default:
             return false
     }
@@ -472,55 +447,66 @@ SaveConfig(*) {
 
     CancelChordEditing(0, true)
 
-    for arr in [  ; texts/numbers
-        ["Main", ["LongPressDuration", "NextKeyWaitDuration", "WheelLRUnlockTime",
-            "LayoutFormat"]],
-        ["GUI", ["GuiScale", "FontScale", "FontName", "ReferenceHeight",
-            "GuiBack", "GuiSet", "GuiSetHold"]],
-        ["Gestures", ["EdgeSize", "MinGestureLen", "MinCosSimilarity", "OverlayOpacity", "Scaling",
-            "ColorMode", "GradientLength", "GradientLengthEdges", "GradientLengthCorners",
-            "GestureColors", "GestureColorsEdges", "GestureColorsCorners", "LHSize"]]
-    ] {
-        for name in arr[2] {
-            IniWrite(s_gui[name].Text, "config.ini", arr[1], name)
+    b := CheckChanges()
+    if b {
+        if s_gui["ExtraFRow"].Value != CONF.extra_f_row.v
+            || s_gui["ExtraKRow"].Value != CONF.extra_k_row.v
+            || s_gui["UseSendTextOutput"].Value != CONF.sendtext_output.v {
+            b := 2
         }
-    }
 
-    for arr in [  ; checkboxes/ddl values (int)
-        ["Main", ["ExtraFRow", "ExtraKRow", "CollectUnfamiliarLayouts", "UseSendTextOutput",
-            "IgnoreInactiveLayers", "StartMinimized"]],
-        ["GUI", ["KeynameType", "OverlayType", "HelpTexts", "GuiAltIgnore", "HideMouseWarnings"]],
-        ["Gestures", ["EdgeGestures", "Rotate", "LiveHint", "LiveHintExtended",
-            "GradientLoop", "GradientLoopEdges", "GradientLoopCorners"]]
-    ] {
-        for name in arr[2] {
-            IniWrite(s_gui[name].Value, "config.ini", arr[1], name)
+        if s_gui["IgnoreInactiveLayers"].Value != CONF.ignore_inactive.v {
+            for layer in ActiveLayers.map {
+                raw_roots := DeserializeMap(layer)
+                AllLayers.map[layer] := _CountLangMappings(raw_roots)
+            }
         }
-    }
 
-    if s_gui["ExtraFRow"].Value !== CONF.extra_f_row
-        || s_gui["ExtraKRow"].Value !== CONF.extra_k_row
-        || s_gui["UseSendTextOutput"].Value !== CONF.sendtext_output {
-        Run(A_ScriptFullPath)  ; rerun with new keys
-    }
-
-    if s_gui["IgnoreInactiveLayers"].Value !== CONF.ignore_inactive {
-        for layer in ActiveLayers.map {
-            raw_roots := DeserializeMap(layer)
-            AllLayers.map[layer] := _CountLangMappings(raw_roots)
+        for name in ["Main", "GUI", "Gestures", "GestureDefaults"] {
+            for elem in CONF.%name% {
+                val := elem.form_type == "str" || elem.form_type == "ddl" && elem.val_type == "str"
+                    ? s_gui[elem.ini_name].Text : s_gui[elem.ini_name].Value
+                IniWrite(val, "config.ini", name, elem.ini_name)
+                elem.v := elem.val_type == "int" ? Integer(val)
+                    : elem.val_type == "float" ? Round(Float(val), 2) : val
+            }
         }
     }
 
     s_gui.Destroy()
     s_gui := false
-    CheckConfig()
-    DrawLayout()
+    if b == 2 {
+        Run(A_ScriptFullPath)  ; rerun with new keys
+    } else if b {
+        DrawLayout()
+    }
+}
+
+
+CheckChanges(*) {
+    for name in ["Main", "GUI", "Gestures", "GestureDefaults"] {
+        for elem in CONF.%name% {
+            if elem.form_type == "str" || elem.form_type == "ddl" && elem.val_type == "str" {
+                val := s_gui[elem.ini_name].Text
+            } else {
+                val := s_gui[elem.ini_name].Value
+            }
+            if val != elem.v {
+                return true
+            }
+        }
+    }
+    return false
 }
 
 
 CloseSettingsEvent(*) {
     global s_gui
 
+    if CheckChanges() && MsgBox("You have unsaved changes. Do you really want to close the window?",
+        "Confirmation", "YesNo Icon?") == "No" {
+        return true
+    }
     try s_gui.Destroy()
     s_gui := false
 }

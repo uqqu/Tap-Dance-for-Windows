@@ -2,10 +2,10 @@
 
 
 Scale(x?, y?, w?, h?) {
-    return (IsSet(x) ? " x" . Round(x * CONF.gui_scale) : "")
-         . (IsSet(y) ? " y" . Round(y * CONF.gui_scale) : "")
-         . (IsSet(w) ? " w" . Round(w * CONF.gui_scale) : "")
-         . (IsSet(h) ? " h" . Round(h * CONF.gui_scale) : "")
+    return (IsSet(x) ? " x" . Round(x * CONF.gui_scale.v) : "")
+         . (IsSet(y) ? " y" . Round(y * CONF.gui_scale.v) : "")
+         . (IsSet(w) ? " w" . Round(w * CONF.gui_scale.v) : "")
+         . (IsSet(h) ? " h" . Round(h * CONF.gui_scale.v) : "")
 }
 
 
@@ -25,8 +25,8 @@ DrawLayout(init:=false) {
     UI.help_texts := []
     UI.buttons := Map()
 
-    UI.SetFont("s" . Round(7 * CONF.font_scale), CONF.font_name)
-    UI.Add("DropDownList", "vLangs " . Scale(1125, CONF.ref_height + 3, 105), LANGS.GetAll())
+    UI.SetFont("s" . Round(7 * CONF.font_scale.v), CONF.font_name.v)
+    UI.Add("DropDownList", "vLangs " . Scale(1125, CONF.ref_height.v + 3, 105), LANGS.GetAll())
     for code, val in LANGS.map {
         if code == gui_lang {
             UI["Langs"].Text := val
@@ -34,9 +34,9 @@ DrawLayout(init:=false) {
     }
     SendMessage(0x1701, 0, 0xFFFFFF, UI["Langs"].Hwnd)
     UI["Langs"].OnEvent("Change", (*) => ChangeLang(UI["Langs"].Value))
-    UI.SetFont("Norm s" . Round(8 * CONF.font_scale))
+    UI.SetFont("Norm s" . Round(8 * CONF.font_scale.v))
 
-    UI.Add("Text", "vSettings " . Scale(1252, CONF.ref_height + 3), "🔧")
+    UI.Add("Text", "vSettings " . Scale(1252, CONF.ref_height.v + 3), "🔧")
     UI["Settings"].OnEvent("Click", ShowSettings)
 
     _DrawKeys()
@@ -64,9 +64,9 @@ DrawLayout(init:=false) {
 
     UI.SetFont("Norm")
 
-    if !init || !CONF.start_minimized {
+    if !init || !CONF.start_minimized.v {
         UI.Show(Scale(,, 1294))
-        ChangePath()
+        ChangePath(-1, false)
     }
 }
 
@@ -76,21 +76,21 @@ _DrawKeys() {
     static keyboard_layouts:=Map("ANSI", _BuildLayout("ANSI"), "ISO", _BuildLayout("ISO"))
 
     ALL_SCANCODES := []
-    len := keyboard_layouts[CONF.layout_format].Length
+    len := keyboard_layouts[CONF.layout_format.v].Length
     x_offset := 10
-    y_offset := 50 * CONF.gui_scale
+    y_offset := 50 * CONF.gui_scale.v
     spacing := 5
-    height := (CONF.ref_height * CONF.gui_scale - (spacing * (len - 1)) - y_offset)
-        / (CONF.extra_k_row ? len - 0.3 : len)
+    height := (CONF.ref_height.v * CONF.gui_scale.v - (spacing * (len - 1)) - y_offset)
+        / (CONF.extra_k_row.v ? len - 0.3 : len)
 
-    for row_idx, row in keyboard_layouts[CONF.layout_format] {
+    for row_idx, row in keyboard_layouts[CONF.layout_format.v] {
         y := y_offset
-            + (row_idx - (row_idx > 1 && CONF.extra_k_row ? 1.3 : 1)) * (height + spacing)
+            + (row_idx - (row_idx > 1 && CONF.extra_k_row.v ? 1.3 : 1)) * (height + spacing)
         x := x_offset * 1.0
 
         for data in row {
             logical_w := data[1]
-            w := logical_w * CONF.gui_scale
+            w := logical_w * CONF.gui_scale.v
 
             if data.Length > 1 {
                 sc := data[2]
@@ -98,20 +98,20 @@ _DrawKeys() {
                     ALL_SCANCODES.Push(sc)
                 }
                 if sc == 0x11D {
-                    UI[CONF.layout_format == "ISO" ? "54" : "310"].GetPos(&shx, , &shw)
-                    w := shx + shw - x * CONF.gui_scale + 1
+                    UI[CONF.layout_format.v == "ISO" ? "54" : "310"].GetPos(&shx, , &shw)
+                    w := shx + shw - x * CONF.gui_scale.v + 1
                 }
 
                 h := height + (
-                    sc == 0x11C || sc == 0x4E || sc == 0x1C && CONF.layout_format == "ISO"
+                    sc == 0x11C || sc == 0x4E || sc == 0x1C && CONF.layout_format.v == "ISO"
                     ? height + spacing : 0
                 )
-                if row_idx == 1 && CONF.extra_k_row {
+                if row_idx == 1 && CONF.extra_k_row.v {
                     h /= 1.5
                 }
 
                 btn := UI.Add("Button",
-                    "v" . sc . " x" . x * CONF.gui_scale . " y" . y . " w" . w . " h" . h
+                    "v" . sc . " x" . x * CONF.gui_scale.v . " y" . y . " w" . w . " h" . h
                     . " +BackgroundSilver +0x8000"
                 )
                 UI.buttons[sc] := btn
@@ -126,15 +126,15 @@ _DrawKeys() {
 
 
 _DrawLayersLV() {
-    p := Scale(10, CONF.ref_height + 27, 425, CONF.ref_height)
+    p := Scale(10, CONF.ref_height.v + 27, 425, CONF.ref_height.v)
     UI.AddListView("vLV_layers " . p . " Checked", ["?", "P", "Layer", "Base", "→", "Hold", "→"])
     UI["LV_layers"].OnEvent("DoubleClick", LVLayerDoubleClick)
     UI["LV_layers"].OnEvent("Click", LVLayerClick)
     UI["LV_layers"].OnEvent("ItemCheck", LVLayerCheck)
     for i, w in [20, 20, 110, 100, 30, 100, 30] {
-        UI["LV_layers"].ModifyCol(i, Max(w * CONF.gui_scale, 16 * USER_DPI))
+        UI["LV_layers"].ModifyCol(i, Max(w * CONF.gui_scale.v, 16 * USER_DPI))
     }
-    btns_wh := "w" . (428 * CONF.gui_scale / 6) . " h" . (20 * CONF.gui_scale)
+    btns_wh := "w" . (428 * CONF.gui_scale.v / 6) . " h" . (20 * CONF.gui_scale.v)
 
     for i, arr in [
         ["vBtnAddNewLayer", "✨ New layer"],
@@ -146,9 +146,9 @@ _DrawLayersLV() {
     {
         UI.Add("Button", arr[1] . (i == 1 ? " xp-1 y+0 " : " x+0 yp0 ") . btns_wh, arr[2])
     }
-    UI.Add("Button", "vBtnBackToRoot " . ("x" . (10 * CONF.gui_scale) . " yp0"
-        . " w" . (426 * CONF.gui_scale)
-        . " h" . (20 * CONF.gui_scale)
+    UI.Add("Button", "vBtnBackToRoot " . ("x" . (10 * CONF.gui_scale.v) . " yp0"
+        . " w" . (426 * CONF.gui_scale.v)
+        . " h" . (20 * CONF.gui_scale.v)
         ), "🔙 Back to all active layers"
     )
 
@@ -160,16 +160,16 @@ _DrawLayersLV() {
 
 
 _DrawGesturesLV() {
-    p := Scale(434, CONF.ref_height + 27, 425, CONF.ref_height)
+    p := Scale(434, CONF.ref_height.v + 27, 425, CONF.ref_height.v)
     UI.AddListView("vLV_gestures " . p,
         ["Gesture name", "Value", "Options", "→", "Layer", "roll it back"])
     UI["LV_gestures"].OnEvent("DoubleClick", LVGestureDoubleClick)
     UI["LV_gestures"].OnEvent("Click", LVGestureClick)
     for i, w in [100, 110, 100, 30, 70, 0] {
-        UI["LV_gestures"].ModifyCol(i, w * CONF.gui_scale)
+        UI["LV_gestures"].ModifyCol(i, w * CONF.gui_scale.v)
     }
 
-    btns_wh := "w" . (426 * CONF.gui_scale / 4) . " h" . (20 * CONF.gui_scale)
+    btns_wh := "w" . (426 * CONF.gui_scale.v / 4) . " h" . (20 * CONF.gui_scale.v)
     UI.gest_btns := []
     UI.gest_btns.Push(
         UI.Add("Button", "vBtnAddNewGesture xp0 y+0 " . btns_wh, "✨ New"),
@@ -187,22 +187,22 @@ _DrawGesturesLV() {
 
 
 _DrawChordsLV() {
-    p := Scale(859, CONF.ref_height + 27, 425, CONF.ref_height)
+    p := Scale(859, CONF.ref_height.v + 27, 425, CONF.ref_height.v)
     UI.AddListView("vLV_chords " . p, ["Chord", "Value", "→", "Layer"])
     UI["LV_chords"].OnEvent("DoubleClick", LVChordDoubleClick)
     UI["LV_chords"].OnEvent("Click", LVChordClick)
     for i, w in [120, 170, 30, 100] {
-        UI["LV_chords"].ModifyCol(i, w * CONF.gui_scale)
+        UI["LV_chords"].ModifyCol(i, w * CONF.gui_scale.v)
     }
 
-    btns_wh := "w" . (426 * CONF.gui_scale / 3) . " h" . (20 * CONF.gui_scale)
+    btns_wh := "w" . (426 * CONF.gui_scale.v / 3) . " h" . (20 * CONF.gui_scale.v)
     UI.chs_front := []
     UI.chs_front.Push(
         UI.Add("Button", "vBtnAddNewChord xp0 y+0 " . btns_wh, "✨ New"),
         UI.Add("Button", "vBtnChangeSelectedChord x+0 yp0 " . btns_wh, "✏️ Change"),
         UI.Add("Button", "vBtnDeleteSelectedChord x+0 yp0 " . btns_wh, "🗑️ Delete")
     )
-    x := "xp-" . (426 * CONF.gui_scale / 3 * 2)
+    x := "xp-" . (426 * CONF.gui_scale.v / 3 * 2)
     UI.chs_back := []
     UI.chs_back.Push(
         UI.Add("Button", "vBtnSaveEditedChord " . x . " yp0 " . btns_wh, "✔ Save"),
@@ -246,17 +246,17 @@ _AddHelpText(font_opt, p, txt) {
 
 
 _DrawHelp() {
-    if !CONF.help_texts {
+    if !CONF.help_texts.v {
         return
     }
-    _AddHelpText("Italic cGray", Scale(9, CONF.ref_height + 3),
+    _AddHelpText("Italic cGray", Scale(9, CONF.ref_height.v + 3),
         "Borders (hold behavior):")
     _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
     _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")
     _AddHelpText("Italic Bold cAAAA11", "x+5 yp0", "chord part;")
     try {
         _AddHelpText("Italic Bold c"
-            . Format("{:#06x}", CONF.gest_colors[1][1]), "x+5 yp0", "gesture start.")
+            . Format("{:#06x}", CONF.gest_colors[1][1].v), "x+5 yp0", "gesture start.")
     } catch {
         _AddHelpText("Italic Bold cRed", "x+5 yp0", "gesture start.")
     }
@@ -284,7 +284,7 @@ _DrawHelp() {
 _CreateOverlay() {
     global overlay, overlay_x, overlay_y
 
-    if CONF.overlay_type == 1 || !UI.Hwnd
+    if CONF.overlay_type.v == 1 || !UI.Hwnd
         || !WinExist("ahk_id " . UI.Hwnd) || WinActive("A") !== UI.Hwnd {
         return
     }
@@ -298,8 +298,8 @@ _CreateOverlay() {
     WinSetTransColor("FFFFFF", overlay.Hwnd)
     overlay.Opt("-DPIScale")
     overlay.BackColor := "FFFFFF"
-    overlay.SetFont("s" . 6 * CONF.font_scale . " cGreen")
-    overlay.Show(Scale(,, 1294, CONF.ref_height * 2))
+    overlay.SetFont("s" . 6 * CONF.font_scale.v . " cGreen")
+    overlay.Show(Scale(,, 1294, CONF.ref_height.v * 2))
     DllCall("SetWindowLongPtr", "Ptr", overlay.Hwnd, "Int", -8, "Ptr", UI.Hwnd)
     WinActivate("ahk_id " . UI.Hwnd)
     SetTimer(UpdateOverlayPos, 100)
@@ -307,7 +307,7 @@ _CreateOverlay() {
 
 
 _AddOverlayItem(x, y, colour, txt:="") {
-    if !overlay || CONF.overlay_type == 1 {
+    if !overlay || CONF.overlay_type.v == 1 {
         return
     }
 
@@ -338,7 +338,7 @@ _GetKeyName(sc, with_keytype:=false, to_short:=false, from_sc_str:=false) {
         "MButton", "WhClick"
     )
 
-    if with_keytype && CONF.keyname_type == 2 {
+    if with_keytype && CONF.keyname_type.v == 2 {
         return "&" . sc
     }
 
@@ -355,7 +355,7 @@ _GetKeyName(sc, with_keytype:=false, to_short:=false, from_sc_str:=false) {
     return to_short && short_names.Has(res) ? short_names[res]
         : fixed_names.Has(res) ? fixed_names[res]
         : InStr(res, "Numpad") ? "n" . SubStr(res, 7)
-        : with_keytype && CONF.keyname_type == 3 && !res ? "&" . sc
+        : with_keytype && CONF.keyname_type.v == 3 && !res ? "&" . sc
         : res
 }
 
@@ -363,7 +363,7 @@ _GetKeyName(sc, with_keytype:=false, to_short:=false, from_sc_str:=false) {
 _BuildLayout(layout) {
     w := 42
     res := []
-    if CONF.extra_k_row {
+    if CONF.extra_k_row.v {
         res.Push(R(
             [85], [w, GetKeySC("Volume_Mute")], [w, GetKeySC("Volume_Down")],
             [w, GetKeySC("Volume_Up")], [w, GetKeySC("Media_Next")], [w, GetKeySC("Media_Prev")],
@@ -376,7 +376,7 @@ _BuildLayout(layout) {
             [w, GetKeySC("Launch_App1")], [w, GetKeySC("Launch_App2")]
         ))
     }
-    if CONF.extra_f_row {  ; f13-f24
+    if CONF.extra_f_row.v {  ; f13-f24
         res.Push(R([85], 100, 101, 102, 103, [30], 104, 105, 106, 107, [30], 108, 109, 110, 118))
     }
 

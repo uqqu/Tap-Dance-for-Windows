@@ -81,9 +81,9 @@ ColorAtProgress(t) {
         return overlay_opts.gest_colors[1]
     }
 
-    lerp := (CONF.gest_color_mode == "HSV"
+    lerp := (CONF.gest_color_mode.v == "HSV"
         ? ColorLerpHsv
-        : CONF.gest_color_mode == "RGB"
+        : CONF.gest_color_mode.v == "RGB"
             ? ColorLerp
             : ColorLerpLinRgb)
 

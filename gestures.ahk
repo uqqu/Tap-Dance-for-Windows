@@ -157,13 +157,13 @@ PresentOverlay() {
         NumPut("Int", A_ScreenHeight, size, 4)
     }
 
-    if !blend || (last_opacity !== CONF.overlay_opacity) {
+    if !blend || (last_opacity !== CONF.overlay_opacity.v) {
         blend := Buffer(4, 0)
         NumPut("UChar", 0, blend, 0)
         NumPut("UChar", 0, blend, 1)
-        NumPut("UChar", CONF.overlay_opacity, blend, 2)
+        NumPut("UChar", CONF.overlay_opacity.v, blend, 2)
         NumPut("UChar", 1, blend, 3)
-        last_opacity := CONF.overlay_opacity
+        last_opacity := CONF.overlay_opacity.v
     }
 
     DllCall(
@@ -236,14 +236,14 @@ SetOverlayOpts(opts, pool) {
     vals := StrSplit(opts, ";")
     sh := pool == 5 ? 0 : (Mod(pool, 2) ? 6 : 3)
     overlay_opts := {pool: pool, live_hints: (vals.Length && vals[1]
-        ? (vals[1] == 1 ? CONF.gest_live_hint : vals[1] - 1)
-        : CONF.gest_live_hint)
+        ? (vals[1] == 1 ? CONF.gest_live_hint.v : vals[1] - 1)
+        : CONF.gest_live_hint.v)
     }
     for arr in [["gest_colors", 2+sh], ["grad_len", 3+sh], ["grad_loop", 4+sh]] {
         try {
             overlay_opts.%arr[1]% := vals[arr[2]]
         } catch {
-            overlay_opts.%arr[1]% := CONF.%arr[1]%[Integer(sh/3) + 1]
+            overlay_opts.%arr[1]% := CONF.%arr[1]%[Integer(sh/3) + 1].v
         }
         if A_Index == 1 {
             v := overlay_opts.%arr[1]%
@@ -302,10 +302,10 @@ EndDraw(*) {
 Fin(pts, gestures) {
     global gest_node
 
-    res := cum_len > Max(CONF.min_gesture_len, 10) ? Recognize(pts, gestures) : false
+    res := cum_len > Max(CONF.min_gesture_len.v, 10) ? Recognize(pts, gestures) : false
 
     gest_node := false
-    if res && res[1] >= CONF.min_cos_similarity && res[2] !== "" {
+    if res && res[1] >= CONF.min_cos_similarity.v && res[2] !== "" {
         TransitionProcessing(res[2])
     } else if gest_pending {
         gest_pending()
@@ -396,7 +396,7 @@ TrackMouse() {
         prev_width := width
         points.Push([x, y])
 
-        if pool_gestures && cum_len > Max(CONF.min_gesture_len, 10)
+        if pool_gestures && cum_len > Max(CONF.min_gesture_len.v, 10)
             && overlay_opts.live_hints !== 4 {
             SetTimer(LiveHint.Bind(points, pool_gestures), -1)
         } else {
@@ -429,8 +429,8 @@ LiveHint(pts, gestures) {
     res := Recognize(pts, gestures)
 
     try {
-        if res[1] < CONF.min_cos_similarity {
-            txt := !CONF.live_hint_extended ? "" : ("Not recognized. Best match: '"
+        if res[1] < CONF.min_cos_similarity.v {
+            txt := !CONF.live_hint_extended.v ? "" : ("Not recognized. Best match: '"
                 . res[2].fin.gui_shortname . "' " . Round(res[1], 2))
         } else {
             txt := res[2].fin.gui_shortname
@@ -445,7 +445,7 @@ LiveHint(pts, gestures) {
             return
         }
         if DllCall("gdiplus\GdipCreateFont",
-            "ptr", fam, "float", CONF.font_size_lh, "int", 1, "int", 2, "ptr*", &fnt:=0) {
+            "ptr", fam, "float", CONF.font_size_lh.v, "int", 1, "int", 2, "ptr*", &fnt:=0) {
             return
         }
 
@@ -459,7 +459,7 @@ LiveHint(pts, gestures) {
         DllCall("gdiplus\GdipCreateSolidFill", "uint", (255<<24)|0xFFFFFF, "ptr*", &brush_fg:=0)
         DllCall("gdiplus\GdipCreateSolidFill", "uint", 0x00000000, "ptr*", &brush_clear:=0)
         inited := true
-        last_fs := CONF.font_size_lh
+        last_fs := CONF.font_size_lh.v
     }
 
     g := GetOverlayGraphics()
@@ -467,7 +467,7 @@ LiveHint(pts, gestures) {
         return
     }
 
-    fs := CONF.font_size_lh
+    fs := CONF.font_size_lh.v
     if fs !== last_fs {
         if fnt {
             DllCall("gdiplus\GdipDeleteFont", "ptr", fnt)
@@ -556,7 +556,7 @@ DrawExisting(gesture_obj) {
     ClearOverlay()
     gest_overlay.Show("NA")
 
-    e := CONF.edge_size // 2
+    e := CONF.edge_size.v // 2
     hx := Mod(gesture_obj.opts.pool, 3)
     hx := hx == 1 ? e : hx == 2 ? A_ScreenWidth // 2 : A_ScreenWidth - e
     hy := (gesture_obj.opts.pool - 1) // 3

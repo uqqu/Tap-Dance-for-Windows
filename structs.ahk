@@ -380,7 +380,7 @@ FillRoots() {
         ROOTS[lang] := UnifiedNode()
     }
 
-    for arr in (CONF.ignore_inactive
+    for arr in (CONF.ignore_inactive.v
         ? [[ActiveLayers, Map()]] : [[ActiveLayers, Map()], [AllLayers, ActiveLayers]]) {
         for layer in arr[1].map {
             if !arr[2].Has(layer) {
@@ -395,7 +395,7 @@ _MergeLayer(layer) {
     AllLayers.map[layer] := _CountLangMappings(raw_roots)
     for lang, root in raw_roots {
         if !LANGS.Has(lang) {
-            if !CONF.unfam_layouts {
+            if !CONF.unfam_layouts.v {
                 continue
             }
             LANGS.Add(lang, "Layout: " . GetLayoutNameFromHKL(lang))

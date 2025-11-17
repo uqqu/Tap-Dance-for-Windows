@@ -10,7 +10,7 @@ OpenForm(save_type, *) {
 
     try form.Destroy()
 
-    if !CONF.hide_mouse_warnings && current_path.Length
+    if !CONF.hide_mouse_warnings.v && current_path.Length
         && SubStr(current_path[-1][1], 2) == "Button"
         && MsgBox("This assignment will remove the corresponding drag-and-drop behavior!",
             "Attention", "OKCancel Icon!") == "Cancel" {
@@ -113,7 +113,7 @@ OpenForm(save_type, *) {
     ; custom values
     form.Add("CheckBox", "x10 y+10 w160 vCBInstant", "Instant")
 
-    form.Add("Edit", "x170 yp-3 w160 vCustomLP Number +Center", CONF.MS_LP).Visible := false
+    form.Add("Edit", "x170 yp-3 w160 vCustomLP Number +Center", CONF.MS_LP.v).Visible := false
     SendMessage(0x1501, true, StrPtr("Your custom lp value (in ms)"), form["CustomLP"].Hwnd)
     form.Add("Button", "x170 yp+0 w160 vBtnLP", "Custom hold waiting time")
         .OnEvent("Click", (*) => (
@@ -126,7 +126,7 @@ OpenForm(save_type, *) {
         form["CBIrrevocable"].Value := true
     }
 
-    form.Add("Edit", "x170 yp-3 w160 vCustomNK Number +Center", CONF.MS_NK).Visible := false
+    form.Add("Edit", "x170 yp-3 w160 vCustomNK Number +Center", CONF.MS_NK.v).Visible := false
     SendMessage(0x1501, true, StrPtr("Your custom nk value (in ms)"), form["CustomNK"].Hwnd)
     form.Add("Button", "x170 yp+0 w160 vBtnNK", "Custom next event waiting time")
         .OnEvent("Click", (*) => (
@@ -309,12 +309,12 @@ WriteGesture(as_base:=false, *) {
     global form
 
     try {
-        scal := form["Scaling"].Text == "" ? CONF.scale_impact : Float(form["Scaling"].Text)
+        scal := form["Scaling"].Text == "" ? CONF.scale_impact.v : Float(form["Scaling"].Text)
     } catch {
         MsgBox("Scale value should be float or empty.", "Wrong scale value", "Icon!")
         return
     }
-    rot := form["Rotate"].Value == 1 ? CONF.gest_rotate : (form["Rotate"].Value - 1)
+    rot := form["Rotate"].Value == 1 ? CONF.gest_rotate.v : (form["Rotate"].Value - 1)
     dirs := form["Direction"].Value - 1
     phase := form["Phase"].Value - 1
 
@@ -803,8 +803,8 @@ WriteValue(is_hold, *) {
         TYPES.%vals["TypeDDL"]%, vals["ValInp"],
         TYPES.%vals["UpTypeDDL"] || "Disabled"%, vals["UpValInp"],
         vals["CBInstant"], vals["CBIrrevocable"],
-        (vals["CustomLP"] != CONF.MS_LP ? vals["CustomLP"] : false),
-        (vals["CustomNK"] != CONF.MS_NK ? vals["CustomNK"] : false),
+        (vals["CustomLP"] != CONF.MS_LP.v ? vals["CustomLP"] : false),
+        (vals["CustomNK"] != CONF.MS_NK.v ? vals["CustomNK"] : false),
         vals["ChildBehaviorDDL"], vals["Shortname"],
         RTrim(gest_opts, ";")
     )

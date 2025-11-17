@@ -424,8 +424,8 @@ GenerateRandomPass(len:=12, extra_symbs:="", out:="Ouptut: Tooltip", t:=false) {
 
 
 ChangeDefaultHoldTime(new_val:=5) {
-    CONF.MS_LP += Integer(new_val)
-    IniWrite(CONF.MS_LP, "config.ini", "Main", "LongPressDuration")
+    CONF.MS_LP.v += Integer(new_val)
+    IniWrite(CONF.MS_LP.v, "config.ini", "Main", "LongPressDuration")
 }
 
 

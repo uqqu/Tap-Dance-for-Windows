@@ -15,14 +15,14 @@
     ToggleVisibility(1, UI.current_values)
 
     for i, val in current_path {
-        dir_text := UI.Add("Text", "x+3 yp" . (6 * CONF.gui_scale),
+        dir_text := UI.Add("Text", "x+3 yp" . (6 * CONF.gui_scale.v),
             (val[2] > 1 ? val[2] : "")
             . (val[4] ? "•" : val[3] ? "▼" : ["➤", "▲"][(val[2] & 1) + 1])
         )
         UI.path.Push(dir_text)
 
         UI.path.Push(UI.Add("Button", "x+3 yp-"
-            . (6 * CONF.gui_scale), val[3] || val[4] || _GetKeyName(val[1], true, true)))
+            . (6 * CONF.gui_scale.v), val[3] || val[4] || _GetKeyName(val[1], true, true)))
         UI.path[-1].OnEvent("Click", ChangePath.Bind(i))
     }
 
@@ -117,7 +117,8 @@ _FillKeyboard() {
         if b_node {
             if res.ubase.active_gestures.Count {
                 try {
-                    btn.Opt("+Background" . Format("{:#06x}", CONF.gest_colors[1][1]))
+                    txt := Integer("0x" . Trim(StrSplit(CONF.gest_colors[1].v, ",")[1]))
+                    btn.Opt("+Background" . Format("{:#06x}", txt))
                 } catch {
                     btn.Opt("+BackgroundRed")
                 }
@@ -180,7 +181,7 @@ _FillKeyboard() {
 
 
 _AddIndicators(unode, btn, is_hold:=false) {
-    if CONF.overlay_type == 1 {
+    if CONF.overlay_type.v == 1 {
         return
     }
     btn.GetPos(&x, &y, &w, &h)
@@ -188,7 +189,7 @@ _AddIndicators(unode, btn, is_hold:=false) {
     y += 1
     w -= 2
     h -= 2
-    p := Integer(3 * CONF.gui_scale)
+    p := Integer(3 * CONF.gui_scale.v)
     node := _GetFirst(unode)
     if node.down_type == TYPES.Modifier {
         cnt := _CountChild("", 0, gui_mod_val + (1 << node.down_val),
@@ -197,9 +198,9 @@ _AddIndicators(unode, btn, is_hold:=false) {
         cnt := _CountChild("", 0, 0, unode.scancodes, unode.chords, unode.gestures)
     }
     if cnt {
-        l := StrLen(String(cnt)) * 5 * CONF.font_scale + 4
-        (CONF.overlay_type == 3)
-            ? _AddOverlayItem(x + w - l, y + (is_hold ? h - 12 * CONF.font_scale : 0), "", cnt)
+        l := StrLen(String(cnt)) * 5 * CONF.font_scale.v + 4
+        (CONF.overlay_type.v == 3)
+            ? _AddOverlayItem(x + w - l, y + (is_hold ? h - 12 * CONF.font_scale.v : 0), "", cnt)
             : _AddOverlayItem(x + w - p, y + (is_hold ? h - p : 0), "Red")
     }
     if is_hold {
@@ -236,7 +237,7 @@ _FillLayers() {
     }
 
     for name, v in temp_all_layers {
-        if CONF.ignore_inactive && !v {
+        if CONF.ignore_inactive.v && !v {
             UI["LV_layers"].Add("", "", "", name, "", "", "", "")
             continue
         }
@@ -412,10 +413,10 @@ _FillGestures() {
 _GestOptsToText(opts) {
     vals := StrSplit(opts, ";")
     str := ["LT", "T", "RT", "L", "C", "R", "LB", "B", "RB"][Integer(vals[1])]
-    if vals[2] + 1 != CONF.gest_rotate {
+    if vals[2] + 1 != CONF.gest_rotate.v {
         str .= ", rotate: " . ["no", "de-noise", "invar."][Integer(vals[2]) + 1]
     }
-    if vals[3] != CONF.scale_impact {
+    if vals[3] != CONF.scale_impact.v {
         str .= ", scale imp.: " . Round(Float(vals[3]), 2)
     }
     if vals[4] !== "0" {

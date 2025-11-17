@@ -74,7 +74,7 @@ OneNodeDeeper(schex, md:=-1, is_chord:=false, is_gesture:=false) {
 }
 
 
-ChangePath(len:=-1, *) {
+ChangePath(len:=-1, discard_md:=true, *) {
     global gui_mod_val, gui_entries
 
     UI["Hidden"].Focus()
@@ -92,7 +92,8 @@ ChangePath(len:=-1, *) {
     UI.path := []
 
     gui_entries := {ubase: ROOTS[gui_lang], uhold: false, umod: false}
-    gui_mod_val := len < current_path.Length ? current_path[len + 1][2] & ~1 : 0
+    gui_mod_val := len < current_path.Length ? current_path[len + 1][2] & ~1
+        : discard_md ? 0 : gui_mod_val
     current_path.Length := len
 
     for arr in current_path {
@@ -138,15 +139,12 @@ HandleKeyPress(sc) {
         Send("{Alt}")
     }
 
-    if sc == CONF.gui_back_sc {
-        if current_path.Length {
-            ChangePath(current_path.Length - 1)
-        } else {
-            ChangePath()
-        }
-    } else if sc == CONF.gui_set_sc && UI["BtnBase"].Enabled && UI["BtnBase"].Visible {
+    name := _GetKeyName(sc)
+    if name == CONF.gui_back_sc.v && current_path.Length {
+        ChangePath(current_path.Length - 1)
+    } else if name == CONF.gui_set_sc.v && UI["BtnBase"].Enabled && UI["BtnBase"].Visible {
         OpenForm(0)
-    } else if sc == CONF.gui_set_hold_sc && UI["BtnHold"].Enabled && UI["BtnHold"].Visible {
+    } else if name == CONF.gui_set_hold_sc.v && UI["BtnHold"].Enabled && UI["BtnHold"].Visible {
         OpenForm(1)
     } else if temp_chord {
         str_sc := String(sc)
@@ -162,7 +160,7 @@ HandleKeyPress(sc) {
             btn.Opt("+BackgroundBBBB22")
         }
         btn.Text := btn.Text
-    } else if CONF.gui_alt_ignore && (sc == 0x038 || sc == 0x138) {
+    } else if CONF.gui_alt_ignore.v && (sc == 0x038 || sc == 0x138) {
         return
     } else if SubStr(sc, 1, 5) == "Wheel" {
         ButtonLBM(sc)
@@ -371,7 +369,7 @@ CloseEvent(*) {
 
 HideHelp(*) {
     IniWrite(0, "config.ini", "Main", "HelpTexts")
-    CONF.help_texts := false
+    CONF.help_texts.v := false
     for txt in UI.help_texts {
         txt.Visible := false
     }

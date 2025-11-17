@@ -9,12 +9,12 @@ GetPool(x, y) {
     ;  2 1 3
     ; 10 9 11
 
-    l := x <= CONF.edge_size
-    r := x >= (A_ScreenWidth - CONF.edge_size)
-    t := y <= CONF.edge_size
-    b := y >= (A_ScreenHeight - CONF.edge_size)
+    l := x <= CONF.edge_size.v
+    r := x >= (A_ScreenWidth - CONF.edge_size.v)
+    t := y <= CONF.edge_size.v
+    b := y >= (A_ScreenHeight - CONF.edge_size.v)
 
-    switch CONF.edge_gestures {
+    switch CONF.edge_gestures.v {
         case 1:  ; without edges/corners
             return 5
         case 2:  ; only edges
