@@ -91,7 +91,7 @@ _FillKeyboard() {
     for sc, btn in UI.buttons {
         if sc == "CurrMod" {
             btn.SetFont("Italic")
-            btn.Opt("Disabled +BackgroundGray")
+            btn.Opt(gui_mod_val ? "+BackgroundRed -Disabled" : "+BackgroundSilver +Disabled")
             btn.Text := "Mod:`n" . gui_mod_val
             continue
         }
@@ -116,12 +116,14 @@ _FillKeyboard() {
         btxt := _GetKeyName(sc, true)
         if b_node {
             if res.ubase.active_gestures.Count {
-                try {
-                    txt := Integer("0x" . Trim(StrSplit(CONF.gest_colors[1].v, ",")[1]))
-                    btn.Opt("+Background" . Format("{:#06x}", txt))
-                } catch {
-                    btn.Opt("+BackgroundRed")
-                }
+                opts := StrSplit(b_node.gesture_opts, ";")
+                v := "Red"
+                try v := Format("{:#06x}", Integer("0x"
+                    . Trim(StrSplit(CONF.gest_colors[1].v, ",")[1])))
+                try v := Format("{:#06x}", Integer("0x" . opts[8]))
+                try v := Format("{:#06x}", Integer("0x" . opts[5]))
+                try v := Format("{:#06x}", Integer("0x" . opts[2]))
+                btn.Opt("+Background" . v)
             }
             UI["BtnBaseClear"].Opt("-Disabled")
             _AddIndicators(res.ubase, btn)
@@ -416,7 +418,7 @@ _GestOptsToText(opts) {
     if vals[2] + 1 != CONF.gest_rotate.v {
         str .= ", rotate: " . ["no", "de-noise", "invar."][Integer(vals[2]) + 1]
     }
-    if vals[3] != CONF.scale_impact.v {
+    if Float(vals[3]) != CONF.scale_impact.v {
         str .= ", scale imp.: " . Round(Float(vals[3]), 2)
     }
     if vals[4] !== "0" {

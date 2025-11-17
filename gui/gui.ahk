@@ -104,6 +104,20 @@ ChangePath(len:=-1, discard_md:=true, *) {
 }
 
 
+_DecomposeMods(n) {
+    res := []
+    bit := 0
+    while n {
+        if n & 1 {
+            res.Push(bit)
+        }
+        n >>= 1
+        bit++
+    }
+    return res
+}
+
+
 UpdateKeys() {
     prev_lang := false
     if gui_lang {
@@ -125,6 +139,18 @@ UpdateKeys() {
     _FillLayers()
     _FillGestures()
     _FillChords()
+
+    if gui_mod_val && UI.path[-1].Text != "²" {
+        txt := ""
+        for n in _DecomposeMods(gui_mod_val) {
+            txt .= n . "+"
+        }
+        UI.SetFont("c808080")
+        UI.path.Push(UI.Add("Text", "x+3 yp" . (6 * CONF.gui_scale.v), RTrim(txt, "+")))
+        UI.SetFont("cD3D3D3")
+        UI.path.Push(UI.Add("Text", "x+3", "²"))
+        UI.SetFont("cBlack")
+    }
 
     if prev_lang {
         DllCall("ActivateKeyboardLayout", "ptr", prev_lang, "uint", 0)
@@ -186,7 +212,7 @@ ButtonRBM(sc, *) {
 
     UI["Hidden"].Focus()
 
-    if sc == "WheelUp" || sc == "WheelDown" || sc == "CurrMod" {
+    if sc == "WheelUp" || sc == "WheelDown" {  ; TODO
         return
     }
 
@@ -215,6 +241,13 @@ _Move(sc, is_hold) {
 
     if temp_chord {
         HandleKeyPress(sc)
+        return
+    }
+    if SYS_MODIFIERS.Has(sc) {
+        _current_path := current_path.Clone()
+        _current_path.Push([sc, 0, 0, 0])
+        _gui_entries := gui_entries.ubase.GetBaseHoldMod(sc, 0, 0, 0)
+        OpenForm(1, _current_path, 0, _gui_entries)
         return
     }
     OneNodeDeeper(sc, gui_mod_val + is_hold)

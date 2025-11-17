@@ -4,14 +4,24 @@ init_drawing := false
 from_prev := false
 
 
-OpenForm(save_type, *) {
+OpenForm(save_type, _path:=false, _mod_val:=false, _entries:=false, *) {
     ; 0 – base value, 1 – hold value, 2 – chord, 3 – gesture
     global form, from_prev
 
+    if _path is Array {
+        _current_path := _path
+        _gui_mod_val := _mod_val
+        _gui_entries := _entries
+    } else {  ; use global
+        _current_path := current_path
+        _gui_mod_val := gui_mod_val
+        _gui_entries := gui_entries
+    }
+
     try form.Destroy()
 
-    if !CONF.hide_mouse_warnings.v && current_path.Length
-        && SubStr(current_path[-1][1], 2) == "Button"
+    if !CONF.hide_mouse_warnings.v && _current_path.Length
+        && SubStr(_current_path[-1][1], 2) == "Button"
         && MsgBox("This assignment will remove the corresponding drag-and-drop behavior!",
             "Attention", "OKCancel Icon!") == "Cancel" {
             return
@@ -24,30 +34,30 @@ OpenForm(save_type, *) {
     chord_as_base := false
     gest_as_base := false
     ; check and correct if it "base" from chord/gesture
-    if !save_type && current_path.Length && (current_path[-1][3] || current_path[-1][4]) {
+    if !save_type && _current_path.Length && (_current_path[-1][3] || _current_path[-1][4]) {
         entries := {ubase: ROOTS[gui_lang], uhold: false, umod: false}
-        path := current_path.Clone()
+        path := _current_path.Clone()
         path.Length -= 1
 
         for arr in path {
             entries := entries.ubase.GetBaseHoldMod(arr*)
         }
 
-        if current_path[-1][3] {
+        if _current_path[-1][3] {
             chord_as_base := true
             save_type := 2
-            unode := entries.ubase.GetBaseHoldMod(selected_chord, gui_mod_val, true).ubase
+            unode := entries.ubase.GetBaseHoldMod(selected_chord, _gui_mod_val, true).ubase
         } else {
             gest_as_base := true
             save_type := 3
-            unode := entries.ubase.GetBaseHoldMod(selected_gesture, gui_mod_val, false, true).ubase
+            unode := entries.ubase.GetBaseHoldMod(selected_gesture, _gui_mod_val, false, true).ubase
         }
     } else {
-        unode := save_type == 1 ? gui_entries.uhold : save_type == 2
-            ? gui_entries.ubase.GetBaseHoldMod(selected_chord, gui_mod_val, true).ubase
+        unode := save_type == 1 ? _gui_entries.uhold : save_type == 2
+            ? _gui_entries.ubase.GetBaseHoldMod(selected_chord, _gui_mod_val, true).ubase
             : save_type == 3
-                ? gui_entries.ubase.GetBaseHoldMod(selected_gesture, gui_mod_val, false, true).ubase
-                : gui_entries.ubase
+                ? _gui_entries.ubase.GetBaseHoldMod(selected_gesture, _gui_mod_val, false, true).ubase
+                : _gui_entries.ubase
     }
 
     layers := layer_editing ? [selected_layer] : GetLayerList()
@@ -77,7 +87,7 @@ OpenForm(save_type, *) {
     ]
 
     ; sysmod
-    if current_path.Length && SYS_MODIFIERS.Has(current_path[-1][1]) {
+    if _current_path.Length && SYS_MODIFIERS.Has(_current_path[-1][1]) {
         form.Title := "Set modifier value"
         form.Add("Edit", "y+10 w320 vValInp")
         form.Add("Text", "y+10 w160", "Unassigned child behavior:")
@@ -85,6 +95,10 @@ OpenForm(save_type, *) {
         form.Add("Edit", "y+10 x10 w320 vShortname")
         form.Add("Button", "x10 y+10 h20 w160 vCancel", "❌ Cancel")
         form.Add("Button", "x170 yp+0 h20 w160 Default vSave", "✔ Save")
+
+        form.SetFont("Italic cGray")
+        form.Add("Text", "x10 y+20 w320 Center",
+            "System modifiers can only be assigned`nas custom modifiers on hold")
         form["Cancel"].OnEvent("Click", CloseForm)
         form["Save"].OnEvent("Click", WriteValue.Bind(save_type))
 
@@ -103,7 +117,7 @@ OpenForm(save_type, *) {
         ["Disabled", "Default", "Text", "KeySimulation", "Function", "Modifier"],  ; hold
         ["Disabled", "Text", "KeySimulation", "Function"],  ; chords
         ["Text", "KeySimulation", "Function"]  ; gestures
-    ][save_type == 1 && current_path[-1][2] ? 1 : save_type + 1]
+    ][save_type == 1 && _current_path[-1][2] ? 1 : save_type + 1]
 
     form.Add("DropDownList", "x10 y+10 w320 vTypeDDL", type_list)
     form.Add("Edit", "y+10 w320 vValInp")
@@ -122,7 +136,7 @@ OpenForm(save_type, *) {
 
     form.Add("CheckBox", "x10 y+5 w160 vCBIrrevocable", "Irrevocable")
 
-    if current_path.Length && current_path[-1][2] & ~1 {
+    if _current_path.Length && _current_path[-1][2] & ~1 {
         form["CBIrrevocable"].Value := true
     }
 
@@ -209,8 +223,8 @@ OpenForm(save_type, *) {
     form.Add("Button", "x10 y+10 h20 w160 vCancel", "❌ Cancel").OnEvent("Click", CloseForm)
     form.Add("Button", "x170 yp+0 h20 w160 Default vSave", "✔ Save")
         .OnEvent("Click", (save_type == 2
-            ? (chord_as_base ? WriteChord.Bind(current_path[-1][1]) : WriteChord.Bind(0))
-            : save_type == 3 ? (gest_as_base ? WriteGesture.Bind(current_path[-1][1])
+            ? (chord_as_base ? WriteChord.Bind(_current_path[-1][1]) : WriteChord.Bind(0))
+            : save_type == 3 ? (gest_as_base ? WriteGesture.Bind(_current_path[-1][1])
                 : WriteGesture.Bind(0)) : WriteValue.Bind(save_type))
         )
     if save_type == 3 {

@@ -115,8 +115,12 @@ _DrawKeys() {
                     . " +BackgroundSilver +0x8000"
                 )
                 UI.buttons[sc] := btn
-                btn.OnEvent("Click", ButtonLBM.Bind(sc))
-                btn.OnEvent("ContextMenu", ButtonRBM.Bind(sc))
+                if sc !== "CurrMod" {
+                    btn.OnEvent("Click", ButtonLBM.Bind(sc))
+                    btn.OnEvent("ContextMenu", ButtonRBM.Bind(sc))
+                } else {
+                    btn.OnEvent("Click", ChangePath.Bind(-1))
+                }
             }
 
             x += logical_w + spacing
@@ -254,12 +258,11 @@ _DrawHelp() {
     _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
     _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")
     _AddHelpText("Italic Bold cAAAA11", "x+5 yp0", "chord part;")
-    try {
-        _AddHelpText("Italic Bold c"
-            . Format("{:#06x}", CONF.gest_colors[1][1].v), "x+5 yp0", "gesture start.")
-    } catch {
-        _AddHelpText("Italic Bold cRed", "x+5 yp0", "gesture start.")
-    }
+
+    v := "Red"
+    try v := Format("{:#06x}", Integer("0x"
+        . Trim(StrSplit(CONF.gest_colors[1].v, ",")[1])))
+    _AddHelpText("Italic Bold c" . v, "x+5 yp0", "gesture start.")
 
     _AddHelpText("Italic cGray", "x+" . 60 / USER_DPI . " yp0", "Indicators: ")
     _AddHelpText("Italic Bold cGray", "x+5 yp0", "irrevocable;")

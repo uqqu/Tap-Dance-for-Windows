@@ -241,7 +241,8 @@ SetOverlayOpts(opts, pool) {
     }
     for arr in [["gest_colors", 2+sh], ["grad_len", 3+sh], ["grad_loop", 4+sh]] {
         try {
-            overlay_opts.%arr[1]% := vals[arr[2]]
+            overlay_opts.%arr[1]% := vals[arr[2]] !== "" ? vals[arr[2]]
+                : CONF.%arr[1]%[Integer(sh/3) + 1].v
         } catch {
             overlay_opts.%arr[1]% := CONF.%arr[1]%[Integer(sh/3) + 1].v
         }
