@@ -42,9 +42,7 @@ _FillSetButtons() {
         curr_node := _GetFirst(arr[2])
         UI["Text" . txt].Text := txt
         UI["Btn" . txt].Text := ""
-        if txt == "Hold" && current_path.Length
-            && (!(current_path[-1][1] is Number) && SubStr(current_path[-1][1], 1, 5) == "Wheel"
-                || EXTRA_SCS.Has(current_path[-1][1])) {
+        if txt == "Hold" && current_path.Length && ONLY_BASE_SCS.Has(current_path[-1][1]) {
             UI["Btn" . txt].Opt("+Disabled")
             UI["Btn" . txt . "Clear"].Opt("+Disabled")
             UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
@@ -95,90 +93,92 @@ _FillKeyboard() {
             btn.Text := "Mod:`n" . gui_mod_val
             continue
         }
-        btn.Opt("-Disabled +BackgroundSilver")
-        btn.SetFont("Norm")
-
-        res := gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val, false, false, false, false)
-        b_node := _GetFirst(res.ubase)
-        h_node := _GetFirst(res.uhold)
-        m_node := _GetFirst(res.umod)
-
-        if temp_chord {
-            if SYS_MODIFIERS.Has(sc) || SubStr(sc, 1, 5) == "Wheel"
-                || EXTRA_SCS.Has(sc) || !h_node && m_node && m_node.down_type == TYPES.Modifier {
-                btn.Opt("+Disabled")
-            }
-            btn.Opt(temp_chord.Has(String(sc)) ? "+BackgroundBBBB22" : "+BackgroundSilver")
-            btn.Text := _GetKeyName(sc, true)
-            continue
-        }
-
-        btxt := _GetKeyName(sc, true)
-        if b_node {
-            if res.ubase.active_gestures.Count {
-                opts := StrSplit(b_node.gesture_opts, ";")
-                v := "Red"
-                try v := Format("{:#06x}", Integer("0x"
-                    . Trim(StrSplit(CONF.gest_colors[1].v, ",")[1])))
-                try v := Format("{:#06x}", Integer("0x" . opts[8]))
-                try v := Format("{:#06x}", Integer("0x" . opts[5]))
-                try v := Format("{:#06x}", Integer("0x" . opts[2]))
-                btn.Opt("+Background" . v)
-            }
-            UI["BtnBaseClear"].Opt("-Disabled")
-            _AddIndicators(res.ubase, btn)
-            switch b_node.down_type {
-                case TYPES.Default:
-                    btxt := _GetKeyName(sc, true)
-                case TYPES.Disabled:
-                    btn.SetFont("Italic")
-                    btxt := "{D}"
-                case TYPES.KeySimulation:
-                    btn.SetFont("Italic")
-                    btxt := _GetKeyName(sc, false, false, b_node.down_val)
-                default:
-                    btxt := _CheckDiacr(b_node.down_val)
-            }
-            if b_node.gui_shortname {
-                btxt := b_node.gui_shortname
-            }
-        }
-
-        htxt := ""
-        if h_node {
-            _AddIndicators(res.uhold, btn, true)
-            switch h_node.down_type {
-                case TYPES.Default:
-                    htxt := "`n" . _GetKeyName(sc)
-                case TYPES.Text:
-                    htxt := "`n" . _CheckDiacr(h_node.down_val)
-                case TYPES.KeySimulation:
-                    htxt := "`n" . _GetKeyName(sc, false, false, h_node.down_val)
-                case TYPES.Function:
-                    htxt := "`n" . h_node.down_val
-                case TYPES.Modifier:
-                    htxt := "`n" . h_node.down_val
-                    v := 1 << h_node.down_val
-                    b := gui_mod_val && gui_mod_val & v == v
-                    btn.Opt("+Background" . (b ? "Black" : "7777AA"))
-                case TYPES.Chord:
-                    btn.Opt("+BackgroundBBBB22")
-            }
-            if h_node.gui_shortname {
-                htxt := "`n" . h_node.gui_shortname
-            }
-        } else if m_node && m_node.down_type == TYPES.Modifier {
-            v := 1 << m_node.down_val
-            if gui_mod_val && gui_mod_val & v == v {
-                btn.Opt("+BackgroundBlack")
-            } else {
-                _AddIndicators(res.umod, btn, true)
-                btn.Opt("+Background7777AA")
-            }
-            htxt := "`n" . (m_node.gui_shortname ? m_node.gui_shortname : m_node.down_val)
-        }
-        btn.Text := btxt . htxt
+        btn.dragged_sc := sc
+        try btn.dragged_sc := Integer(sc)
+        _FillOneButton(sc, btn, sc)
     }
+}
+
+
+_FillOneButton(sc, btn, d_sc) {
+    backgr := "Silver"
+    btn.Opt("-Disabled")
+    btn.SetFont("Norm")
+
+    res := gui_entries.ubase.GetBaseHoldMod(d_sc, gui_mod_val, false, false, false, false)
+    b_node := _GetFirst(res.ubase)
+    h_node := _GetFirst(res.uhold)
+    m_node := _GetFirst(res.umod)
+
+    btxt := _GetKeyName(sc, true)
+    if b_node {
+        if res.ubase.active_gestures.Count {
+            opts := StrSplit(b_node.gesture_opts, ";")
+            backgr := "Red"
+            try backgr := Format("{:#06x}", Integer("0x"
+                . Trim(StrSplit(CONF.gest_colors[1].v, ",")[1])))
+            try backgr := Format("{:#06x}", Integer("0x" . opts[8]))
+            try backgr := Format("{:#06x}", Integer("0x" . opts[5]))
+            try backgr := Format("{:#06x}", Integer("0x" . opts[2]))
+        }
+        UI["BtnBaseClear"].Opt("-Disabled")
+        _AddIndicators(res.ubase, btn)
+        switch b_node.down_type {
+            case TYPES.Default:
+                btxt := _GetKeyName(sc, true)
+            case TYPES.Disabled:
+                btn.SetFont("Italic")
+                btxt := "{D}"
+            case TYPES.KeySimulation:
+                btn.SetFont("Italic")
+                btxt := _GetKeyName(d_sc, false, false, b_node.down_val)
+            default:
+                btxt := _CheckDiacr(b_node.down_val)
+        }
+        if b_node.gui_shortname {
+            btxt := b_node.gui_shortname
+        }
+    }
+
+    htxt := ""
+    if h_node {
+        _AddIndicators(res.uhold, btn, true)
+        switch h_node.down_type {
+            case TYPES.Default:
+                htxt := "`n" . _GetKeyName(sc)
+            case TYPES.Text:
+                htxt := "`n" . _CheckDiacr(h_node.down_val)
+            case TYPES.KeySimulation:
+                htxt := "`n" . _GetKeyName(d_sc, false, false, h_node.down_val)
+            case TYPES.Function:
+                htxt := "`n" . h_node.down_val
+            case TYPES.Modifier:
+                htxt := "`n" . h_node.down_val
+                v := 1 << h_node.down_val
+                b := gui_mod_val && gui_mod_val & v == v
+                backgr := b ? "Black" : "7777AA"
+            case TYPES.Chord:
+                backgr := "BBBB22"
+        }
+        if h_node.gui_shortname {
+            htxt := "`n" . h_node.gui_shortname
+        }
+    } else if m_node && m_node.down_type == TYPES.Modifier {
+        v := 1 << m_node.down_val
+        if gui_mod_val && gui_mod_val & v == v {
+            backgr := "Black"
+        } else {
+            _AddIndicators(res.umod, btn, true)
+            backgr := "7777AA"
+        }
+        htxt := "`n" . (m_node.gui_shortname ? m_node.gui_shortname : m_node.down_val)
+    }
+    if CONF.empty_border_unassigned.v && backgr == "Silver"
+        && ((btxt . htxt) == _GetKeyName(sc, true)) {
+        backgr := "White"
+    }
+    btn.Opt("+Background" . backgr)
+    btn.Text := btxt . htxt
 }
 
 
@@ -201,9 +201,10 @@ _AddIndicators(unode, btn, is_hold:=false) {
     }
     if cnt {
         l := StrLen(String(cnt)) * 5 * CONF.font_scale.v + 4
-        (CONF.overlay_type.v == 3)
+        res := (CONF.overlay_type.v == 3)
             ? _AddOverlayItem(x + w - l, y + (is_hold ? h - 12 * CONF.font_scale.v : 0), "", cnt)
             : _AddOverlayItem(x + w - p, y + (is_hold ? h - p : 0), "Red")
+        btn.indicators.Push(res)
     }
     if is_hold {
         y += h - p
@@ -217,7 +218,8 @@ _AddIndicators(unode, btn, is_hold:=false) {
         [node.custom_nk_time, "Fuchsia"]
     ] {
         if arr[1] {
-            _AddOverlayItem(x + p * (A_Index - 1), y, arr[2])
+            res := _AddOverlayItem(x + p * (A_Index - 1), y, arr[2])
+            btn.indicators.Push(res)
         }
     }
 }

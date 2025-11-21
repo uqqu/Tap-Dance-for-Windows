@@ -358,12 +358,14 @@ ReadLayers() {
 UpdLayers() {
     global curr_unode, version
 
+    ToggleFreeze(1)
     curr_unode := ROOTS[CurrentLayout]
     version += 1
     for lang, root in ROOTS {
         root.BuildActives(ActiveLayers.order)
     }
     SetSysModHotkeys()
+    ToggleFreeze(0)
 }
 
 
@@ -433,7 +435,7 @@ _CountLangMappings(raw_roots) {
 }
 
 
-_WalkJson(json_node, path, is_hold:=false) {
+_WalkJson(json_node, path, is_hold:=false, soft_mode:=false) {
     if !(path[1] is Array) {
         path := [path]
     }
@@ -447,10 +449,16 @@ _WalkJson(json_node, path, is_hold:=false) {
         curr_map := json_node[-3 + (is_chord is String) + (is_gesture is String) * 2]
 
         if !curr_map.Has(sc) {
+            if soft_mode {
+                return false
+            }
             curr_map[sc] := Map()
         }
         entry := curr_map[sc]
         if !entry.Has(md) {
+            if soft_mode {
+                return false
+            }
             d_type := md || is_chord ? TYPES.Disabled : TYPES.Default
             entry[md] := [
                 d_type, "", TYPES.Disabled, "", 0, 0, 0, 0, 4, "", "", Map(), Map(), Map(),

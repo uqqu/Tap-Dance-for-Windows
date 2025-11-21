@@ -200,7 +200,7 @@ _FocusLastLayerLV() {
 
 ChooseLayers(layers) {
     selected := []
-    layers_form := Gui()
+    layers_form := Gui("+AlwaysOnTop", "")
     checkboxes := []
 
     for i, val in layers {
@@ -208,7 +208,7 @@ ChooseLayers(layers) {
     }
 
     layers_form.Add("Button", "Default w80", "OK").OnEvent("Click", (*) => layers_form.Submit())
-    layers_form.Show()
+    layers_form.Show("w200")
 
     WinWaitClose(layers_form.Hwnd)
 

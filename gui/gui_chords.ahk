@@ -79,7 +79,7 @@ ChordEditing(new:=true) {
 }
 
 
-DeleteSelectedChord(_, without_confirmation:=false) {
+DeleteSelectedChord(_, without_confirmation:=false, without_upd:=false) {
     global selected_chord
 
     if !without_confirmation && MsgBox("Do you really want to delete this chord?",
@@ -144,9 +144,11 @@ DeleteSelectedChord(_, without_confirmation:=false) {
     }
     selected_chord := ""
     ReadLayers()
-    FillRoots()
-    UpdLayers()
-    ChangePath()
+    if !without_upd {
+        FillRoots()
+        UpdLayers()
+        ChangePath()
+    }
 }
 
 
@@ -211,7 +213,7 @@ SaveEditedChord(*) {
 
 
 WriteChord(chord:=false, *) {
-    global form
+    global form, temp_chord, start_temp_chord
 
     chord_txt := chord || ChordToStr(temp_chord)
     chord_scs := chord ? StrSplit(chord, "-") : temp_chord
@@ -239,6 +241,9 @@ WriteChord(chord:=false, *) {
             . "Do you want to overwrite it?", "Confirmation", "YesNo Icon?") == "No" {
         return
     }
+
+    UI.Title := "TapDance for Windows"
+    ToggleFreeze(1)
 
     for sc, _ in chord_scs {
         try sc := Integer(sc)
@@ -282,9 +287,13 @@ WriteChord(chord:=false, *) {
     }
 
     if selected_chord !== "" && !equal {
-        DeleteSelectedChord(0, true)
+        DeleteSelectedChord(0, true, true)
     }
-    CancelChordEditing(0, true)
+
+    temp_chord := 0
+    start_temp_chord := 0
+
+    ToggleVisibility(2, UI.chs_back, UI.chs_front)
 
     FillRoots()
     if layer_editing {

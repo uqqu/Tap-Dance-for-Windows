@@ -24,6 +24,10 @@ start_temp_chord := 0
 
 overlay := false
 
+is_drag_mode := false
+init_obj := false
+drag_map := Map()
+
 A_TrayMenu.Click := TrayClick
 A_TrayMenu.Add("tdfw", TrayClick)
 A_TrayMenu.Default := "tdfw"
@@ -78,7 +82,7 @@ ChangePath(len:=-1, discard_md:=true, *) {
     global gui_mod_val, gui_entries
 
     UI["Hidden"].Focus()
-    if temp_chord {
+    if temp_chord || is_updating {
         return
     }
 
@@ -165,6 +169,10 @@ HandleKeyPress(sc) {
         Send("{Alt}")
     }
 
+    if is_drag_mode || is_updating {
+        return
+    }
+
     name := _GetKeyName(sc)
     if name == CONF.gui_back_sc.v && current_path.Length {
         ChangePath(current_path.Length - 1)
@@ -189,30 +197,33 @@ HandleKeyPress(sc) {
     } else if CONF.gui_alt_ignore.v && (sc == 0x038 || sc == 0x138) {
         return
     } else if SubStr(sc, 1, 5) == "Wheel" {
-        ButtonLBM(sc)
+        ButtonLMB(sc)
     } else {
         bnode := _GetFirst(gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val).ubase)
         is_hold := KeyWait(SC_STR[sc],
             (bnode && bnode.custom_lp_time ? "T" . bnode.custom_lp_time / 1000 : CONF.T))
         if WinActive("A") == UI.Hwnd {  ; with postcheck
-            is_hold ? ButtonLBM(sc) : ButtonRBM(sc)
+            is_hold ? ButtonLMB(sc) : ButtonRMB(sc)
         }
     }
 }
 
 
-ButtonLBM(sc, *) {
+ButtonLMB(sc, *) {
     UI["Hidden"].Focus()
-    _Move(sc, 0)
+
+    if !is_updating {
+        _Move(sc, 0)
+    }
 }
 
 
-ButtonRBM(sc, *) {
+ButtonRMB(sc, *) {
     global gui_mod_val
 
     UI["Hidden"].Focus()
 
-    if sc == "WheelUp" || sc == "WheelDown" {  ; TODO
+    if ONLY_BASE_SCS.Has(sc) || is_updating {
         return
     }
 
@@ -458,4 +469,373 @@ UpdateOverlayPos(*) {
         }
     }
     WinActivate("ahk_id " . UI.Hwnd)
+}
+
+
+EnableDragMode(*) {
+    global drag_map, is_drag_mode
+
+    drag_map := Map()
+    is_drag_mode := true
+    for sc in ALL_SCANCODES {
+        drag_map[sc] := sc
+    }
+
+    UI.Title := "Drag mode"
+    ToggleEnabled(0, UI.path, UI.current_values)
+    ToggleVisibility(2, UI.drag_btns)
+}
+
+
+SaveDrag(*) {
+    global drag_map, is_drag_mode
+
+    _ClearEquals(drag_map)
+
+    if !drag_map.Count {
+        _EndDragMode()
+        return
+    }
+
+    if !layer_editing && ActiveLayers.order.Length !== 1 {
+        inp := MsgBox("You're not in single layer editing mode. "
+            . "Do you want to apply the changes to all of them? "
+            . "(press “no” to manually select layers)",
+            "Confirmation", "YesNoCancel Icon?")
+        if inp == "Cancel" {
+            return
+        } else if inp == "No" {
+            layers := ChooseLayers(ActiveLayers.order)
+            if !layers.Length {
+                return
+            }
+        } else {
+            layers := ActiveLayers.order
+        }
+    } else {
+        layers := layer_editing ? [selected_layer] : ActiveLayers.order
+    }
+
+    ToggleEnabled(0, UI.drag_btns)
+    ToggleFreeze(1)
+
+    is_changed := false
+    for layer in layers {
+        is_changed := _ApplyDragsToLayer(layer, drag_map) || is_changed
+    }
+
+    if is_changed {
+        FillRoots()
+        if layer_editing {
+            AllLayers.map[selected_layer] := true
+            _MergeLayer(selected_layer)
+        }
+        UpdLayers()
+        ChangePath(-1, false)
+    }
+
+    _EndDragMode()
+}
+
+
+_ClearEquals(mp) {
+    to_del := []
+    for k in mp {
+        if k == mp[k] {
+            to_del.Push(k)
+        }
+    }
+    for k in to_del {
+        mp.Delete(k)
+    }
+}
+
+
+_ApplyDragsToLayer(layer, mp) {
+    json_root := DeserializeMap(layer)
+
+    if !json_root.Has(gui_lang) {
+        return false
+    }
+
+    if current_path.Length {
+        res := _WalkJson(json_root[gui_lang], current_path, false, true)
+        if !res {
+            return false
+        }
+        scs_map := res[12]
+        chs_map := res[13]
+    } else {
+        scs_map := json_root[gui_lang][2]
+        chs_map := json_root[gui_lang][3]
+    }
+
+    seen := Map()
+    is_changed := false
+    for a_sc, b_sc in mp {
+        if seen.Has(a_sc) {
+            continue
+        }
+
+        a := scs_map.Get(a_sc, Map())
+        b := scs_map.Get(b_sc, Map())
+        a_base := a.Get(gui_mod_val, false)
+        a_hold := a.Get(gui_mod_val + 1, false)
+        b_base := b.Get(gui_mod_val, false)
+        b_hold := b.Get(gui_mod_val + 1, false)
+
+        if !a_base && !a_hold && !b_base && !b_hold {
+            continue
+        }
+
+        is_changed := true
+        seen[b_sc] := true
+
+        if !a.Count {
+            scs_map[a_sc] := Map()
+        }
+        if b_base {
+            scs_map[a_sc][gui_mod_val] := b_base
+        } else {
+            try scs_map[a_sc].Delete(gui_mod_val)
+        }
+        if b_hold {
+            scs_map[a_sc][gui_mod_val+1] := b_hold
+        } else {
+            try scs_map[a_sc].Delete(gui_mod_val+1)
+        }
+
+        if !b.Count {
+            scs_map[b_sc] := Map()
+        }
+        if a_base {
+            scs_map[b_sc][gui_mod_val] := a_base
+        } else {
+            try scs_map[b_sc].Delete(gui_mod_val)
+        }
+        if a_hold {
+            scs_map[b_sc][gui_mod_val+1] := a_hold
+        } else {
+            try scs_map[b_sc].Delete(gui_mod_val+1)
+        }
+    }
+
+    new_chords := Map()
+    for chord_str, mds in chs_map {
+        if !mds.Has(gui_mod_val) {
+            new_chords[chord_str] := _MapUnion(new_chords.Get(chord_str, Map()), mds)
+            continue
+        }
+
+        new_chords[chord_str] := new_chords.Get(chord_str, Map())
+        for md, vals in mds {
+            if md !== gui_mod_val {
+                new_chords[chord_str][md] := vals
+            } else {
+                is_changed := true
+            }
+        }
+
+        new_scs := []
+        for sc in StrSplit(chord_str, "-") {
+            try sc := Integer(sc)
+            new_scs.Push(mp.Has(sc) ? mp[sc] : sc)
+        }
+
+        new_chord_str := ChordToStr(new_scs)
+        new_chords[new_chord_str] := _MapUnion(
+            new_chords.Get(new_chord_str, Map()),
+            Map(gui_mod_val, mds[gui_mod_val])
+        )
+    }
+
+    try {
+        res[13] := new_chords
+    } catch {
+        json_root[gui_lang][3] := new_chords
+    }
+
+    if is_changed {
+        SerializeMap(json_root, layer)
+        return true
+    }
+    return false
+}
+
+
+_MapUnion(a, b) {
+    res := Map()
+
+    for k, v in a {
+        res[k] := v
+    }
+    for k, v in b {
+        res[k] := v
+    }
+
+    return res
+}
+
+
+CancelDrag(*) {
+    _ClearEquals(drag_map)
+
+    if drag_map.Count {
+        if MsgBox("Do you want to undo the changes?", "Confirmation", "YesNo Icon?") == "No" {
+            return
+        } else {
+            ChangePath(-1, false)
+        }
+    }
+
+    _EndDragMode()
+}
+
+
+_EndDragMode() {
+    global drag_map, is_drag_mode
+
+    drag_map := Map()
+    is_drag_mode := false
+    UI.Title := "TapDance for Windows"
+    ToggleVisibility(2, UI.drag_btns)
+    ToggleEnabled(1, UI.drag_btns, UI.current_values, UI.path)
+}
+
+
+StartDragButtons(obj) {
+    global init_obj, curr_obj
+
+    init_obj := obj
+    sc := obj.Name
+    try sc := Integer(sc)
+
+    if SYS_MODIFIERS.Has(sc) {
+        for name, btn in UI.buttons {
+            res := gui_entries.ubase.GetBaseHoldMod(name, gui_mod_val, false, false, false, false)
+            b_node := _GetFirst(res.ubase)
+            h_node := _GetFirst(res.uhold)
+            m_node := _GetFirst(res.umod)
+            btn.Opt(b_node || (h_node && !m_node) ? "+Disabled" : "-Disabled")
+        }
+    } else if ONLY_BASE_SCS.Has(sc) {
+        for name, btn in UI.buttons {
+            res := gui_entries.ubase.GetBaseHoldMod(name, gui_mod_val, false, false, false, false)
+            b_node := _GetFirst(res.ubase)
+            h_node := _GetFirst(res.uhold)
+            m_node := _GetFirst(res.umod)
+            btn.Opt(h_node || m_node ? "+Disabled" : "-Disabled")
+        }
+    } else {
+        res := gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val, false, false, false, false)
+        b_node := _GetFirst(res.ubase)
+        h_node := _GetFirst(res.uhold)
+        m_node := _GetFirst(res.umod)
+
+        if h_node || m_node {
+            for name in ONLY_BASE_SCS {
+                try UI[String(name)].Opt("+Disabled")
+            }
+        } else {
+            for name in ONLY_BASE_SCS {
+                try UI[String(name)].Opt("-Disabled")
+            }
+        }
+        if b_node || (h_node && !m_node) {
+            for name in SYS_MODIFIERS {
+                try UI[String(name)].Opt("+Disabled")
+            }
+        } else {
+            for name in SYS_MODIFIERS {
+                try UI[String(name)].Opt("-Disabled")
+            }
+        }
+    }
+
+    curr_obj := false
+    SetTimer(TrackDrag, 8)
+}
+
+
+TrackDrag() {
+    global curr_obj
+
+    MouseGetPos(,, &win_id, &ctrl_hwnd, 2)
+    if ctrl_hwnd && win_id == UI.Hwnd {
+        obj := GuiCtrlFromHwnd(ctrl_hwnd)
+        is_btn := UI.buttons.Has(obj.Name)
+        try is_btn := UI.buttons.Has(Integer(obj.Name))
+        if is_btn && obj.Enabled && obj !== curr_obj {
+            if curr_obj {  ; return prev moved
+                _SwapButtons(curr_obj, init_obj)
+            }
+            if obj !== init_obj {
+                _SwapButtons(obj, init_obj)
+                curr_obj := obj
+            } else {
+                curr_obj := false
+            }
+        }
+    }
+}
+
+
+_SwapButtons(a, b) {
+    for ind in a.indicators {
+        try ind.Visible := false
+    }
+    for ind in b.indicators {
+        try ind.Visible := false
+    }
+    a.indicators := []
+    b.indicators := []
+    an := a.dragged_sc
+    bn := b.dragged_sc
+    a.dragged_sc := bn
+    b.dragged_sc := an
+    _FillOneButton(a.Name, a, bn)
+    _FillOneButton(b.Name, b, an)
+}
+
+
+StopDragButtons(*) {
+    global init_obj, curr_obj, drag_map
+
+    SetTimer(TrackDrag, 0)
+    if curr_obj {
+        dn := init_obj.dragged_sc
+        mn := curr_obj.dragged_sc
+        t := drag_map[dn]
+        drag_map[dn] := drag_map[mn]
+        drag_map[mn] := t
+        curr_obj := false
+    }
+    init_obj := false
+    for name, btn in UI.buttons {
+        if name !== "CurrMod" {
+            try btn.Opt("-Disabled")
+        }
+    }
+}
+
+
+ToggleFreeze(state:=2) {
+    global is_updating
+    static prev_path_txt:="", prev_title:=""
+
+    if state == 0 || state == 2 && is_updating {
+        is_updating := false
+        try {
+            UI.path[1].Text := prev_path_txt
+            UI.Title := prev_title
+        }
+    } else if !is_updating {
+        is_updating := true
+        try {
+            prev_path_txt := UI.path[1].Text
+            prev_title := UI.Title
+            UI.path[1].Text := "⟳"
+            UI.Title := "⟳ Applying changes…"
+        }
+    }
 }

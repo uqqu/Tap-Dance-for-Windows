@@ -311,7 +311,7 @@ SetGesture(*) {
     global init_drawing, from_prev
 
     from_prev := false
-    form["SetGesture"].Text := "Draw a gesture while holding RBM"
+    form["SetGesture"].Text := "Draw a gesture while holding RMB"
     init_drawing := true
     form["Phase"].Opt("Disabled")
     form["Phase"].Value := 1

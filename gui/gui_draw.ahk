@@ -34,7 +34,13 @@ DrawLayout(init:=false) {
     }
     SendMessage(0x1701, 0, 0xFFFFFF, UI["Langs"].Hwnd)
     UI["Langs"].OnEvent("Change", (*) => ChangeLang(UI["Langs"].Value))
+
     UI.SetFont("Norm s" . Round(8 * CONF.font_scale.v))
+
+    UI.Add("Button", "vBtnEnableDragMode " . Scale(10, CONF.ref_height.v + 2), "🔀")
+    UI.Add("Button", "vBtnCancelDrag xp+1", "Cancel").Visible := false
+    UI.Add("Button", "vBtnSaveDrag x+0", "Save").Visible := false
+    UI.drag_btns := [UI["BtnEnableDragMode"], UI["BtnCancelDrag"], UI["BtnSaveDrag"]]
 
     UI.Add("Text", "vSettings " . Scale(1252, CONF.ref_height.v + 3), "🔧")
     UI["Settings"].OnEvent("Click", ShowSettings)
@@ -48,7 +54,8 @@ DrawLayout(init:=false) {
 
     uncat := [UI["BtnAddNewLayer"], UI["BtnBackToRoot"]]
     for arr in [
-        UI.layer_ctrl_btns, UI.layer_move_btns, UI.chs_back, UI.chs_front, UI.gest_btns, uncat
+        UI.layer_ctrl_btns, UI.layer_move_btns, UI.chs_back, UI.chs_front,
+        UI.gest_btns, UI.drag_btns, uncat
     ] {
         for btn in arr {
             f := SubStr(btn.Name, 4)
@@ -114,10 +121,11 @@ _DrawKeys() {
                     "v" . sc . " x" . x * CONF.gui_scale.v . " y" . y . " w" . w . " h" . h
                     . " +BackgroundSilver +0x8000"
                 )
+                btn.indicators := []
                 UI.buttons[sc] := btn
                 if sc !== "CurrMod" {
-                    btn.OnEvent("Click", ButtonLBM.Bind(sc))
-                    btn.OnEvent("ContextMenu", ButtonRBM.Bind(sc))
+                    btn.OnEvent("Click", ButtonLMB.Bind(sc))
+                    btn.OnEvent("ContextMenu", ButtonRMB.Bind(sc))
                 } else {
                     btn.OnEvent("Click", ChangePath.Bind(-1))
                 }
@@ -237,6 +245,8 @@ _DrawCurrentValues() {
     UI["BtnHoldClear"].OnEvent("Click", ClearCurrentValue.Bind(1))
     UI["BtnBaseClearNest"].OnEvent("Click", ClearNested.Bind(0))
     UI["BtnHoldClearNest"].OnEvent("Click", ClearNested.Bind(1))
+    UI["BtnBase"].indicators := []
+    UI["BtnHold"].indicators := []
 
     ToggleVisibility(0, UI.current_values)
 }
@@ -253,7 +263,7 @@ _DrawHelp() {
     if !CONF.help_texts.v {
         return
     }
-    _AddHelpText("Italic cGray", Scale(9, CONF.ref_height.v + 3),
+    _AddHelpText("Italic cGray", Scale(90, CONF.ref_height.v + 6),
         "Borders (hold behavior):")
     _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
     _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")
@@ -278,7 +288,7 @@ _DrawHelp() {
     )
 
     _AddHelpText("Italic cGray", "x+" . 30 / USER_DPI . " yp0",
-        "LBM – base next map, RBM – hold next map/activate mod."
+        "LMB – base next map, RMB – hold next map/activate mod."
     )
     UI.SetFont("Norm cBlack")
 }
@@ -311,14 +321,15 @@ _CreateOverlay() {
 
 _AddOverlayItem(x, y, colour, txt:="") {
     if !overlay || CONF.overlay_type.v == 1 {
-        return
+        return false
     }
 
     if !txt {
-        overlay.AddText("x" . x . " y" . y . " " . Scale(,, 3, 3) . " Background" . colour)
+        elem := overlay.AddText("x" . x . " y" . y . " " . Scale(,, 3, 3) . " Background" . colour)
     } else {
-        overlay.AddText("x" . x . " y" . y, txt)
+        elem := overlay.AddText("x" . x . " y" . y, txt)
     }
+    return elem
 }
 
 
@@ -330,8 +341,8 @@ _GetKeyName(sc, with_keytype:=false, to_short:=false, from_sc_str:=false) {
         "Browser_Back", "Back", "Browser_Forward", "Forw", "Browser_Refresh", "Refr",
         "Browser_Stop", "Stop", "Browser_Search", "Srch", "Browser_Favorites", "Fav",
         "Browser_Home", "Home", "Launch_Mail", "Mail", "Launch_Media", "Media",
-        "Launch_App1", "App1", "Launch_App2", "App2", "LButton", "LBM", "RButton", "RBM",
-        "MButton", "Wheel`nClick", "XButton1", "XBM1", "XButton2", "XBM2", "WheelLeft", "Wheel`n🡐",
+        "Launch_App1", "App1", "Launch_App2", "App2", "LButton", "LMB", "RButton", "RMB",
+        "MButton", "Wheel`nClick", "XButton1", "XMB1", "XButton2", "XMB2", "WheelLeft", "Wheel`n🡐",
         "WheelDown", "Wheel`n🡓", "WheelUp", "Wheel`n🡑", "WheelRight", "Wheel`n🡒"
     )
     static short_names:=Map(

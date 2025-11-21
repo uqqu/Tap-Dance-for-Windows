@@ -61,7 +61,7 @@ TransitionProcessing(checked_unode, sc:=0) {
     }
     gest_pending := false
 
-    if !checked_unode {  ; NTT
+    if !checked_unode || !checked_unode.fin {  ; NTT
         return
     }
 

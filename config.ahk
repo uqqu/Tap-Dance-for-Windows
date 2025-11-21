@@ -2,6 +2,7 @@ CoordMode "Mouse", "Screen"
 A_HotkeyInterval := 0
 version := 0
 s_gui := false
+is_updating := false
 
 CONF := {Main: [], GUI: [], Gestures: [], GestureDefaults: []}
 
@@ -17,12 +18,15 @@ SYS_MODIFIERS := Map(
     0x15C, ">#"
 )
 
-EXTRA_SCS := Map()
+ONLY_BASE_SCS := Map()
 for name in ["Volume_Mute", "Volume_Down", "Volume_Up", "Media_Next", "Media_Prev", "Media_Stop",
     "Media_Play_Pause", "Browser_Back", "Browser_Forward", "Browser_Refresh", "Browser_Stop",
     "Browser_Search", "Browser_Favorites", "Browser_Home", "Launch_Mail", "Launch_Media",
     "Launch_App1", "Launch_App2"] {
-    EXTRA_SCS[GetKeySC(name)] := true
+    ONLY_BASE_SCS[GetKeySC(name)] := true
+}
+for name in ["WheelLeft", "WheelDown", "WheelUp", "WheelRight"] {
+    ONLY_BASE_SCS[name] := true
 }
 
 TYPES := {}
@@ -159,7 +163,9 @@ CheckConfig() {
     CONF.gui_alt_ignore := ConfValue("GUI", "GuiAltIgnore", "checkbox", "int", 1,
             "Ignore physical &Alt presses on the GUI", 0, 0, [])
     CONF.hide_mouse_warnings := ConfValue("GUI", "HideMouseWarnings", "checkbox", "int", 0,
-            "Hide warnings about disabling drag &behavior for LBM/RBM/MBM", 1, 0, [])
+            "Hide warnings about disabling drag &behavior for LMB/RMB/MMB", 0, 0, [])
+    CONF.empty_border_unassigned := ConfValue("GUI", "EmptyBorderOnUnassigned", "checkbox", "int",
+            1, "Highlight unassigned keys with a simple border", 0, 0, [])
 
     CONF.gest_color_mode := ConfValue("Gestures", "ColorMode", "ddl", "str", "HSV",
             "Color mode:", 0, 0,

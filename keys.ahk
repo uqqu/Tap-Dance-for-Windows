@@ -31,6 +31,10 @@ UpCheck(sc, *) {
         EndDraw()
         return true
     }
+    if init_obj && sc == "LButton" && UI.Hwnd && WinActive("A") == UI.Hwnd {
+        StopDragButtons()
+        return true
+    }
     return current_presses.Has(sc)
 }
 
@@ -59,14 +63,26 @@ GuiCheck(sc, *) {
 
 
 CheckMouse(sc, *) {
+    active := WinActive("A")
     if init_drawing && sc == "RButton" {
         StartDraw()
         return true
-    } else if curr_unode.fin is Integer {
+    } else if is_drag_mode && UI.Hwnd && active == UI.Hwnd && sc == "LButton" {
+        MouseGetPos(,, &win_id, &ctrl_hwnd, 2)
+        if win_id == UI.Hwnd && ctrl_hwnd {
+            obj := GuiCtrlFromHwnd(ctrl_hwnd)
+            is_btn := UI.buttons.Has(obj.Name)
+            try is_btn := UI.buttons.Has(Integer(obj.Name))
+            if is_btn {
+                StartDragButtons(obj)
+                return true
+            }
+        }
+    }
+    if curr_unode.fin is Integer {
         return false
     }
 
-    active := WinActive("A")
     if UI.Hwnd && active == UI.Hwnd || s_gui && s_gui.Hwnd && active == s_gui.Hwnd {
         if gest_overlay && !gest_node {
             DestroyGestOverlay()
