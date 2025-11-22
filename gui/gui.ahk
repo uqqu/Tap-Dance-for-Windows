@@ -26,6 +26,7 @@ overlay := false
 
 is_drag_mode := false
 init_obj := false
+drag_physical := false
 drag_map := Map()
 
 A_TrayMenu.Click := TrayClick
@@ -163,13 +164,38 @@ UpdateKeys() {
 
 
 HandleKeyPress(sc) {
-    global temp_chord
+    global temp_chord, drag_physical
 
     if sc == 0x038 || sc == 0x138 {  ; unfocus hidden menubar
         Send("{Alt}")
     }
 
-    if is_drag_mode || is_updating {
+    if is_updating {
+        return
+    }
+
+    if is_drag_mode {
+        if drag_physical {
+            if UI.buttons[sc].Enabled {
+                _SwapButtons(UI.buttons[sc], UI.buttons[drag_physical])
+                dn := UI.buttons[drag_physical].dragged_sc
+                mn := UI.buttons[sc].dragged_sc
+                t := drag_map[dn]
+                drag_map[dn] := drag_map[mn]
+                drag_map[mn] := t
+                drag_physical := false
+                for name, btn in UI.buttons {
+                    if name !== "CurrMod" {
+                        try btn.Opt("-Disabled")
+                    }
+                }
+            }
+        } else {
+            drag_physical := sc
+            UI.buttons[sc].Opt("BackgroundBlack")
+            UI.buttons[sc].Text .= ""
+            _HideInappropriate(sc)
+        }
         return
     }
 
@@ -472,6 +498,11 @@ UpdateOverlayPos(*) {
 }
 
 
+ShowSaveOptionsMenu(*) {
+    UI.save_options_menu.Show()
+}
+
+
 EnableDragMode(*) {
     global drag_map, is_drag_mode
 
@@ -487,7 +518,7 @@ EnableDragMode(*) {
 }
 
 
-SaveDrag(*) {
+SaveDrag(_, all_mods:=false, all_langs:=false, *) {
     global drag_map, is_drag_mode
 
     _ClearEquals(drag_map)
@@ -521,7 +552,20 @@ SaveDrag(*) {
 
     is_changed := false
     for layer in layers {
-        is_changed := _ApplyDragsToLayer(layer, drag_map) || is_changed
+        json_root := DeserializeMap(layer)
+        is_curr_changed := false
+        if all_langs {
+            for _, root in json_root {
+                is_curr_changed := _ApplyDragsToLayer(root, drag_map, all_mods) || is_curr_changed
+            }
+        } else if json_root.Has(gui_lang) {
+            is_curr_changed := _ApplyDragsToLayer(json_root[gui_lang], drag_map, all_mods)
+                || is_curr_changed
+        }
+        if is_curr_changed {
+            SerializeMap(json_root, layer)
+            is_changed := true
+        }
     }
 
     if is_changed {
@@ -551,34 +595,42 @@ _ClearEquals(mp) {
 }
 
 
-_ApplyDragsToLayer(layer, mp) {
-    json_root := DeserializeMap(layer)
-
-    if !json_root.Has(gui_lang) {
-        return false
-    }
-
+_ApplyDragsToLayer(root, mp, all_mods:=false) {
     if current_path.Length {
-        res := _WalkJson(json_root[gui_lang], current_path, false, true)
+        res := _WalkJson(root, current_path, false, true)
         if !res {
             return false
         }
         scs_map := res[12]
         chs_map := res[13]
     } else {
-        scs_map := json_root[gui_lang][2]
-        chs_map := json_root[gui_lang][3]
+        scs_map := root[2]
+        chs_map := root[3]
     }
 
     seen := Map()
     is_changed := false
+    is_chord_changed := false
+
     for a_sc, b_sc in mp {
         if seen.Has(a_sc) {
             continue
         }
+        seen[b_sc] := true
 
         a := scs_map.Get(a_sc, Map())
         b := scs_map.Get(b_sc, Map())
+
+        if all_mods {
+            if !b.Count && !a.Count {
+                continue
+            }
+            scs_map[a_sc] := b
+            scs_map[b_sc] := a
+            is_changed := true
+            continue
+        }
+
         a_base := a.Get(gui_mod_val, false)
         a_hold := a.Get(gui_mod_val + 1, false)
         b_base := b.Get(gui_mod_val, false)
@@ -589,7 +641,6 @@ _ApplyDragsToLayer(layer, mp) {
         }
 
         is_changed := true
-        seen[b_sc] := true
 
         if !a.Count {
             scs_map[a_sc] := Map()
@@ -622,24 +673,34 @@ _ApplyDragsToLayer(layer, mp) {
 
     new_chords := Map()
     for chord_str, mds in chs_map {
-        if !mds.Has(gui_mod_val) {
+        if !all_mods && !mds.Has(gui_mod_val) {
             new_chords[chord_str] := _MapUnion(new_chords.Get(chord_str, Map()), mds)
             continue
         }
 
         new_chords[chord_str] := new_chords.Get(chord_str, Map())
+        new_scs := []
+        for sc in StrSplit(chord_str, "-") {
+            try sc := Integer(sc)
+            if mp.Has(sc) {
+                is_chord_changed := true
+                new_scs.Push(mp[sc])
+            } else {
+                new_scs.Push(sc)
+            }
+        }
+
+        if all_mods {
+            new_chords[ChordToStr(new_scs)] := mds
+            continue
+        }
+
         for md, vals in mds {
             if md !== gui_mod_val {
                 new_chords[chord_str][md] := vals
             } else {
                 is_changed := true
             }
-        }
-
-        new_scs := []
-        for sc in StrSplit(chord_str, "-") {
-            try sc := Integer(sc)
-            new_scs.Push(mp.Has(sc) ? mp[sc] : sc)
         }
 
         new_chord_str := ChordToStr(new_scs)
@@ -649,14 +710,15 @@ _ApplyDragsToLayer(layer, mp) {
         )
     }
 
-    try {
-        res[13] := new_chords
-    } catch {
-        json_root[gui_lang][3] := new_chords
+    if is_chord_changed {
+        try {
+            res[13] := new_chords
+        } catch {
+            root[3] := new_chords
+        }
     }
 
-    if is_changed {
-        SerializeMap(json_root, layer)
+    if is_changed || is_chord_changed {
         return true
     }
     return false
@@ -709,7 +771,13 @@ StartDragButtons(obj) {
     init_obj := obj
     sc := obj.Name
     try sc := Integer(sc)
+    _HideInappropriate(sc)
+    curr_obj := false
+    SetTimer(TrackDrag, 8)
+}
 
+
+_HideInappropriate(sc) {
     if SYS_MODIFIERS.Has(sc) {
         for name, btn in UI.buttons {
             res := gui_entries.ubase.GetBaseHoldMod(name, gui_mod_val, false, false, false, false)
@@ -751,9 +819,6 @@ StartDragButtons(obj) {
             }
         }
     }
-
-    curr_obj := false
-    SetTimer(TrackDrag, 8)
 }
 
 

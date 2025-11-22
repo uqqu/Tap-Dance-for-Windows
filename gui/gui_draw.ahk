@@ -40,7 +40,34 @@ DrawLayout(init:=false) {
     UI.Add("Button", "vBtnEnableDragMode " . Scale(10, CONF.ref_height.v + 2), "🔀")
     UI.Add("Button", "vBtnCancelDrag xp+1", "Cancel").Visible := false
     UI.Add("Button", "vBtnSaveDrag x+0", "Save").Visible := false
-    UI.drag_btns := [UI["BtnEnableDragMode"], UI["BtnCancelDrag"], UI["BtnSaveDrag"]]
+    UI.Add("Button", "vBtnShowSaveOptionsMenu x+0", "▾").Visible := false
+    UI.drag_btns := [UI["BtnEnableDragMode"], UI["BtnCancelDrag"], UI["BtnSaveDrag"],
+        UI["BtnShowSaveOptionsMenu"]]
+
+    UI.save_options_menu := Menu()
+    UI.save_options_menu.Add("Save for current lang and mod value (default)",
+        SaveDrag.Bind(, false, false))
+    UI.save_options_menu.Add("Save for all langs", SaveDrag.Bind(, false, true))
+    UI.save_options_menu.Add("Save for all modifiers", SaveDrag.Bind(, true, false))
+    UI.save_options_menu.Add("Save for all modifiers and all langs", SaveDrag.Bind(, true, true))
+    UI.save_options_menu.Add()
+    UI.save_options_menu.Add("Help", (*) => (SetTimer(MsgBox.Bind("You are in drag"
+        . " and drop mode.`nTo swap two keys, drag the desired key to the new position with the "
+        . "LMB and these keys will exchange assignments as well as all child elements and their "
+        . "participation in chords.`nYou can also use the keys on your physical keyboard to "
+        . "perform transpositions.`n`nAfter the necessary transpositions have been performed, save"
+        . " the view, or cancel the transpositions and return to the original view.`nBy default, "
+        . "saving is performed only for the current view (in the current language layout and with "
+        . "current value of the modifier/s), but you can choose additional "
+        . "saving options, extending transpositions to hidden values as well. Be careful."
+        . "`n`nUntil you exit drag mode, you cannot move between assignment levels or toggle "
+        . "modifiers. Finish the changes for the current view first."
+        . "`n`n⚠ When dragging, you cannot swap values from keys with inappropriate types, e.g. "
+        . "system modifier keys can only contain custom modifiers on hold, and mouse wheel events "
+        . "and a row of “office” keys can only have tap assignments, without any hold assignments."
+        . "`n`n⚠ The exchange happens exactly for the additional assignments, set in this program."
+        . " The values from your basic keyboard layout (both no custom assignment and assignments "
+        . "with the “Default” type) are kept unchanged.", "Drag&Drop help"), -1)))
 
     UI.Add("Text", "vSettings " . Scale(1252, CONF.ref_height.v + 3), "🔧")
     UI["Settings"].OnEvent("Click", ShowSettings)
@@ -263,7 +290,7 @@ _DrawHelp() {
     if !CONF.help_texts.v {
         return
     }
-    _AddHelpText("Italic cGray", Scale(90, CONF.ref_height.v + 6),
+    _AddHelpText("Italic cGray", Scale(111, CONF.ref_height.v + 6),
         "Borders (hold behavior):")
     _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
     _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")
