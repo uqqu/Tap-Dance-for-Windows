@@ -4,6 +4,9 @@ version := 0
 s_gui := false
 is_updating := false
 
+saved_level := false
+buffer_view := 0
+
 CONF := {Main: [], GUI: [], Gestures: [], GestureDefaults: []}
 
 SYS_MODIFIERS := Map(
@@ -53,11 +56,15 @@ for key in [
 LANGS := OrderedMap()
 LANGS.Add(0, "Layout: global")
 
-CheckConfig()
+first_start := CheckConfig()
 CurrentLayout := GetCurrentLayout()
 ReadLayers()
 FillRoots()
 UpdLayers()
+
+if first_start {
+    SetTimer(ShowSettings, -1000)
+}
 
 
 class ConfValue {
@@ -84,10 +91,6 @@ class ConfValue {
 
 
 CheckConfig() {
-    static scale_defaults:=Map(
-        1366, 1.1, 1920, 1.1, 1440, 1.15, 1536, 1.2, 1600, 1.25, 2560, 1.25, 3840, 1.5
-    )
-
     if !FileExist("config.ini") {
         FileAppend(
             "[Main]`n"
@@ -145,18 +148,18 @@ CheckConfig() {
             "Indicator overlay type:", 0, 0,
             [["Disabled", "Indicators only", "With counters"], false])
     CONF.gui_scale := ConfValue("GUI", "GuiScale", "str", "float",
-            scale_defaults.Get(A_ScreenWidth, 1.0), "Gui scale:", 0, 0, [])
-    CONF.font_scale := ConfValue("GUI", "FontScale", "str", "float", 1,
-            "Font scale:", 0, 0, [])
+            A_ScreenWidth * 0.8 / 1294, "Gui scale:", 0, 0, [])
+    CONF.font_scale := ConfValue("GUI", "FontScale", "str", "float",
+            CONF.gui_scale.v / 2 + 0.5, "Font scale:", 0, 0, [])
     CONF.font_name := ConfValue("GUI", "FontName", "str", "str", "Segoe UI",
             "Font name:", 0, 0, [])
     CONF.ref_height := ConfValue("GUI", "ReferenceHeight", "str", "int", 314,
             "Reference height:", 0, 1, [])
-    CONF.gui_back_sc := ConfValue("GUI", "GuiBackEdit", "str", "str", 74,
+    CONF.gui_back_sc := ConfValue("GUI", "GuiBackEdit", "str", "str", "nSub",
             "'Back' action GUI hotkey:", 0, 0, [])
-    CONF.gui_set_sc := ConfValue("GUI", "GuiSetEdit", "str", "str", 78,
+    CONF.gui_set_sc := ConfValue("GUI", "GuiSetEdit", "str", "str", "nAdd",
             "…'Set tap' action:", 0, 0, [])
-    CONF.gui_set_hold_sc := ConfValue("GUI", "GuiSetHoldEdit", "str", "str", 284,
+    CONF.gui_set_hold_sc := ConfValue("GUI", "GuiSetHoldEdit", "str", "str", "nEnter",
             "…'Set hold' action:", 0, 0, [])
     CONF.help_texts := ConfValue("GUI", "HelpTexts", "checkbox", "int", 0,
             "Show &help texts", 0, 0, [])
@@ -223,7 +226,7 @@ CheckConfig() {
     if !IniRead("config.ini", "Main", "UserLayouts", "") {
         TrackLayouts()
         WinWaitClose(layout_gui.Hwnd)
-        return
+        return true
     }
 
     for lang in StrSplit(IniRead("config.ini", "Main", "UserLayouts"), ",") {

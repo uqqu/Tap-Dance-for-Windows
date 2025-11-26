@@ -1,5 +1,5 @@
 LVLayerClick(lv, row) {
-    global selected_layer, selected_layer_priority
+    global selected_layer, last_selected_layer, selected_layer_priority
 
     ToggleEnabled(0, UI.chs_toggles, UI.gest_toggles)
     if layer_editing {
@@ -8,7 +8,7 @@ LVLayerClick(lv, row) {
 
     selected_layer_priority := 0
     if row {
-        selected_layer := lv.GetText(row, 3)
+        last_selected_layer := lv.GetText(row, 3)
         ToggleEnabled(1, UI.layer_ctrl_btns)
         if lv.GetText(row, 2) {
             selected_layer_priority := lv.GetText(row, 2)
@@ -17,21 +17,26 @@ LVLayerClick(lv, row) {
             ToggleEnabled(0, UI.layer_move_btns)
         }
     } else {
-        selected_layer := ""
+        last_selected_layer := ""
         ToggleEnabled(0, UI.layer_move_btns, UI.layer_ctrl_btns)
     }
 }
 
 
 LVLayerDoubleClick(lv, row, from_selected:=false) {
-    global layer_editing, root_text, selected_layer
+    global layer_editing, root_text, selected_layer, last_selected_layer, buffer_view
 
     if !row || temp_chord {
         return
     }
 
+    if buffer_view {
+        buffer_view := 0
+    }
+
     layer_editing := true
     if !from_selected {
+        last_selected_layer := lv.GetText(row, 3)
         selected_layer := lv.GetText(row, 3)
     }
     root_text := selected_layer
@@ -105,7 +110,8 @@ ViewSelectedLayer(*) {
 
 
 RenameSelectedLayer(*) {
-    inp := InputBox("", "Renaming layer '" . selected_layer . "'", "w250 h100", selected_layer)
+    inp := InputBox("",
+        "Renaming layer '" . last_selected_layer . "'", "w250 h100", last_selected_layer)
     if inp.Result == "Cancel" {
         return
     }
@@ -117,11 +123,11 @@ RenameSelectedLayer(*) {
         RenameSelectedLayer()
         return
     }
-    FileMove("layers/" . selected_layer . ".json", new_filepath, true)
-    if ActiveLayers.Has(selected_layer) {
-        p := ActiveLayers[selected_layer]
+    FileMove("layers/" . last_selected_layer . ".json", new_filepath, true)
+    if ActiveLayers.Has(last_selected_layer) {
+        p := ActiveLayers[last_selected_layer]
         ActiveLayers.Add(inp.Value, , p)
-        ActiveLayers.Remove(selected_layer)
+        ActiveLayers.Remove(last_selected_layer)
 		_WriteActiveLayersToConfig()
     }
     ReadLayers()
@@ -132,23 +138,23 @@ RenameSelectedLayer(*) {
 
 
 DeleteSelectedLayer(*) {
-    global selected_layer_priority, selected_layer
+    global selected_layer_priority, last_selected_layer
 
     if MsgBox("Do you really want to delete that layer?", "Confirmation", "YesNo Icon?") == "No" {
         return
     }
 
-    FileDelete("layers/" . selected_layer . ".json")
-    AllLayers.Remove(selected_layer)
+    FileDelete("layers/" . last_selected_layer . ".json")
+    AllLayers.Remove(last_selected_layer)
     if selected_layer_priority {
-        ActiveLayers.Remove(selected_layer)
+        ActiveLayers.Remove(last_selected_layer)
         _WriteActiveLayersToConfig()
         selected_layer_priority := 0
     }
     if !AllLayers.Length {
         AddNewLayer()
     }
-    selected_layer := ""
+    last_selected_layer := ""
     UpdateKeys()
 }
 
@@ -223,9 +229,13 @@ ChooseLayers(layers) {
 
 
 BackToRoot(*) {
-    global layer_editing, root_text
+    global layer_editing, selected_layer, root_text, buffer_view
 
+    if buffer_view {
+        buffer_view := 0
+    }
     layer_editing := false
+    selected_layer := ""
     root_text := "root"
     uncat := [UI["BtnBackToRoot"], UI["BtnAddNewLayer"]]
     ToggleVisibility(2, UI.layer_move_btns, UI.layer_ctrl_btns, uncat)

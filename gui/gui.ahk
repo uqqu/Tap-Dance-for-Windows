@@ -4,6 +4,7 @@
 #Include "gui_gestures.ahk"
 #Include "gui_chords.ahk"
 #Include "gui_forms.ahk"
+#Include "gui_transitions.ahk"
 
 
 current_path := []
@@ -12,6 +13,7 @@ selected_gesture := ""
 root_text := "root"
 
 selected_layer := ""
+last_selected_layer := ""
 selected_layer_priority := 0
 layer_editing := 0
 
@@ -24,11 +26,6 @@ start_temp_chord := 0
 
 overlay := false
 
-is_drag_mode := false
-init_obj := false
-drag_physical := false
-drag_map := Map()
-
 A_TrayMenu.Click := TrayClick
 A_TrayMenu.Add("tdfw", TrayClick)
 A_TrayMenu.Default := "tdfw"
@@ -40,6 +37,9 @@ DrawLayout(true)
 _GetFirst(node, certain_layer:="") {
     if !node {
         return false
+    }
+    if buffer_view && node.layers.map.Has("buffer") && node.layers["buffer"][0] {
+        return node.layers["buffer"][0]
     }
     if layer_editing || certain_layer {
         layer := certain_layer || selected_layer
@@ -66,12 +66,13 @@ _GetFirst(node, certain_layer:="") {
 
 
 OneNodeDeeper(schex, md:=-1, is_chord:=false, is_gesture:=false) {
-    global current_path, gui_entries, gui_mod_val
+    global gui_entries, gui_mod_val
 
     if md == -1 {
         md := gui_mod_val
     }
-    current_path.Push([schex, md, is_chord, is_gesture])
+    path := buffer_view ? buffer_path : current_path
+    path.Push([schex, md, is_chord, is_gesture])
     gui_mod_val := 0
     gui_entries := gui_entries.ubase.GetBaseHoldMod(schex, md, is_chord, is_gesture)
     CloseForm()
@@ -87,8 +88,10 @@ ChangePath(len:=-1, discard_md:=true, *) {
         return
     }
 
+    path := buffer_view ? buffer_path : current_path
+
     if len == -1 {
-        len := current_path.Length
+        len := path.Length
     } else {
         CloseForm()
     }
@@ -96,12 +99,17 @@ ChangePath(len:=-1, discard_md:=true, *) {
     ToggleVisibility(0, UI.path)
     UI.path := []
 
-    gui_entries := {ubase: ROOTS[gui_lang], uhold: false, umod: false}
-    gui_mod_val := len < current_path.Length ? current_path[len + 1][2] & ~1
+    gui_entries := {
+        ubase: ROOTS[buffer_view ? (buffer_view == 1 ? "buffer" : "buffer_h") : gui_lang],
+        uhold: (buffer_view == 1 ? ROOTS["buffer_h"] : false),
+        umod: false
+    }
+    gui_mod_val := len < path.Length ? path[len + 1][2] & ~1
         : discard_md ? 0 : gui_mod_val
-    current_path.Length := len
 
-    for arr in current_path {
+    path.Length := len
+
+    for arr in path {
         gui_entries := gui_entries.ubase.GetBaseHoldMod(arr*)
     }
 
@@ -134,16 +142,15 @@ UpdateKeys() {
         }
     }
 
-    ToggleEnabled(1, UI.layer_ctrl_btns, UI.layer_move_btns)
-    ToggleEnabled(0, UI.layer_ctrl_btns, UI.chs_toggles, UI.gest_toggles)
-
     _CreateOverlay()
     _FillPathline()
     _FillSetButtons()
+    UI.SetFont("Norm")
     _FillKeyboard()
     _FillLayers()
     _FillGestures()
     _FillChords()
+    _FillOther()
 
     if gui_mod_val && UI.path[-1].Text != "²" {
         txt := ""
@@ -200,8 +207,9 @@ HandleKeyPress(sc) {
     }
 
     name := _GetKeyName(sc)
-    if name == CONF.gui_back_sc.v && current_path.Length {
-        ChangePath(current_path.Length - 1)
+    path := buffer_view ? buffer_path : current_path
+    if name == CONF.gui_back_sc.v && path.Length {
+        ChangePath(path.Length - 1)
     } else if name == CONF.gui_set_sc.v && UI["BtnBase"].Enabled && UI["BtnBase"].Visible {
         OpenForm(0)
     } else if name == CONF.gui_set_hold_sc.v && UI["BtnHold"].Enabled && UI["BtnHold"].Visible {
@@ -281,10 +289,10 @@ _Move(sc, is_hold) {
         return
     }
     if SYS_MODIFIERS.Has(sc) {
-        _current_path := current_path.Clone()
-        _current_path.Push([sc, 0, 0, 0])
+        path := (buffer_view ? buffer_path : current_path).Clone()
+        path.Push([sc, 0, 0, 0])
         _gui_entries := gui_entries.ubase.GetBaseHoldMod(sc, 0, 0, 0)
-        OpenForm(1, _current_path, 0, _gui_entries)
+        OpenForm(1, path, 0, _gui_entries)
         return
     }
     OneNodeDeeper(sc, gui_mod_val + is_hold)
@@ -495,412 +503,4 @@ UpdateOverlayPos(*) {
         }
     }
     WinActivate("ahk_id " . UI.Hwnd)
-}
-
-
-ShowSaveOptionsMenu(*) {
-    UI.save_options_menu.Show()
-}
-
-
-EnableDragMode(*) {
-    global drag_map, is_drag_mode
-
-    drag_map := Map()
-    is_drag_mode := true
-    for sc in ALL_SCANCODES {
-        drag_map[sc] := sc
-    }
-
-    UI.Title := "Drag mode"
-    ToggleEnabled(0, UI.path, UI.current_values)
-    ToggleVisibility(2, UI.drag_btns)
-}
-
-
-SaveDrag(_, all_mods:=false, all_langs:=false, *) {
-    global drag_map, is_drag_mode
-
-    _ClearEquals(drag_map)
-
-    if !drag_map.Count {
-        _EndDragMode()
-        return
-    }
-
-    if !layer_editing && ActiveLayers.order.Length !== 1 {
-        inp := MsgBox("You're not in single layer editing mode. "
-            . "Do you want to apply the changes to all of them? "
-            . "(press “no” to manually select layers)",
-            "Confirmation", "YesNoCancel Icon?")
-        if inp == "Cancel" {
-            return
-        } else if inp == "No" {
-            layers := ChooseLayers(ActiveLayers.order)
-            if !layers.Length {
-                return
-            }
-        } else {
-            layers := ActiveLayers.order
-        }
-    } else {
-        layers := layer_editing ? [selected_layer] : ActiveLayers.order
-    }
-
-    ToggleEnabled(0, UI.drag_btns)
-    ToggleFreeze(1)
-
-    is_changed := false
-    for layer in layers {
-        json_root := DeserializeMap(layer)
-        is_curr_changed := false
-        if all_langs {
-            for _, root in json_root {
-                is_curr_changed := _ApplyDragsToLayer(root, drag_map, all_mods) || is_curr_changed
-            }
-        } else if json_root.Has(gui_lang) {
-            is_curr_changed := _ApplyDragsToLayer(json_root[gui_lang], drag_map, all_mods)
-                || is_curr_changed
-        }
-        if is_curr_changed {
-            SerializeMap(json_root, layer)
-            is_changed := true
-        }
-    }
-
-    if is_changed {
-        FillRoots()
-        if layer_editing {
-            AllLayers.map[selected_layer] := true
-            _MergeLayer(selected_layer)
-        }
-        UpdLayers()
-        ChangePath(-1, false)
-    }
-
-    _EndDragMode()
-}
-
-
-_ClearEquals(mp) {
-    to_del := []
-    for k in mp {
-        if k == mp[k] {
-            to_del.Push(k)
-        }
-    }
-    for k in to_del {
-        mp.Delete(k)
-    }
-}
-
-
-_ApplyDragsToLayer(root, mp, all_mods:=false) {
-    if current_path.Length {
-        res := _WalkJson(root, current_path, false, true)
-        if !res {
-            return false
-        }
-        scs_map := res[12]
-        chs_map := res[13]
-    } else {
-        scs_map := root[2]
-        chs_map := root[3]
-    }
-
-    seen := Map()
-    is_changed := false
-    is_chord_changed := false
-
-    for a_sc, b_sc in mp {
-        if seen.Has(a_sc) {
-            continue
-        }
-        seen[b_sc] := true
-
-        a := scs_map.Get(a_sc, Map())
-        b := scs_map.Get(b_sc, Map())
-
-        if all_mods {
-            if !b.Count && !a.Count {
-                continue
-            }
-            scs_map[a_sc] := b
-            scs_map[b_sc] := a
-            is_changed := true
-            continue
-        }
-
-        a_base := a.Get(gui_mod_val, false)
-        a_hold := a.Get(gui_mod_val + 1, false)
-        b_base := b.Get(gui_mod_val, false)
-        b_hold := b.Get(gui_mod_val + 1, false)
-
-        if !a_base && !a_hold && !b_base && !b_hold {
-            continue
-        }
-
-        is_changed := true
-
-        if !a.Count {
-            scs_map[a_sc] := Map()
-        }
-        if b_base {
-            scs_map[a_sc][gui_mod_val] := b_base
-        } else {
-            try scs_map[a_sc].Delete(gui_mod_val)
-        }
-        if b_hold {
-            scs_map[a_sc][gui_mod_val+1] := b_hold
-        } else {
-            try scs_map[a_sc].Delete(gui_mod_val+1)
-        }
-
-        if !b.Count {
-            scs_map[b_sc] := Map()
-        }
-        if a_base {
-            scs_map[b_sc][gui_mod_val] := a_base
-        } else {
-            try scs_map[b_sc].Delete(gui_mod_val)
-        }
-        if a_hold {
-            scs_map[b_sc][gui_mod_val+1] := a_hold
-        } else {
-            try scs_map[b_sc].Delete(gui_mod_val+1)
-        }
-    }
-
-    new_chords := Map()
-    for chord_str, mds in chs_map {
-        if !all_mods && !mds.Has(gui_mod_val) {
-            new_chords[chord_str] := _MapUnion(new_chords.Get(chord_str, Map()), mds)
-            continue
-        }
-
-        new_chords[chord_str] := new_chords.Get(chord_str, Map())
-        new_scs := []
-        for sc in StrSplit(chord_str, "-") {
-            try sc := Integer(sc)
-            if mp.Has(sc) {
-                is_chord_changed := true
-                new_scs.Push(mp[sc])
-            } else {
-                new_scs.Push(sc)
-            }
-        }
-
-        if all_mods {
-            new_chords[ChordToStr(new_scs)] := mds
-            continue
-        }
-
-        for md, vals in mds {
-            if md !== gui_mod_val {
-                new_chords[chord_str][md] := vals
-            } else {
-                is_changed := true
-            }
-        }
-
-        new_chord_str := ChordToStr(new_scs)
-        new_chords[new_chord_str] := _MapUnion(
-            new_chords.Get(new_chord_str, Map()),
-            Map(gui_mod_val, mds[gui_mod_val])
-        )
-    }
-
-    if is_chord_changed {
-        try {
-            res[13] := new_chords
-        } catch {
-            root[3] := new_chords
-        }
-    }
-
-    if is_changed || is_chord_changed {
-        return true
-    }
-    return false
-}
-
-
-_MapUnion(a, b) {
-    res := Map()
-
-    for k, v in a {
-        res[k] := v
-    }
-    for k, v in b {
-        res[k] := v
-    }
-
-    return res
-}
-
-
-CancelDrag(*) {
-    _ClearEquals(drag_map)
-
-    if drag_map.Count {
-        if MsgBox("Do you want to undo the changes?", "Confirmation", "YesNo Icon?") == "No" {
-            return
-        } else {
-            ChangePath(-1, false)
-        }
-    }
-
-    _EndDragMode()
-}
-
-
-_EndDragMode() {
-    global drag_map, is_drag_mode
-
-    drag_map := Map()
-    is_drag_mode := false
-    UI.Title := "TapDance for Windows"
-    ToggleVisibility(2, UI.drag_btns)
-    ToggleEnabled(1, UI.drag_btns, UI.current_values, UI.path)
-}
-
-
-StartDragButtons(obj) {
-    global init_obj, curr_obj
-
-    init_obj := obj
-    sc := obj.Name
-    try sc := Integer(sc)
-    _HideInappropriate(sc)
-    curr_obj := false
-    SetTimer(TrackDrag, 8)
-}
-
-
-_HideInappropriate(sc) {
-    if SYS_MODIFIERS.Has(sc) {
-        for name, btn in UI.buttons {
-            res := gui_entries.ubase.GetBaseHoldMod(name, gui_mod_val, false, false, false, false)
-            b_node := _GetFirst(res.ubase)
-            h_node := _GetFirst(res.uhold)
-            m_node := _GetFirst(res.umod)
-            btn.Opt(b_node || (h_node && !m_node) ? "+Disabled" : "-Disabled")
-        }
-    } else if ONLY_BASE_SCS.Has(sc) {
-        for name, btn in UI.buttons {
-            res := gui_entries.ubase.GetBaseHoldMod(name, gui_mod_val, false, false, false, false)
-            b_node := _GetFirst(res.ubase)
-            h_node := _GetFirst(res.uhold)
-            m_node := _GetFirst(res.umod)
-            btn.Opt(h_node || m_node ? "+Disabled" : "-Disabled")
-        }
-    } else {
-        res := gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val, false, false, false, false)
-        b_node := _GetFirst(res.ubase)
-        h_node := _GetFirst(res.uhold)
-        m_node := _GetFirst(res.umod)
-
-        if h_node || m_node {
-            for name in ONLY_BASE_SCS {
-                try UI[String(name)].Opt("+Disabled")
-            }
-        } else {
-            for name in ONLY_BASE_SCS {
-                try UI[String(name)].Opt("-Disabled")
-            }
-        }
-        if b_node || (h_node && !m_node) {
-            for name in SYS_MODIFIERS {
-                try UI[String(name)].Opt("+Disabled")
-            }
-        } else {
-            for name in SYS_MODIFIERS {
-                try UI[String(name)].Opt("-Disabled")
-            }
-        }
-    }
-}
-
-
-TrackDrag() {
-    global curr_obj
-
-    MouseGetPos(,, &win_id, &ctrl_hwnd, 2)
-    if ctrl_hwnd && win_id == UI.Hwnd {
-        obj := GuiCtrlFromHwnd(ctrl_hwnd)
-        is_btn := UI.buttons.Has(obj.Name)
-        try is_btn := UI.buttons.Has(Integer(obj.Name))
-        if is_btn && obj.Enabled && obj !== curr_obj {
-            if curr_obj {  ; return prev moved
-                _SwapButtons(curr_obj, init_obj)
-            }
-            if obj !== init_obj {
-                _SwapButtons(obj, init_obj)
-                curr_obj := obj
-            } else {
-                curr_obj := false
-            }
-        }
-    }
-}
-
-
-_SwapButtons(a, b) {
-    for ind in a.indicators {
-        try ind.Visible := false
-    }
-    for ind in b.indicators {
-        try ind.Visible := false
-    }
-    a.indicators := []
-    b.indicators := []
-    an := a.dragged_sc
-    bn := b.dragged_sc
-    a.dragged_sc := bn
-    b.dragged_sc := an
-    _FillOneButton(a.Name, a, bn)
-    _FillOneButton(b.Name, b, an)
-}
-
-
-StopDragButtons(*) {
-    global init_obj, curr_obj, drag_map
-
-    SetTimer(TrackDrag, 0)
-    if curr_obj {
-        dn := init_obj.dragged_sc
-        mn := curr_obj.dragged_sc
-        t := drag_map[dn]
-        drag_map[dn] := drag_map[mn]
-        drag_map[mn] := t
-        curr_obj := false
-    }
-    init_obj := false
-    for name, btn in UI.buttons {
-        if name !== "CurrMod" {
-            try btn.Opt("-Disabled")
-        }
-    }
-}
-
-
-ToggleFreeze(state:=2) {
-    global is_updating
-    static prev_path_txt:="", prev_title:=""
-
-    if state == 0 || state == 2 && is_updating {
-        is_updating := false
-        try {
-            UI.path[1].Text := prev_path_txt
-            UI.Title := prev_title
-        }
-    } else if !is_updating {
-        is_updating := true
-        try {
-            prev_path_txt := UI.path[1].Text
-            prev_title := UI.Title
-            UI.path[1].Text := "⟳"
-            UI.Title := "⟳ Applying changes…"
-        }
-    }
 }

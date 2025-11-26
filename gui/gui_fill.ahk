@@ -7,14 +7,13 @@
     root.OnEvent("Click", ChangePath.Bind(0))
     UI.SetFont("Norm")
 
-    if !current_path.Length {
-        ToggleVisibility(0, UI.current_values)
+    path := buffer_view ? buffer_path : current_path
+
+    if !path.Length {
         return
     }
 
-    ToggleVisibility(1, UI.current_values)
-
-    for i, val in current_path {
+    for i, val in path {
         dir_text := UI.Add("Text", "x+3 yp" . (6 * CONF.gui_scale.v),
             (val[2] > 1 ? val[2] : "")
             . (val[4] ? "•" : val[3] ? "▼" : ["➤", "▲"][(val[2] & 1) + 1])
@@ -25,60 +24,91 @@
             . (6 * CONF.gui_scale.v), val[3] || val[4] || _GetKeyName(val[1], true, true)))
         UI.path[-1].OnEvent("Click", ChangePath.Bind(i))
     }
-
-    ToggleEnabled(!SYS_MODIFIERS.Has(current_path[-1][1]),
-        UI["BtnBase"], UI["BtnBaseClear"], UI["BtnBaseClearNest"])
-    ToggleEnabled(current_path[-1][3] == false && current_path[-1][4] == false,
-        UI["BtnHold"], UI["BtnHoldClear"], UI["BtnHoldClearNest"])
 }
 
 
 _FillSetButtons() {
-    if !current_path.Length {
+    UI["SwapBufferView"].Visible := false
+    if !current_path.Length && !buffer_view {
+        ToggleVisibility(0, UI.current_values)
         return
     }
-    for arr in [["Base", gui_entries.ubase], ["Hold", gui_entries.uhold]] {
-        txt := arr[1]
-        curr_node := _GetFirst(arr[2])
-        UI["Text" . txt].Text := txt
-        UI["Btn" . txt].Text := ""
-        if txt == "Hold" && current_path.Length && ONLY_BASE_SCS.Has(current_path[-1][1]) {
-            UI["Btn" . txt].Opt("+Disabled")
-            UI["Btn" . txt . "Clear"].Opt("+Disabled")
-            UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
-            continue
-        }
-        if !curr_node {
-            UI["Btn" . txt . "Clear"].Opt("+Disabled")
-            UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
-            continue
-        }
-        _AddIndicators(arr[2], UI["Btn" . txt])
-        if !arr[2].scancodes.Count && !arr[2].chords.Count && !arr[2].gestures.Count {
-            UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
-        }
 
-        UI["Text" . txt].Text .= " ("
-            . ["-", "D", "T", "S", "F", "M", "C"][curr_node.down_type]
-            . ")"
-        switch curr_node.down_type {
-            case TYPES.Default:
-                UI["Btn" . txt].Text := _GetKeyName(current_path[-1][1], true, true)
-            case TYPES.Text:
-                UI["Btn" . txt].Text := _CheckDiacr(curr_node.down_val)
-            case TYPES.Function:
-                UI["Btn" . txt].Text := curr_node.down_val
-            case TYPES.KeySimulation:
-                UI["Btn" . txt].Text := _GetKeyName(false, false, true, curr_node.down_val)
-            case TYPES.Modifier:
-                UI["Btn" . txt].Text := "Mod " . curr_node.down_val
-            case TYPES.Chord:
-                UI["Btn" . txt].Text := "Chord"
+
+    if buffer_view {
+        ToggleVisibility(0, UI.current_values)
+        ToggleEnabled(0, UI["BtnBase"], UI["BtnHold"])
+        if buffer_path.Length {
+            ToggleVisibility(1, UI["TextBase"], UI["BtnBase"], UI["TextHold"], UI["BtnHold"])
+        } else if saved_level[1] == 1 {
+            ToggleVisibility(1, UI["TextBase"], UI["BtnBase"])
+        } else if saved_level[1] == 2 {
+            ToggleVisibility(1, UI["TextBase"], UI["BtnBase"], UI["TextHold"], UI["BtnHold"])
+        }
+        if saved_level[1] == 2 {
+            UI["SwapBufferView"].Visible := true
+        }
+    } else {
+        ToggleVisibility(1, UI.current_values)
+        ToggleEnabled(!SYS_MODIFIERS.Has(current_path[-1][1]),
+            UI["BtnBase"], UI["BtnBaseClear"], UI["BtnBaseClearNest"])
+        ToggleEnabled(current_path[-1][3] == false && current_path[-1][4] == false,
+            UI["BtnHold"], UI["BtnHoldClear"], UI["BtnHoldClearNest"])
+    }
+
+    path := (buffer_view ? buffer_path : current_path).Clone()
+    hnode := _GetFirst(gui_entries.uhold)
+    ignore_hold_count := buffer_view && !path.Length && hnode && hnode.down_type == TYPES.Modifier
+
+    if !buffer_view || saved_level[1] || path.Length {
+        for arr in [["Base", gui_entries.ubase], ["Hold", gui_entries.uhold]] {
+            txt := arr[1]
+            curr_node := _GetFirst(arr[2])
+            UI["Text" . txt].Text := txt
+            UI["Btn" . txt].Text := ""
+            if txt == "Hold" && path.Length && ONLY_BASE_SCS.Has(path[-1][1]) {
                 UI["Btn" . txt].Opt("+Disabled")
                 UI["Btn" . txt . "Clear"].Opt("+Disabled")
-        }
-        if curr_node.gui_shortname {
-            UI["Btn" . txt].Text := curr_node.gui_shortname
+                UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
+                continue
+            }
+            if !curr_node {
+                UI["Btn" . txt . "Clear"].Opt("+Disabled")
+                UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
+                continue
+            } else if !curr_node.down_type {
+                UI["Text" . txt].Visible := false
+                UI["Btn" . txt].Visible := false
+                continue
+            }
+            _AddIndicators(arr[2], UI["Btn" . txt], false, ignore_hold_count)
+            if !arr[2].scancodes.Count && !arr[2].chords.Count && !arr[2].gestures.Count {
+                UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
+            }
+
+            UI["Text" . txt].Text .= " ("
+                . ["-", "D", "T", "S", "F", "M", "C"][curr_node.down_type]
+                . ")"
+            switch curr_node.down_type {
+                case TYPES.Default:
+                    UI["Btn" . txt].Text := "{Default}"
+                    try UI["Btn" . txt].Text := _GetKeyName(path[-1][1], true, true)
+                case TYPES.Text:
+                    UI["Btn" . txt].Text := _CheckDiacr(curr_node.down_val)
+                case TYPES.Function:
+                    UI["Btn" . txt].Text := curr_node.down_val
+                case TYPES.KeySimulation:
+                    UI["Btn" . txt].Text := _GetKeyName(false, false, true, curr_node.down_val)
+                case TYPES.Modifier:
+                    UI["Btn" . txt].Text := "Mod " . curr_node.down_val
+                case TYPES.Chord:
+                    UI["Btn" . txt].Text := "Chord"
+                    UI["Btn" . txt].Opt("+Disabled")
+                    UI["Btn" . txt . "Clear"].Opt("+Disabled")
+            }
+            if curr_node.gui_shortname {
+                UI["Btn" . txt].Text := curr_node.gui_shortname
+            }
         }
     }
     UI.SetFont("Norm")
@@ -182,7 +212,7 @@ _FillOneButton(sc, btn, d_sc) {
 }
 
 
-_AddIndicators(unode, btn, is_hold:=false) {
+_AddIndicators(unode, btn, is_hold:=false, ignore_hold_count:=false) {
     if CONF.overlay_type.v == 1 {
         return
     }
@@ -194,7 +224,7 @@ _AddIndicators(unode, btn, is_hold:=false) {
     p := Integer(3 * CONF.gui_scale.v)
     node := _GetFirst(unode)
     if node.down_type == TYPES.Modifier {
-        cnt := _CountChild("", 0, gui_mod_val + (1 << node.down_val),
+        cnt := ignore_hold_count ? 0 : _CountChild("", 0, gui_mod_val + (1 << node.down_val),
             gui_entries.ubase.scancodes, gui_entries.ubase.chords, gui_entries.ubase.gestures)
     } else {
         cnt := _CountChild("", 0, 0, unode.scancodes, unode.chords, unode.gestures)
@@ -233,7 +263,9 @@ _FillLayers() {
         for layer in AllLayers.map {
             temp_all_layers[layer] := false
         }
-        temp_all_layers[selected_layer] := "*"
+        if !buffer_view {
+            temp_all_layers[selected_layer] := "*"
+        }
     } else {
         for layer in AllLayers.map {
             temp_all_layers[layer] := ActiveLayers[layer]
@@ -246,7 +278,7 @@ _FillLayers() {
             continue
         }
         cnt := [0, 0]
-        if !current_path.Length {
+        if buffer_view || !current_path.Length {
             for lang, val in AllLayers.map[name] {
                 cnt[2 - (lang == gui_lang)] += val
             }
@@ -303,15 +335,15 @@ _FillLayers() {
 }
 
 
-_CountChild(layer, levels, mod_val, arrs*) {
+_CountChild(layer, levels, mod_val, scs, chs, gsts) {
     cnt := 0
-    if !layer && layer_editing {
+    if !layer && layer_editing && !buffer_view {
         layer := selected_layer
     }
-    for scs in arrs {
+    for scs in [scs, chs, gsts] {
         for sc, mods in scs {
             for md, unode in mods {
-                if mod_val && mod_val !== md {
+                if mod_val && mod_val !== (md & ~1) {
                     continue
                 }
                 if layer && unode.layers.Has(layer) && _IsCounted(unode.layers[layer][0]) {
@@ -319,16 +351,15 @@ _CountChild(layer, levels, mod_val, arrs*) {
                 }
                 if !layer {
                     for nlayer in unode.layers.map {
-                        if ActiveLayers.Has(nlayer) && _IsCounted(unode.layers[nlayer][0]) {
+                        if buffer_view || ActiveLayers.Has(nlayer)
+                            && _IsCounted(unode.layers[nlayer][0]) {
                             cnt += 1
                             break
                         }
                     }
                 }
                 if levels {
-                    cnt += _CountChild(
-                        layer, levels-1, mod_val, unode.scancodes, unode.chords, unode.gestures
-                    )
+                    cnt += _CountChild(layer, levels-1, mod_val, scs, chs, gsts)
                 }
             }
         }
@@ -353,7 +384,18 @@ _FillGestures() {
         }
         for sc, mods in gui_entries.ubase.active_scancodes {
             for md, node in mods {
-                cnt := node.active_gestures.Count
+                if selected_layer {
+                    cnt := 0
+                    for _, g_mods in node.active_gestures {
+                        for _, g_node in g_mods {
+                            if g_node.layers.Has(selected_layer) {
+                                cnt += 1
+                            }
+                        }
+                    }
+                } else {
+                    cnt := node.active_gestures.Count
+                }
                 if cnt {
                     UI["LV_gestures"].Add(
                         "",
@@ -448,7 +490,7 @@ _FillChords() {
 
         layer_text := ""
         for layer in checked_layers {
-            if _EqualNodes(child_node, _GetFirst(ubase, layer)) {
+            if !buffer_view && _EqualNodes(child_node, _GetFirst(ubase, layer)) {
                 layer_text .= " & " . layer
             }
         }
@@ -483,6 +525,26 @@ _FillChords() {
         )
     }
     UI["LV_chords"].ModifyCol(1, "Sort")
+}
+
+
+_FillOther() {
+    if !current_path.Length {
+        UI.copy_options_menu.Disable("3&")
+    }
+
+    ToggleEnabled(0, UI.layer_move_btns, UI.layer_ctrl_btns, UI.chs_toggles, UI.gest_toggles)
+
+    ;ToggleVisibility(root_text !== "root", UI.buffer)
+    ToggleEnabled(saved_level && !buffer_view && selected_layer
+        && (saved_level[1] !== 2 || current_path.Length), UI["BtnShowPasteMenu"])
+    ToggleEnabled(!buffer_view && selected_layer, UI["BtnShowCopyMenu"])
+
+    if UI["TextHold"].Text !== "Hold" && current_path.Length {
+        UI.copy_options_menu.Enable("3&")
+    } else {
+        UI.copy_options_menu.Disable("3&")
+    }
 }
 
 

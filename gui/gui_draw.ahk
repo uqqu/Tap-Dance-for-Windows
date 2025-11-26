@@ -37,8 +37,14 @@ DrawLayout(init:=false) {
 
     UI.SetFont("Norm s" . Round(8 * CONF.font_scale.v))
 
-    UI.Add("Button", "vBtnEnableDragMode " . Scale(10, CONF.ref_height.v + 2), "🔀")
-    UI.Add("Button", "vBtnCancelDrag xp+1", "Cancel").Visible := false
+    UI.Add("Button", "vBtnEnableDragMode " . Scale(10, CONF.ref_height.v + 2, , 20), "🔀")
+    UI.Add("Button", "vBtnShowBuffer x+0 " . Scale(, , , 20), "👁").OnEvent("Click", ShowBuffer)
+    UI.Add("Button", "vBtnShowCopyMenu x+0 " . Scale(, , , 20), "⧉").Enabled := false
+    UI.Add("Button", "vBtnShowPasteMenu x+0 " . Scale(, , , 20), "📋").Enabled := false
+    UI.buffer := [UI["BtnShowCopyMenu"], UI["BtnShowPasteMenu"]]
+
+    UI.Add("Button", "vBtnCancelDrag " . Scale(10, CONF.ref_height.v + 2), "Cancel")
+        .Visible := false
     UI.Add("Button", "vBtnSaveDrag x+0", "Save").Visible := false
     UI.Add("Button", "vBtnShowSaveOptionsMenu x+0", "▾").Visible := false
     UI.drag_btns := [UI["BtnEnableDragMode"], UI["BtnCancelDrag"], UI["BtnSaveDrag"],
@@ -69,7 +75,35 @@ DrawLayout(init:=false) {
         . " The values from your basic keyboard layout (both no custom assignment and assignments "
         . "with the “Default” type) are kept unchanged.", "Drag&Drop help"), -1)))
 
-    UI.Add("Text", "vSettings " . Scale(1252, CONF.ref_height.v + 3), "🔧")
+    UI.copy_options_menu := Menu()
+    UI.copy_options_menu.Add(
+        "Copy the current view", CopyLevel.Bind(, 0)
+    )
+    UI.copy_options_menu.Add(
+        "Copy the entire level (with all hidden in other mods)", CopyLevel.Bind(, 1)
+    )
+    UI.copy_options_menu.Add(
+        "Copy the extended level (with hidden in adjacent hold)", CopyLevel.Bind(, 2)
+    )
+
+    UI.paste_options_menu := Menu()
+    UI.paste_options_menu.Add(
+        "Append (paste only new assignments, recursively)", PasteLevel.Bind(, 0)
+    )
+    UI.paste_options_menu.Add(
+        "Merge (paste all assignments with replacement)", PasteLevel.Bind(, 1)
+    )
+    UI.paste_options_menu.Add(
+        "Replace (fully replace the level/view)", PasteLevel.Bind(, 2)
+    )
+    UI.paste_options_menu.Add()
+    UI.paste_options_menu.Add(
+        "Replaced (remaining for 'append') values will be stored in the buffer", (*) => 0
+    )
+    UI.paste_options_menu.Disable("5&")
+    UI.paste_options_menu.Check("5&")
+
+    UI.Add("Text", "vSettings " . Scale(1254, CONF.ref_height.v + 4), "🔧")
     UI["Settings"].OnEvent("Click", ShowSettings)
 
     _DrawKeys()
@@ -82,7 +116,7 @@ DrawLayout(init:=false) {
     uncat := [UI["BtnAddNewLayer"], UI["BtnBackToRoot"]]
     for arr in [
         UI.layer_ctrl_btns, UI.layer_move_btns, UI.chs_back, UI.chs_front,
-        UI.gest_btns, UI.drag_btns, uncat
+        UI.gest_btns, UI.drag_btns, UI.buffer, uncat
     ] {
         for btn in arr {
             f := SubStr(btn.Name, 4)
@@ -181,7 +215,7 @@ _DrawLayersLV() {
         ["vBtnRenameSelectedLayer", "✏️ Rename"],
         ["vBtnDeleteSelectedLayer", "🗑️ Delete"],
         ["vBtnMoveUpSelectedLayer", "🔼 Move up"],
-        ["vBtnMoveDownSelectedLayer", "🔽 Move down"]]
+        ["vBtnMoveDownSelectedLayer", "🔽 Move dn"]]
     {
         UI.Add("Button", arr[1] . (i == 1 ? " xp-1 y+0 " : " x+0 yp0 ") . btns_wh, arr[2])
     }
@@ -204,7 +238,7 @@ _DrawGesturesLV() {
         ["Gesture name", "Value", "Options", "→", "Layer", "roll it back"])
     UI["LV_gestures"].OnEvent("DoubleClick", LVGestureDoubleClick)
     UI["LV_gestures"].OnEvent("Click", LVGestureClick)
-    for i, w in [100, 110, 100, 30, 70, 0] {
+    for i, w in [110, 110, 95, 30, 65, 0] {
         UI["LV_gestures"].ModifyCol(i, w * CONF.gui_scale.v)
     }
 
@@ -275,6 +309,9 @@ _DrawCurrentValues() {
     UI["BtnBase"].indicators := []
     UI["BtnHold"].indicators := []
 
+    UI.Add("Button", Scale(1490 - sh, 0, 25, 46) . " vSwapBufferView", "⇕").Visible := false
+    UI["SwapBufferView"].OnEvent("Click", SwapBufferView)
+
     ToggleVisibility(0, UI.current_values)
 }
 
@@ -290,7 +327,7 @@ _DrawHelp() {
     if !CONF.help_texts.v {
         return
     }
-    _AddHelpText("Italic cGray", Scale(111, CONF.ref_height.v + 6),
+    _AddHelpText("Italic cGray", Scale(123, CONF.ref_height.v + 6),
         "Borders (hold behavior):")
     _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
     _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")

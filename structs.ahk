@@ -145,6 +145,9 @@ class UnifiedNode {
     }
 
     MergeNodeRecursive(raw_node, sc, md, layer_name, is_g:=false) {
+        if !raw_node {
+            return
+        }
         node_obj := _BuildNode(raw_node, sc, md)
         node_obj.layer_name := layer_name
 
@@ -286,7 +289,7 @@ _BuildNode(raw_node, sc, md, down_type:=false) {
 
 GetDefaultNode(sc, md) {
     node_obj := {
-        down_type: TYPES.Default,
+        down_type: TYPES.Default,  ; NTT?
         down_val: (sc is Number ? "{Blind}" . SC_STR_BR[sc] : "{Blind}{" . sc . "}"),
         up_type: TYPES.Disabled, up_val: "",
         is_instant: 0, is_irrevocable: 0,
@@ -298,10 +301,18 @@ GetDefaultNode(sc, md) {
 }
 
 
+_GetDefaultJsonNode(mod_val:=0, given_type:=false) {
+    return [
+        (given_type || (mod_val ? TYPES.Disabled : TYPES.Default)),
+        "", TYPES.Disabled, "", 0, 0, 0, 0, 4, "", "", Map(), Map(), Map()
+    ]
+}
+
+
 _RepairValue(node_obj) {
     for arr in [["down_type", "down_val"], ["up_type", "up_val"]] {
         node_obj.%arr[2]% := node_obj.%arr[1]% == TYPES.Default
-            ? (node_obj.sc is Number
+            ? (node_obj.sc is Number && node_obj.sc !== 0
                 ? "{Blind}" . SC_STR_BR[node_obj.sc]
                 : "{Blind}{" . node_obj.sc . "}")
             : StrReplace(StrReplace(node_obj.%arr[2]%, "%md%", node_obj.md), "%sc%", node_obj.sc)
@@ -390,6 +401,15 @@ FillRoots() {
             }
         }
     }
+
+    if saved_level {
+        ROOTS["buffer"] := UnifiedNode()
+        ROOTS["buffer"].MergeNodeRecursive(saved_level[2], 0, 0, "buffer")
+        ROOTS["buffer_h"] := UnifiedNode()
+        if saved_level[1] == 2 {
+            ROOTS["buffer_h"].MergeNodeRecursive(saved_level[3], 0, 0, "buffer")
+        }
+    }
 }
 
 _MergeLayer(layer) {
@@ -436,6 +456,10 @@ _CountLangMappings(raw_roots) {
 
 
 _WalkJson(json_node, path, is_hold:=false, soft_mode:=false) {
+    if !path.Length {
+        return json_node
+    }
+
     if !(path[1] is Array) {
         path := [path]
     }
@@ -459,10 +483,7 @@ _WalkJson(json_node, path, is_hold:=false, soft_mode:=false) {
             if soft_mode {
                 return false
             }
-            d_type := md || is_chord ? TYPES.Disabled : TYPES.Default
-            entry[md] := [
-                d_type, "", TYPES.Disabled, "", 0, 0, 0, 0, 4, "", "", Map(), Map(), Map(),
-            ]
+            entry[md] := _GetDefaultJsonNode(, (md || is_chord ? TYPES.Disabled : TYPES.Default))
         }
 
         json_node := entry[md]

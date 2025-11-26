@@ -254,9 +254,7 @@ WriteChord(chord:=false, *) {
             json_scancodes[sc][gui_mod_val+1][1] := TYPES.Chord
             json_scancodes[sc][gui_mod_val+1][2] := ""
         } else {
-            json_scancodes[sc][gui_mod_val+1] := [
-                TYPES.Chord, "", TYPES.Disabled, "", 0, 0, 0, 0, 4, "", "", Map(), Map(), Map(),
-            ]
+            json_scancodes[sc][gui_mod_val+1] := _GetDefaultJsonNode(, TYPES.Chord)
         }
     }
 
