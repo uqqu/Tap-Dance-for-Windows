@@ -6,6 +6,8 @@
 #Include "gui_forms.ahk"
 #Include "gui_transitions.ahk"
 
+SM_SCS := Map(42, 1, 54, 1, 310, 1, 29, 2, 285, 2, 56, 4, 312, 8)
+; shift 1; ctrl 2; lalt 4; ralt/altgr 8
 
 current_path := []
 selected_chord := ""
@@ -18,6 +20,7 @@ selected_layer_priority := 0
 layer_editing := 0
 
 gui_mod_val := 0
+gui_sysmods := 0
 gui_lang := 0
 gui_entries := {ubase: ROOTS[gui_lang], uhold: false, umod: false}
 
@@ -66,7 +69,7 @@ _GetFirst(node, certain_layer:="") {
 
 
 OneNodeDeeper(schex, md:=-1, is_chord:=false, is_gesture:=false) {
-    global gui_entries, gui_mod_val
+    global gui_entries, gui_mod_val, gui_sysmods
 
     if md == -1 {
         md := gui_mod_val
@@ -74,6 +77,7 @@ OneNodeDeeper(schex, md:=-1, is_chord:=false, is_gesture:=false) {
     path := buffer_view ? buffer_path : current_path
     path.Push([schex, md, is_chord, is_gesture])
     gui_mod_val := 0
+    gui_sysmods := 0
     gui_entries := gui_entries.ubase.GetBaseHoldMod(schex, md, is_chord, is_gesture)
     CloseForm()
     UpdateKeys()
@@ -81,7 +85,7 @@ OneNodeDeeper(schex, md:=-1, is_chord:=false, is_gesture:=false) {
 
 
 ChangePath(len:=-1, discard_md:=true, *) {
-    global gui_mod_val, gui_entries
+    global gui_mod_val, gui_entries, gui_sysmods
 
     UI["Hidden"].Focus()
     if temp_chord || is_updating {
@@ -113,7 +117,34 @@ ChangePath(len:=-1, discard_md:=true, *) {
         gui_entries := gui_entries.ubase.GetBaseHoldMod(arr*)
     }
 
+    if gui_mod_val {
+        _TransferModifiers()
+    } else {
+        gui_sysmods := 0
+    }
+
     UpdateKeys()
+}
+
+
+_TransferModifiers() {
+    global gui_mod_val, gui_sysmods
+
+    temp_mod_val := 0
+    temp_sysmods := 0
+    for sc in ALL_SCANCODES {
+        res := gui_entries.ubase.GetBaseHoldMod(sc, gui_mod_val)
+        h_node := _GetFirst(res.uhold)
+        m_node := _GetFirst(res.umod)
+        md := h_node && h_node.down_type == TYPES.Modifier ? h_node
+            : m_node && m_node.down_type == TYPES.Modifier ? m_node : false
+        if md && (gui_mod_val & (1 << md.down_val)) {
+            temp_mod_val |= 1 << md.down_val
+            temp_sysmods |= SM_SCS.Get(sc, 0)
+        }
+    }
+    gui_mod_val := temp_mod_val
+    gui_sysmods := temp_sysmods
 }
 
 
@@ -253,7 +284,7 @@ ButtonLMB(sc, *) {
 
 
 ButtonRMB(sc, *) {
-    global gui_mod_val
+    global gui_mod_val, gui_sysmods
 
     UI["Hidden"].Focus()
 
@@ -272,6 +303,11 @@ ButtonRMB(sc, *) {
     md := h_node && h_node.down_type == TYPES.Modifier ? h_node
         : m_node && m_node.down_type == TYPES.Modifier ? m_node : false
     if md {
+        if gui_mod_val & (1 << md.down_val) {
+            gui_sysmods &= ~SM_SCS.Get(sc, 0)
+        } else {
+            gui_sysmods |= SM_SCS.Get(sc, 0)
+        }
         gui_mod_val ^= 1 << md.down_val
         UpdateKeys()
         return

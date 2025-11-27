@@ -535,7 +535,6 @@ _FillOther() {
 
     ToggleEnabled(0, UI.layer_move_btns, UI.layer_ctrl_btns, UI.chs_toggles, UI.gest_toggles)
 
-    ;ToggleVisibility(root_text !== "root", UI.buffer)
     ToggleEnabled(saved_level && !buffer_view && selected_layer
         && (saved_level[1] !== 2 || current_path.Length), UI["BtnShowPasteMenu"])
     ToggleEnabled(!buffer_view && selected_layer, UI["BtnShowCopyMenu"])

@@ -48,7 +48,7 @@ LVLayerDoubleClick(lv, row, from_selected:=false) {
         _MergeLayer(selected_layer)
     }
 
-    ChangePath()
+    ChangePath(, false)
 }
 
 
@@ -240,5 +240,5 @@ BackToRoot(*) {
     uncat := [UI["BtnBackToRoot"], UI["BtnAddNewLayer"]]
     ToggleVisibility(2, UI.layer_move_btns, UI.layer_ctrl_btns, uncat)
 
-    ChangePath()
+    ChangePath(, false)
 }

@@ -427,14 +427,49 @@ _GetKeyName(sc, with_keytype:=false, to_short:=false, from_sc_str:=false) {
             return from_sc_str
         }
     } else if IsNumber(sc) {
-        res := GetKeyName(SC_STR[Integer(sc)])
+        if gui_sysmods {
+            res := GetKeyNameWithMods(Integer(sc)) || GetKeyName(SC_STR[Integer(sc)])
+        } else {
+            res := GetKeyName(SC_STR[Integer(sc)])
+        }
     }
 
-    return to_short && short_names.Has(res) ? short_names[res]
+    return res == "RAlt" && CONF.layout_format.v == "ISO" ? "AltGr"
+        : to_short && short_names.Has(res) ? short_names[res]
         : fixed_names.Has(res) ? fixed_names[res]
         : InStr(res, "Numpad") ? "n" . SubStr(res, 7)
         : with_keytype && CONF.keyname_type.v == 3 && !res ? "&" . sc
         : res
+}
+
+
+GetKeyNameWithMods(sc) {
+    hkl := DllCall("GetKeyboardLayout", "uint", 0, "ptr")
+    vk := DllCall("MapVirtualKeyEx", "uint", sc, "uint", 3, "ptr", hkl, "uint")
+
+    state := Buffer(256, 0)
+
+    if gui_sysmods & 1 {
+        NumPut("UChar", 0x80, state, 0x10)
+    }
+    if CONF.layout_format.v == "ISO" && (gui_sysmods & 8)
+        || (gui_sysmods & 6) == 6 || (gui_sysmods & 10) == 10 {
+        NumPut("UChar", 0x80, state, 0x11)
+        NumPut("UChar", 0x80, state, 0x12)
+    }
+
+    buf := Buffer(8, 0)
+
+    if DllCall(
+        "ToUnicodeEx", "uint", vk, "uint", sc, "ptr", state, "ptr",
+        buf, "int", 4, "uint", 0, "ptr", hkl, "int"
+    ) {
+        ch := StrGet(buf, "UTF-16")
+        if Ord(ch) > 31 {
+            return ch
+        }
+    }
+    return ""
 }
 
 
