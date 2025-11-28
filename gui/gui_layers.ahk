@@ -1,6 +1,7 @@
 LVLayerClick(lv, row) {
     global selected_layer, last_selected_layer, selected_layer_priority
 
+    _UnhighlightSelectedChord()
     ToggleEnabled(0, UI.chs_toggles, UI.gest_toggles)
     if layer_editing {
         return

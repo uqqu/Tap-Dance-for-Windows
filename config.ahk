@@ -7,7 +7,13 @@ is_updating := false
 saved_level := false
 buffer_view := 0
 
-CONF := {Main: [], GUI: [], Gestures: [], GestureDefaults: []}
+CONF := {
+    Main: [],
+    GUI: [],
+    Gestures: [],
+    GestureDefaults: [],
+    Colors: []
+}
 
 SYS_MODIFIERS := Map(
     0x02A, "<+",
@@ -68,17 +74,20 @@ if first_start {
 
 
 class ConfValue {
-    __New(sect, ini_name, form_type, val_type, def_val, descr, double_height, is_num, extra) {
+    __New(
+        sect, ini_name, form_type, val_type, descr, default_val,
+        is_num:=false, double_height:=false, extra:=false
+    ) {
         this.ini_name := ini_name
         this.form_type := form_type
         this.val_type := val_type
-        this.default := def_val
+        this.default := default_val
         this.descr := descr
-        this.double_height := double_height
         this.is_num := is_num
-        this.extra_params := extra
+        this.double_height := double_height
+        this.extra_params := extra || []
 
-        this.v := IniRead("config.ini", sect, ini_name, def_val)
+        this.v := IniRead("config.ini", sect, ini_name, default_val)
 
         if val_type == "int" {
             this.v := Integer(this.v)
@@ -99,129 +108,154 @@ CheckConfig() {
             . "`n[GUI]`n"
             . "`n[Gestures]`n"
             . "`n[GestureDefaults]`n"
+            . "`n[Colors]`n"
             , "config.ini"
         )
     }
     DirCreate("layers")
 
 
-    CONF.MS_LP := ConfValue("Main", "LongPressDuration", "str", "int", 150,
-            "Hold threshold (ms):", 0, 1, [])
-    CONF.MS_NK := ConfValue("Main", "NextKeyWaitDuration", "str", "int", 300,
-            "Nested event waiting time (ms):", 0, 1, [])
+    CONF.MS_LP := ConfValue("Main", "LongPressDuration", "str", "int",
+        "Hold threshold (ms):", 150, true)
+    CONF.MS_NK := ConfValue("Main", "NextKeyWaitDuration", "str", "int",
+        "Nested event waiting time (ms):", 300, true)
 
     CONF.T := "T" . CONF.MS_LP.v / 1000
 
-    CONF.wheel_unlock_time := ConfValue("Main", "WheelLRUnlockTime", "str", "int", 150,
-            "Unlock l/r mouse wheel (ms):", 0, 1, [])
-    CONF.layout_format := ConfValue("Main", "LayoutFormat", "ddl", "str", "ANSI",
-            "Layout format:", 0, 0,
-            [["ANSI", "ISO"], true])
-    CONF.extra_f_row := ConfValue("Main", "ExtraFRow", "checkbox", "int", 0,
-            "Use extra &f-row (13-24)", 0, 0, [])
-    CONF.extra_k_row := ConfValue("Main", "ExtraKRow", "checkbox", "int", 0,
-            "Use &special keys (media, browser, apps)", 0, 0, [])
-    CONF.unfam_layouts := ConfValue("Main", "CollectUnfamiliarLayouts", "checkbox", "int", 0,
-            "Collect unfamiliar kbd &layouts from layers", 0, 0, [])
-    CONF.sendtext_output := ConfValue("Main", "UseSendTextOutput", "h_checkbox", "int", 0,
-            "Use Send&Text mode", 0, 0,
-            ["Temporary test option."
-                . "`nTo minimize bugs with sticking and inputting unwanted characters "
-                . "when over-holding a hotkey with long text assignment, the SendInput {Raw} is "
-                . "currently in test use. If this leads to undesirable consequences, turn on this "
-                . "option to return to usual SendText and report to Issues.", "Use SendText mode"
-            ])
-    CONF.ignore_inactive := ConfValue("Main", "IgnoreInactiveLayers", "h_checkbox", "int", 0,
-            "&Ignore inactive layers", 0, 0,
-            ["With this option, the program doesn’t parse "
-                . "inactive layer values into a core structure."
-                . "`nTurn off only temporarily for work with GUI to view cross-values for all "
-                . "layers.`n⚠Turn on after adjusting the layers.", "Ignore inactive layers"
-            ])
-    CONF.start_minimized := ConfValue("Main", "StartMinimized", "checkbox", "int", 0,
-            "Start &minimized", 0, 0, [])
+    CONF.wheel_unlock_time := ConfValue("Main", "WheelLRUnlockTime", "str", "int",
+        "Unlock l/r mouse wheel (ms):", 150, true)
+    CONF.layout_format := ConfValue("Main", "LayoutFormat", "ddl", "str",
+        "Layout format:", "ANSI", , , [["ANSI", "ISO"], true])
+    CONF.extra_f_row := ConfValue("Main", "ExtraFRow", "checkbox", "int",
+        "Use extra &f-row (13-24)", 0)
+    CONF.extra_k_row := ConfValue("Main", "ExtraKRow", "checkbox", "int",
+        "Use &special keys (media, browser, apps)", 0)
+    CONF.unfam_layouts := ConfValue("Main", "CollectUnfamiliarLayouts", "checkbox", "int",
+        "Collect unfamiliar kbd &layouts from layers", 0)
+    CONF.sendtext_output := ConfValue("Main", "UseSendTextOutput", "h_checkbox", "int",
+        "Use Send&Text mode", 0, , ,
+        ["Temporary test option."
+            . "`nTo minimize bugs with sticking and inputting unwanted characters "
+            . "when over-holding a hotkey with long text assignment, the SendInput {Raw} is "
+            . "currently in test use. If this leads to undesirable consequences, turn on this "
+            . "option to return to usual SendText and report to Issues.", "Use SendText mode"
+        ])
+    CONF.ignore_inactive := ConfValue("Main", "IgnoreInactiveLayers", "h_checkbox", "int",
+        "&Ignore inactive layers", 0, , ,
+        ["With this option, the program doesn’t parse "
+            . "inactive layer values into a core structure."
+            . "`nTurn off only temporarily for work with GUI to view cross-values for all "
+            . "layers.`n⚠Turn on after adjusting the layers.", "Ignore inactive layers"
+        ])
+    CONF.start_minimized := ConfValue("Main", "StartMinimized", "checkbox", "int",
+        "Start &minimized", 0)
 
-    CONF.keyname_type := ConfValue("GUI", "KeynameType", "ddl", "int", 1,
-            "Keyname type:", 0, 0,
-            [["Always use keynames", "Always use scancodes", "Scancodes on empty keys"], false])
-    CONF.overlay_type := ConfValue("GUI", "OverlayType", "ddl", "int", 3,
-            "Indicator overlay type:", 0, 0,
-            [["Disabled", "Indicators only", "With counters"], false])
+    CONF.keyname_type := ConfValue("GUI", "KeynameType", "ddl", "int",
+        "Keyname type:", 1, , ,
+        [["Always use keynames", "Always use scancodes", "Scancodes on empty keys"], false])
+    CONF.overlay_type := ConfValue("GUI", "OverlayType", "ddl", "int",
+        "Indicator overlay type:", 3, , ,
+        [["Disabled", "Indicators only", "With counters"], false])
     CONF.gui_scale := ConfValue("GUI", "GuiScale", "str", "float",
-            A_ScreenWidth * 0.8 / 1294, "Gui scale:", 0, 0, [])
+        "Gui scale:", A_ScreenWidth * 0.8 / 1294)
     CONF.font_scale := ConfValue("GUI", "FontScale", "str", "float",
-            CONF.gui_scale.v / 2 + 0.5, "Font scale:", 0, 0, [])
-    CONF.font_name := ConfValue("GUI", "FontName", "str", "str", "Segoe UI",
-            "Font name:", 0, 0, [])
-    CONF.ref_height := ConfValue("GUI", "ReferenceHeight", "str", "int", 314,
-            "Reference height:", 0, 1, [])
-    CONF.gui_back_sc := ConfValue("GUI", "GuiBackEdit", "str", "str", "nSub",
-            "'Back' action GUI hotkey:", 0, 0, [])
-    CONF.gui_set_sc := ConfValue("GUI", "GuiSetEdit", "str", "str", "nAdd",
-            "…'Set tap' action:", 0, 0, [])
-    CONF.gui_set_hold_sc := ConfValue("GUI", "GuiSetHoldEdit", "str", "str", "nEnter",
-            "…'Set hold' action:", 0, 0, [])
-    CONF.help_texts := ConfValue("GUI", "HelpTexts", "checkbox", "int", 0,
-            "Show &help texts", 0, 0, [])
-    CONF.gui_alt_ignore := ConfValue("GUI", "GuiAltIgnore", "checkbox", "int", 1,
-            "Ignore physical &Alt presses on the GUI", 0, 0, [])
-    CONF.hide_mouse_warnings := ConfValue("GUI", "HideMouseWarnings", "checkbox", "int", 0,
-            "Hide warnings about disabling drag &behavior for LMB/RMB/MMB", 0, 0, [])
-    CONF.empty_border_unassigned := ConfValue("GUI", "EmptyBorderOnUnassigned", "checkbox", "int",
-            1, "Highlight unassigned keys with a simple border", 0, 0, [])
+        "Font scale:", CONF.gui_scale.v / 2 + 0.5)
+    CONF.font_name := ConfValue("GUI", "FontName", "str", "str",
+        "Font name:", "Segoe UI")
+    CONF.ref_height := ConfValue("GUI", "ReferenceHeight", "str", "int",
+        "Reference height:", 314, true)
+    CONF.gui_back_sc := ConfValue("GUI", "GuiBackEdit", "str", "str",
+        "'Back' action GUI hotkey:", "nSub")
+    CONF.gui_set_sc := ConfValue("GUI", "GuiSetEdit", "str", "str",
+        "…'Set tap' action:", "nAdd")
+    CONF.gui_set_hold_sc := ConfValue("GUI", "GuiSetHoldEdit", "str", "str",
+        "…'Set hold' action:", "nEnter")
+    CONF.help_texts := ConfValue("GUI", "HelpTexts", "checkbox", "int",
+        "Show &help texts", 0)
+    CONF.gui_alt_ignore := ConfValue("GUI", "GuiAltIgnore", "checkbox", "int",
+        "Ignore physical &Alt presses on the GUI", 1)
+    CONF.hide_mouse_warnings := ConfValue("GUI", "HideMouseWarnings", "checkbox", "int",
+        "Hide warnings about disabling drag &behavior for LMB/RMB/MMB", 0)
 
-    CONF.gest_color_mode := ConfValue("Gestures", "ColorMode", "ddl", "str", "HSV",
-            "Color mode:", 0, 0,
-            [["RGB", "Gamma-correct", "HSV"], true])
-    CONF.edge_gestures := ConfValue("Gestures", "EdgeGestures", "ddl", "int", 4,
-            "Use edge gestures:", 0, 0,
-            [["No", "With edges", "With corners", "With edges and corners"], false])
-    CONF.edge_size := ConfValue("Gestures", "EdgeSize", "str", "int", 100,
-            "Edge definition width:", 0, 1, [])
-    CONF.min_gesture_len := ConfValue("Gestures", "MinGestureLen", "str", "int", 150,
-            "Gesture min length:", 0, 1, [])
-    CONF.min_cos_similarity := ConfValue("Gestures", "MinCosSimilarity", "str", "float", 0.90,
-            "Gesture min similarity:", 0, 0, [])
-    CONF.overlay_opacity := ConfValue("Gestures", "OverlayOpacity", "str", "int", 200,
-            "Overlay opacity (up to 255):", 0, 1, [])
-    CONF.font_size_lh := ConfValue("Gestures", "LHSize", "str", "int", 32,
-            "Font size on live hint:", 0, 1, [])
-    CONF.live_hint_extended := ConfValue("Gestures", "LiveHintExtended", "checkbox", "int", 1,
-            "Show unrecognized gestures on live hint", 0, 0, [])
+    CONF.gest_color_mode := ConfValue("Gestures", "ColorMode", "ddl", "str",
+        "Color mode:", "HSV", , , [["RGB", "Gamma-correct", "HSV"], true])
+    CONF.edge_gestures := ConfValue("Gestures", "EdgeGestures", "ddl", "int",
+        "Use edge gestures:", 4, , ,
+        [["No", "With edges", "With corners", "With edges and corners"], false])
+    CONF.edge_size := ConfValue("Gestures", "EdgeSize", "str", "int",
+        "Edge definition width:", 100, true)
+    CONF.min_gesture_len := ConfValue("Gestures", "MinGestureLen", "str", "int",
+        "Gesture min length:", 150, true)
+    CONF.min_cos_similarity := ConfValue("Gestures", "MinCosSimilarity", "str", "float",
+        "Gesture min similarity:", 0.90)
+    CONF.overlay_opacity := ConfValue("Gestures", "OverlayOpacity", "str", "int",
+        "Overlay opacity (up to 255):", 200, true)
+    CONF.font_size_lh := ConfValue("Gestures", "LHSize", "str", "int",
+        "Font size on live hint:", 32, true)
+    CONF.live_hint_extended := ConfValue("Gestures", "LiveHintExtended", "checkbox", "int",
+        "Show unrecognized gestures on live hint", 1)
 
-    CONF.gest_rotate := ConfValue("GestureDefaults", "Rotate", "ddl", "int", 1,
-            "Rotate:", 0, 0,
-            [["No", "Remove orientation noise", "Orientation invariance"], false])
-    CONF.scale_impact := ConfValue("GestureDefaults", "Scaling", "str", "float", 0,
-            "Scale impact:", 0, 0, [])
-    CONF.gest_live_hint := ConfValue("GestureDefaults", "LiveHint", "ddl", "int", 1,
-            "Live recognition hint position:", 0, 0,
-            [["Top", "Center", "Bottom", "Disabled"], false])
+    CONF.gest_rotate := ConfValue("GestureDefaults", "Rotate", "ddl", "int",
+        "Rotate:", 1, , , [["No", "Remove orientation noise", "Orientation invariance"], false])
+    CONF.scale_impact := ConfValue("GestureDefaults", "Scaling", "str", "float",
+        "Scale impact:", 0)
+    CONF.gest_live_hint := ConfValue("GestureDefaults", "LiveHint", "ddl", "int",
+        "Live recognition hint position:", 1, , , [["Top", "Center", "Bottom", "Disabled"], false])
 
     CONF.gest_colors := [
-        ConfValue("GestureDefaults", "GestureColors", "str", "str", "random(3)",
-            "Gesture colors`n(more than one for gradient):", 1, 0, []),
-        ConfValue("GestureDefaults", "GestureColorsEdges", "str", "str", "4FC3F7,9575CD,F06292",
-            "Gesture colors`n(more than one for gradient):", 1, 0, []),
-        ConfValue("GestureDefaults", "GestureColorsCorners", "str", "str", "66BB6A,26C6DA,FBC02D",
-            "Gesture colors`n(more than one for gradient):", 1, 0, []),
+        ConfValue("GestureDefaults", "GestureColors", "color", "str",
+            "Gesture colors`n(more than one for gradient):", "random(3)", , true),
+        ConfValue("GestureDefaults", "GestureColorsEdges", "color", "str",
+            "Gesture colors`n(more than one for gradient):", "4FC3F7,9575CD,F06292", , true),
+        ConfValue("GestureDefaults", "GestureColorsCorners", "color", "str",
+            "Gesture colors`n(more than one for gradient):", "66BB6A,26C6DA,FBC02D", , true),
     ]
     CONF.grad_len := [
-        ConfValue("GestureDefaults", "GradientLength", "str", "int", 1000,
-            "Full gradient cycle length (px):", 0, 1, []),
-        ConfValue("GestureDefaults", "GradientLengthEdges", "str", "int", 1000,
-            "Full gradient cycle length (px):", 0, 1, []),
-        ConfValue("GestureDefaults", "GradientLengthCorners", "str", "int", 1000,
-            "Full gradient cycle length (px):", 0, 1, []),
+        ConfValue("GestureDefaults", "GradientLength", "str", "int",
+            "Full gradient cycle length (px):", 1000, true),
+        ConfValue("GestureDefaults", "GradientLengthEdges", "str", "int",
+            "Full gradient cycle length (px):", 1000, true),
+        ConfValue("GestureDefaults", "GradientLengthCorners", "str", "int",
+            "Full gradient cycle length (px):", 1000, true),
     ]
     CONF.grad_loop := [
-        ConfValue("GestureDefaults", "GradientLoop", "checkbox", "int", 1,
-            "&Gradient cycling", 0, 0, []),
-        ConfValue("GestureDefaults", "GradientLoopEdges", "checkbox", "int", 1,
-            "&Gradient cycling", 0, 0, []),
-        ConfValue("GestureDefaults", "GradientLoopCorners", "checkbox", "int", 1,
-            "&Gradient cycling", 0, 0, []),
+        ConfValue("GestureDefaults", "GradientLoop", "checkbox", "int",
+            "&Gradient cycling", 1),
+        ConfValue("GestureDefaults", "GradientLoopEdges", "checkbox", "int",
+            "&Gradient cycling", 1),
+        ConfValue("GestureDefaults", "GradientLoopCorners", "checkbox", "int",
+            "&Gradient cycling", 1),
     ]
+
+    CONF.default_assigned_color := ConfValue("Colors", "DefaultAssigned", "color", "str",
+        "Default for assigned:", "Silver")
+    CONF.default_unassigned_color := ConfValue("Colors", "DefaultUnssigned", "color", "str",
+        "Default for unassigned (empty):", "White")
+    CONF.chord_part_color := ConfValue("Colors", "ChordPart", "color", "str",
+        "Part of chord(s):", "BBBB22")
+    CONF.selected_chord_color := ConfValue("Colors", "SelectedChord", "color", "str",
+        "Selected/editing chord:", "CD7F32")
+    CONF.has_gestures_color := ConfValue("Colors", "HasNestedGestures", "color", "str",
+        "With nested gestures:", "Red")
+    CONF.modifier_color := ConfValue("Colors", "Modifier", "color", "str",
+        "Modifier:", "7777AA")
+    CONF.active_modifier_color := ConfValue("Colors", "ActiveModifier", "color", "str",
+        "Active modifier:", "Black")
+
+    CONF.changed_name_ind_color := ConfValue("Colors", "ChangedName", "color", "str",
+        "With custom gui name:", "Silver")
+    CONF.irrevocable_ind_color := ConfValue("Colors", "Irrevocable", "color", "str",
+        "Irrevocable:", "Gray")
+    CONF.instant_ind_color := ConfValue("Colors", "Instant", "color", "str",
+        "Instant:", "Teal")
+    CONF.additional_up_ind_color := ConfValue("Colors", "AdditionalUp", "color", "str",
+        "With additional up action:", "Blue")
+    CONF.custom_hold_time_ind_color := ConfValue("Colors", "CustomHold", "color", "str",
+        "Custom hold threshold:", "Purple")
+    CONF.custom_child_time_ind_color := ConfValue("Colors", "CustomNested", "color", "str",
+        "Custom nested event waiting time:", "Fuchsia")
+    CONF.nested_counter_ind_color := ConfValue("Colors", "NestedCounter", "color", "str",
+        "Nested assignment counter:", "Green")
 
     if !IniRead("config.ini", "Main", "UserLayouts", "") {
         TrackLayouts()
@@ -306,7 +340,8 @@ ShowSettings(*) {
     s_gui.Add("Button", "Center x335 y0 w60 h18 Default vApply", "✔ Accept")
         .OnEvent("Click", SaveConfig)
 
-    tabs := s_gui.Add("Tab3", "x0 y0 w402 h666", ["Main", "GUI", "Gestures", "Gesture defaults"])
+    tabs := s_gui.Add("Tab3", "x0 y0 w402 h666",
+        ["Main", "GUI", "Gestures", "Gesture defaults", "Colors"])
 
     tabs.UseTab("Main")
     for c in CONF.Main {
@@ -358,9 +393,11 @@ ShowSettings(*) {
         .OnEvent("Click", _ToggleColors.Bind(3))
 
     for i, name in ["", "Edges", "Corners"] {
-        _AddElems("str", 215,
+        _AddElems("m_color", 215,
             [1, "GestureColors" . name, "Gesture colors`n(more than one for gradient):",
                 CONF.gest_colors[i].v],
+        )
+        _AddElems("str",,
             [0, "GradientLength" . name . " Number", "Full gradient cycle length (px):",
                 CONF.grad_len[i].v],
         )
@@ -374,7 +411,25 @@ ShowSettings(*) {
         }
     }
 
-    s_gui.Show("w400 h400")
+    tabs.UseTab("Colors")
+    s_gui.Add("Text", "x20 w360 y30 h34 Center",
+        "Button borders:")
+    loop 7 {
+        c := CONF.Colors[A_Index]
+        _AddElems(c.form_type, A_Index == 1 ? 55 : "",
+            [c.double_height, c.ini_name . (c.is_num ? " Number" : ""),
+            c.descr, c.v, c.extra_params*])
+    }
+    s_gui.Add("Text", "x20 w360 y+8 h1 0x10")
+    s_gui.Add("Text", "x20 w360 y+10 h34 Center", "Indicators on buttons:")
+    loop 7 {
+        c := CONF.Colors[A_Index + 7]
+        _AddElems(c.form_type, A_Index == 1 ? 285 : "",
+            [c.double_height, c.ini_name . (c.is_num ? " Number" : ""),
+            c.descr, c.v, c.extra_params*])
+    }
+
+    s_gui.Show("w400 h480")
     DllCall("SetFocus", "ptr", s_gui["ExtraFRow"].Hwnd)
 }
 
@@ -382,6 +437,7 @@ ShowSettings(*) {
 _ToggleColors(trg, *) {
     for i, name in ["", "Edges", "Corners"] {
         s_gui["GestureColors" . name].Visible := i == trg
+        s_gui["GestureColors" . name . "Pick"].Visible := i == trg
         s_gui["GradientLength" . name].Visible := i == trg
         s_gui["GradientLoop" . name].Visible := i == trg
         s_gui["ToggleColors" . name].Opt((i == trg ? "+" : "-") . "Disabled")
@@ -428,8 +484,33 @@ _AddElems(elem_type, y:=false, data*) {
                 h := arr[1] ? 40 : 20
                 fn := MsgBox.Bind(arr[5], arr[6], "IconI")
                 s_gui.Add("Button", "x11 y" . cur_h . " h20 w20", "?")
-                    .OnEvent("Click",(*) => fn.Call())
+                    .OnEvent("Click", (*) => fn.Call())
                 s_gui.Add("CheckBox", "x+3 w330 yp+0 h20 v" . arr[2], arr[3]).Value := arr[4]
+                cur_h += h + _shift
+            }
+        case "color":
+            for arr in data {
+                h := arr[1] ? 40 : 20
+                name := arr[2]
+                s_gui.Add("Text", "x15 y" . cur_h . " h" . h . " w190", arr[3])
+                s_gui.Add("Edit", "Center x+0 yp" . (arr[1] ? 8 : -2) . " h20 w160 v"
+                    . name, arr[4])
+                s_gui.Add("Button", "x+3 yp+0 h20 w20 v" . name . "Pick", "🎨")
+                    .OnEvent("Click", (*)
+                        => (s_gui[name].Text := ColorPick(s_gui[name].Text) || s_gui[name].Text))
+                cur_h += h + _shift
+            }
+        case "m_color":
+            for arr in data {
+                h := arr[1] ? 40 : 20
+                name := arr[2]
+                s_gui.Add("Text", "x15 y" . cur_h . " h" . h . " w190", arr[3])
+                s_gui.Add("Edit", "Center x+0 yp" . (arr[1] ? 8 : -2) . " h20 w160 v"
+                    . name, arr[4])
+                s_gui.Add("Button", "x+3 yp+0 h20 w20 v" . name . "Pick", "🎨")
+                    .OnEvent("Click", (*)
+                        => (s_gui[name].Text .= (s_gui[name].Text ? "," : "")
+                            . ColorPick(s_gui[name].Text)))
                 cur_h += h + _shift
             }
     }
@@ -471,7 +552,7 @@ SaveConfig(*) {
             }
         }
 
-        for name in ["Main", "GUI", "Gestures", "GestureDefaults"] {
+        for name in ["Main", "GUI", "Gestures", "GestureDefaults", "Colors"] {
             for elem in CONF.%name% {
                 val := elem.form_type == "str" || elem.form_type == "ddl" && elem.val_type == "str"
                     ? s_gui[elem.ini_name].Text : s_gui[elem.ini_name].Value
@@ -493,7 +574,7 @@ SaveConfig(*) {
 
 
 CheckChanges(*) {
-    for name in ["Main", "GUI", "Gestures", "GestureDefaults"] {
+    for name in ["Main", "GUI", "Gestures", "GestureDefaults", "Colors"] {
         for elem in CONF.%name% {
             if elem.form_type == "str" || elem.form_type == "ddl" && elem.val_type == "str" {
                 val := s_gui[elem.ini_name].Text

@@ -1,6 +1,7 @@
 LVGestureClick(lv, row) {
     global selected_gesture
 
+    _UnhighlightSelectedChord()
     ToggleEnabled(0, UI.layer_move_btns, UI.layer_ctrl_btns, UI.chs_toggles)
 
     if !row || lv.GetText(0, 1) == "Has nested gestures" {

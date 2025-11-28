@@ -119,7 +119,10 @@ _FillKeyboard() {
     for sc, btn in UI.buttons {
         if sc == "CurrMod" {
             btn.SetFont("Italic")
-            btn.Opt(gui_mod_val ? "+BackgroundRed -Disabled" : "+BackgroundSilver +Disabled")
+            btn.Opt(gui_mod_val
+                ? "-Disabled +BackgroundRed"
+                : "+Disabled +Background" . CONF.default_unassigned_color.v
+            )
             btn.Text := "Mod:`n" . gui_mod_val
             continue
         }
@@ -131,7 +134,7 @@ _FillKeyboard() {
 
 
 _FillOneButton(sc, btn, d_sc) {
-    backgr := "Silver"
+    backgr := CONF.default_assigned_color.v
     btn.Opt("-Disabled")
     btn.SetFont("Norm")
 
@@ -144,7 +147,7 @@ _FillOneButton(sc, btn, d_sc) {
     if b_node {
         if res.ubase.active_gestures.Count {
             opts := StrSplit(b_node.gesture_opts, ";")
-            backgr := "Red"
+            backgr := CONF.has_gestures_color.v
             try backgr := Format("{:#06x}", Integer("0x"
                 . Trim(StrSplit(CONF.gest_colors[1].v, ",")[1])))
             try backgr := Format("{:#06x}", Integer("0x" . opts[8]))
@@ -186,9 +189,9 @@ _FillOneButton(sc, btn, d_sc) {
                 htxt := "`n" . h_node.down_val
                 v := 1 << h_node.down_val
                 b := gui_mod_val && gui_mod_val & v == v
-                backgr := b ? "Black" : "7777AA"
+                backgr := b ? CONF.active_modifier_color.v : CONF.modifier_color.v
             case TYPES.Chord:
-                backgr := "BBBB22"
+                backgr := CONF.chord_part_color.v
         }
         if h_node.gui_shortname {
             htxt := "`n" . h_node.gui_shortname
@@ -196,17 +199,28 @@ _FillOneButton(sc, btn, d_sc) {
     } else if m_node && m_node.down_type == TYPES.Modifier {
         v := 1 << m_node.down_val
         if gui_mod_val && gui_mod_val & v == v {
-            backgr := "Black"
+            backgr := CONF.active_modifier_color.v
         } else {
             _AddIndicators(res.umod, btn, true)
-            backgr := "7777AA"
+            backgr := CONF.modifier_color.v
         }
         htxt := "`n" . (m_node.gui_shortname ? m_node.gui_shortname : m_node.down_val)
     }
-    if CONF.empty_border_unassigned.v && backgr == "Silver"
-        && ((btxt . htxt) == _GetKeyName(sc, true)) {
-        backgr := "White"
+
+    if !b_node && !h_node && !m_node {
+        backgr := CONF.default_unassigned_color.v
     }
+
+    if temp_chord {
+        if ONLY_BASE_SCS.Has(sc) || SYS_MODIFIERS.Has(sc)
+            || !h_node && m_node && m_node.down_type == TYPES.Modifier {
+            btn.Opt("+Disabled")
+        }
+        if temp_chord.Has(String(sc)) {
+            backgr := CONF.selected_chord_color.v
+        }
+    }
+
     btn.Opt("+Background" . backgr)
     btn.Text := btxt . htxt
 }
@@ -231,21 +245,22 @@ _AddIndicators(unode, btn, is_hold:=false, ignore_hold_count:=false) {
     }
     if cnt {
         l := StrLen(String(cnt)) * 5 * CONF.font_scale.v + 4
+        c := CONF.nested_counter_ind_color.v
         res := (CONF.overlay_type.v == 3)
-            ? _AddOverlayItem(x + w - l, y + (is_hold ? h - 12 * CONF.font_scale.v : 0), "", cnt)
-            : _AddOverlayItem(x + w - p, y + (is_hold ? h - p : 0), "Red")
+            ? _AddOverlayItem(x + w - l, y + (is_hold ? h - 12 * CONF.font_scale.v : 0), c, cnt)
+            : _AddOverlayItem(x + w - p, y + (is_hold ? h - p : 0), c)
         btn.indicators.Push(res)
     }
     if is_hold {
         y += h - p
     }
     for arr in [
-        [node.gui_shortname, "Silver"],
-        [node.is_irrevocable, "Gray"],
-        [node.is_instant, "Teal"],
-        [node.up_type !== TYPES.Disabled, "Blue"],
-        [node.custom_lp_time, "Purple"],
-        [node.custom_nk_time, "Fuchsia"]
+        [node.gui_shortname, CONF.changed_name_ind_color.v],
+        [node.is_irrevocable, CONF.irrevocable_ind_color.v],
+        [node.is_instant, CONF.instant_ind_color.v],
+        [node.up_type !== TYPES.Disabled, CONF.additional_up_ind_color.v],
+        [node.custom_lp_time, CONF.custom_hold_time_ind_color.v],
+        [node.custom_nk_time, CONF.custom_child_time_ind_color.v]
     ] {
         if arr[1] {
             res := _AddOverlayItem(x + p * (A_Index - 1), y, arr[2])

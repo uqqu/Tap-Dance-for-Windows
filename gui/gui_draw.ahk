@@ -1,5 +1,11 @@
 ﻿USER_DPI := DllCall("user32\GetDpiForSystem", "uint") / 96
 
+AHK_COLORS := Map("Black", "000000", "Silver", "C0C0C0", "Gray", "808080", "White", "FFFFFF",
+    "Maroon", "800000", "Red", "FF0000", "Purple", "800080", "Fuchsia", "FF00FF",
+    "Green", "008000", "Lime", "00FF00", "Olive", "808000", "Yellow", "FFFF00",
+    "Navy", "000080", "Blue", "0000FF", "Teal", "008080", "Aqua", "00FFFF",
+)
+
 
 Scale(x?, y?, w?, h?) {
     return (IsSet(x) ? " x" . Round(x * CONF.gui_scale.v) : "")
@@ -180,7 +186,7 @@ _DrawKeys() {
 
                 btn := UI.Add("Button",
                     "v" . sc . " x" . x * CONF.gui_scale.v . " y" . y . " w" . w . " h" . h
-                    . " +BackgroundSilver +0x8000"
+                    . " +0x8000"
                 )
                 btn.indicators := []
                 UI.buttons[sc] := btn
@@ -316,44 +322,21 @@ _DrawCurrentValues() {
 }
 
 
-_AddHelpText(font_opt, p, txt) {
-    UI.SetFont("Norm " . font_opt)
-    UI.help_texts.Push(UI.Add("Text", p, txt))
-    UI.help_texts[-1].OnEvent("DoubleClick", HideHelp)
-}
-
-
 _DrawHelp() {
     if !CONF.help_texts.v {
         return
     }
-    _AddHelpText("Italic cGray", Scale(123, CONF.ref_height.v + 6),
-        "Borders (hold behavior):")
-    _AddHelpText("Italic Bold c7777AA", "x+5 yp0", "modifier;")
-    _AddHelpText("Italic Bold c222222", "x+5 yp0", "active modifier;")
-    _AddHelpText("Italic Bold cAAAA11", "x+5 yp0", "chord part;")
+    UI.SetFont("Norm Italic cGray")
 
-    v := "Red"
-    try v := Format("{:#06x}", Integer("0x"
-        . Trim(StrSplit(CONF.gest_colors[1].v, ",")[1])))
-    _AddHelpText("Italic Bold c" . v, "x+5 yp0", "gesture start.")
-
-    _AddHelpText("Italic cGray", "x+" . 60 / USER_DPI . " yp0", "Indicators: ")
-    _AddHelpText("Italic Bold cGray", "x+5 yp0", "irrevocable;")
-    _AddHelpText("Italic Bold cTeal", "x+5 yp0", "instant;")
-    _AddHelpText("Italic Bold cBlue", "x+5 yp0", "with up value;")
-    _AddHelpText("Italic Bold cPurple", "x+5 yp0", "custom long press time;")
-    _AddHelpText("Italic Bold cFuchsia", "x+5 yp0", "custom next key waiting time;")
-    _AddHelpText("Italic Bold cRed", "x+5 yp0", "has nested.")
-
-    _AddHelpText("Italic cGray", Scale(11, 31),
+    UI.help_texts.Push(UI.Add("Text", Scale(11, 31),
         "The arrows indicate the type of transition: ➤ – base, ▲ – hold, ▼ – chord, • – gesture; "
-        . "if it's with a number – the used modifier's designation."
-    )
+        . "if it's with a number – the used modifier's designation."))
+    UI.help_texts[-1].OnEvent("DoubleClick", HideHelp)
 
-    _AddHelpText("Italic cGray", "x+" . 30 / USER_DPI . " yp0",
-        "LMB – base next map, RMB – hold next map/activate mod."
-    )
+    UI.help_texts.Push(UI.Add("Text", "x+" . 30 / USER_DPI . " yp0",
+        "LMB – base next map, RMB – hold next map/activate mod."))
+    UI.help_texts[-1].OnEvent("DoubleClick", HideHelp)
+
     UI.SetFont("Norm cBlack")
 }
 
@@ -391,7 +374,7 @@ _AddOverlayItem(x, y, colour, txt:="") {
     if !txt {
         elem := overlay.AddText("x" . x . " y" . y . " " . Scale(,, 3, 3) . " Background" . colour)
     } else {
-        elem := overlay.AddText("x" . x . " y" . y, txt)
+        elem := overlay.AddText("x" . x . " y" . y . " c" . colour, txt)
     }
     return elem
 }
@@ -447,15 +430,20 @@ GetKeyNameWithMods(sc) {
     hkl := DllCall("GetKeyboardLayout", "uint", 0, "ptr")
     vk := DllCall("MapVirtualKeyEx", "uint", sc, "uint", 3, "ptr", hkl, "uint")
 
+    if vk >= 0x60 && vk <= 0x6F {
+        return ""
+    }
+
     state := Buffer(256, 0)
 
     if gui_sysmods & 1 {
         NumPut("UChar", 0x80, state, 0x10)
-    }
-    if CONF.layout_format.v == "ISO" && (gui_sysmods & 8)
+    } else if CONF.layout_format.v == "ISO" && (gui_sysmods & 8)
         || (gui_sysmods & 6) == 6 || (gui_sysmods & 10) == 10 {
         NumPut("UChar", 0x80, state, 0x11)
         NumPut("UChar", 0x80, state, 0x12)
+    } else {
+        return ""
     }
 
     buf := Buffer(8, 0)

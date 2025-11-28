@@ -253,12 +253,12 @@ HandleKeyPress(sc) {
         }
         if temp_chord.Has(str_sc) {
             temp_chord.Delete(str_sc)
-            btn.Opt("+BackgroundSilver")
+            _FillOneButton(sc, btn, sc)
         } else {
             temp_chord[str_sc] := true
-            btn.Opt("+BackgroundBBBB22")
+            btn.Opt("+Background" . CONF.selected_chord_color.v)
+            btn.Text := btn.Text
         }
-        btn.Text := btn.Text
     } else if CONF.gui_alt_ignore.v && (sc == 0x038 || sc == 0x138) {
         return
     } else if SubStr(sc, 1, 5) == "Wheel" {
@@ -539,4 +539,47 @@ UpdateOverlayPos(*) {
         }
     }
     WinActivate("ahk_id " . UI.Hwnd)
+}
+
+
+ColorPick(start_color:="") {
+    static cust_colors := Buffer(16 * 4, 0)
+
+    start_color := AHK_COLORS.Get(start_color, start_color)
+
+    if RegExMatch(start_color, "i)^[0-9A-F]{6}$") {
+        _rgb := Integer("0x" . start_color)
+        bgr := ((_rgb & 0xFF) << 16) | (((_rgb >> 8) & 0xFF) << 8) | ((_rgb >> 16) & 0xFF)
+    } else {
+        bgr := 0x00FFFFFF
+    }
+
+    hwnd := s_gui && s_gui.Hwnd ? s_gui.Hwnd : UI && UI.Hwnd ? UI.Hwnd : 0
+    is64 := A_PtrSize == 8
+    rgb_res := is64 ? 24 : 12
+
+    buf := Buffer(is64 ? 72 : 36, 0)
+
+    NumPut("UInt", buf.Size, buf, 0)
+    NumPut("Ptr", hwnd, buf, is64 ? 8 : 4)
+    NumPut("UInt", bgr, buf, rgb_res)
+    NumPut("Ptr", cust_colors.Ptr, buf, is64 ? 32 : 16)
+    NumPut("UInt", 3, buf, is64 ? 40 : 20)
+
+    if !DllCall("Comdlg32\ChooseColorW", "Ptr", buf, "Int") {
+        return ""
+    }
+
+    bgr := NumGet(buf, rgb_res, "UInt")
+    _rgb := ((bgr & 0xFF) << 16) | (((bgr >> 8) & 0xFF) << 8) | ((bgr >> 16) & 0xFF)
+
+    res := Format("{:06X}", _rgb)
+
+    for name, val in AHK_COLORS {
+        if val == res {
+            return name
+        }
+    }
+
+    return res
 }
