@@ -75,9 +75,7 @@ OpenForm(save_type, _path:=false, _mod_val:=false, _entries:=false, *) {
     if layers.Length > 1 {
         form.Add("DropDownList", "x10 y+10 w320 vLayersDDL Choose1", layers)
         form["LayersDDL"].OnEvent("Change",
-            ChangeFormPlaceholder.Bind(
-                unode, layers, save_type, (save_type > 1 ? 0 : 2), 1
-            )
+            ChangeFormPlaceholder.Bind(unode, layers, save_type, 0, 1)
         )
         try form["LayersDDL"].Text := prior_layer
     }
@@ -106,7 +104,7 @@ OpenForm(save_type, _path:=false, _mod_val:=false, _entries:=false, *) {
         SendMessage(0x1501, true, StrPtr("GUI shortname"), form["Shortname"].Hwnd)
 
         form.Show("w340")
-        ChangeFormPlaceholder(unode, layers, 1, 0, 0)
+        ChangeFormPlaceholder(unode, layers, 1)
         form["ValInp"].Focus()
         return
     }
@@ -238,7 +236,7 @@ OpenForm(save_type, _path:=false, _mod_val:=false, _entries:=false, *) {
     form["TypeDDL"].OnEvent("Change", ChangeFormPlaceholder.Bind(unode, layers, save_type, 0, 0))
     form["TypeDDL"].Text := curr_val ? TYPES_R[curr_val.down_type] : "Text"
     form.Show("w340")
-    ChangeFormPlaceholder(unode, layers, save_type, (save_type > 1 ? 0 : 2), 0)
+    ChangeFormPlaceholder(unode, layers, save_type)
 }
 
 
@@ -248,7 +246,7 @@ ShowHideUpVals(*) {
         form["UpValInp"].Visible := false
     } else {
         form["UpTypeDDL"].Visible := true
-        form["UpValInp"].Visible := true
+        form["UpValInp"].Visible := form["UpTypeDDL"].Value > 2
 
         form["LiveHint"].Visible := false
         form["LHText"].Visible := false
@@ -417,6 +415,7 @@ ChangeFormPlaceholder(unode, layers, save_type:=0, is_up:=0, is_layer_editing:=0
         "Function name",
         "Modifier number"
     ]
+    static prev_layer:=""
 
     layer := layers.Length > 1 ? form["LayersDDL"].Text : layers[1]
     name := [" value ", " value ", " chord ", " gesture "][save_type + 1]
@@ -432,99 +431,112 @@ ChangeFormPlaceholder(unode, layers, save_type:=0, is_up:=0, is_layer_editing:=0
         return
     }
 
-    inp := is_up ? form["UpValInp"] : form["ValInp"]
-    type_field := is_up ? form["UpTypeDDL"] : form["TypeDDL"]
-    curr_type := type_field.Text
+    if !is_up && unode && unode.layers.Length && unode.layers.Has(layer) && unode.layers[layer][0]
+        && (prev_layer !== layer || unode.layers[layer][0].down_type == form["TypeDDL"].Value) {
 
-    SendMessage(0x1501, true, StrPtr(placeholders[TYPES.%curr_type%]), inp.Hwnd)
-
-    if unode && unode.layers.Length && unode.layers.Has(layer) && unode.layers[layer][0] {
         val := unode.layers[layer][0]
-        irrevoc := val.is_irrevocable
-        instant := val.is_instant
-        child_behavior := val.child_behavior
-        gui_name := val.gui_shortname
-        lp := val.custom_lp_time
-        nk := val.custom_nk_time
 
         if is_layer_editing {
-            curr_type := TYPES_R[(is_up ? val.up_type : val.down_type)]
-            form["TypeDDL"].Text := curr_type
+            form["TypeDDL"].Text := TYPES_R[val.down_type]
         }
-        if TYPES.%curr_type% == (is_up ? val.up_type : val.down_type) {
-            inp.Text := is_up ? val.up_val : val.down_val
-        }
+        if TYPES.%form["TypeDDL"].Text% == val.down_type {
+            form["ValInp"].Text := val.down_val
 
-        if val.HasOwnProp("opts") {  ; gesture
-            form["Scaling"].Text := Round(val.opts.scaling, 2)
-            form["Rotate"].Value := val.opts.rotate + 2
-            form["Direction"].Value := val.opts.dirs + 1
-            if val.opts.closed {
-                form["Phase"].Value := val.opts.closed + 1
-                form["Phase"].Opt("-Disabled")
+            if val.HasOwnProp("opts") {  ; gesture
+                form["Scaling"].Text := Round(val.opts.scaling, 2)
+                form["Rotate"].Value := val.opts.rotate + 2
+                form["Direction"].Value := val.opts.dirs + 1
+                if val.opts.closed {
+                    form["Phase"].Value := val.opts.closed + 1
+                    form["Phase"].Opt("-Disabled")
+                }
+            } else if val.gesture_opts {
+                opts := StrSplit(val.gesture_opts, ";")
+                for i, name in [
+                    "LiveHint", "ColorInp", "GradLenInp", "GradCycle",
+                    "ColorInpEdges", "GradLenInpEdges", "GradCycleEdges",
+                    "ColorInpCorners", "GradLenInpCorners", "GradCycleCorners",
+                ] {
+                    if i > opts.Length {
+                        break
+                    }
+                    if !opts[i] {
+                        continue
+                    }
+                    form[name].Value := opts[i]
+                }
             }
-        } else if val.gesture_opts {
-            opts := StrSplit(val.gesture_opts, ";")
-            for i, name in [
-                "LiveHint", "ColorInp", "GradLenInp", "GradCycle",
-                "ColorInpEdges", "GradLenInpEdges", "GradCycleEdges",
-                "ColorInpCorners", "GradLenInpCorners", "GradCycleCorners",
-            ] {
-                if i > opts.Length {
-                    break
+
+            if save_type {
+                try form["BtnLP"].Visible := false
+                try form["CustomLP"].Visible := false
+            } else {
+                form["BtnLP"].Visible := !val.custom_lp_time
+                form["CustomLP"].Visible := val.custom_lp_time
+                form["CustomLP"].Text := val.custom_lp_time
+            }
+
+            form["CustomNK"].Text := val.custom_nk_time
+            form["BtnNK"].Visible := !val.custom_nk_time
+            form["CustomNK"].Visible := val.custom_nk_time
+
+            if save_type !== 2 {
+                form["Shortname"].Text := val.gui_shortname
+            }
+            if save_type < 2 {
+                form["ChildBehaviorDDL"].Value := val.child_behavior
+            }
+
+            form["CBIrrevocable"].Value := val.is_irrevocable
+            form["CBInstant"].Value := val.is_instant
+
+            try {
+                if val.up_type !== TYPES.Disabled {
+                    if !form["UpTypeDDL"].Visible {
+                        ShowHideUpVals()
+                    }
+                } else if val.up_type == TYPES.Disabled && form["UpTypeDDL"].Visible {
+                    ShowHideUpVals()
                 }
-                if !opts[i] {
-                    continue
+
+                if is_layer_editing {
+                    form["UpTypeDDL"].Text := TYPES_R[val.up_type]
                 }
-                form[name].Value := opts[i]
+                form["UpValInp"].Text := val.up_val
+                form["UpTypeDDL"].Text == "Function" ? SetUpFunction(1) : 0
+                if form["UpTypeDDL"].Text == "Default" || form["UpTypeDDL"].Text == "Disabled" {
+                    form["UpValInp"].Text := ""
+                    form["UpValInp"].Visible := false
+                } else {
+                    form["UpValInp"].Visible := form["UpTypeDDL"].Visible
+                }
             }
         }
         title := "Existing" . name . "on layer '" . layer . "'"
     }
 
-    form.Title := title ?? "New" . name . "for layer '" . layer . "'"
+    if !is_up && prev_layer !== layer {
+        form.Title := title ?? "New" . name . "for layer '" . layer . "'"
+    }
 
-    if save_type {
-        try form["CustomLP"].Visible := 0
-        try form["BtnLP"].Visible := 0
+    if is_up {
+        t := form["UpTypeDDL"]
+        v := form["UpValInp"]
+        n := 1
     } else {
-        form["CustomLP"].Text := lp ?? 0
-        form["BtnLP"].Visible := !(lp ?? 0)
-        form["CustomLP"].Visible := lp ?? 0
+        t := form["TypeDDL"]
+        v := form["ValInp"]
+        n := 0
     }
-
-    form["CustomNK"].Text := nk ?? 0
-    form["BtnNK"].Visible := !(nk ?? 0)
-    form["CustomNK"].Visible := nk ?? 0
-
-    if save_type !== 2 {
-        if IsSet(gui_name) {
-            form["Shortname"].Text := gui_name
-        }
-    }
-    if save_type < 2 {
-        form["ChildBehaviorDDL"].Value := child_behavior
-            ?? (4 + (form["TypeDDL"].Text == "Modifier"))
-    }
-
-    form["CBIrrevocable"].Value := irrevoc ?? 0
-    form["CBInstant"].Value := instant ?? 0
-
-    curr_type == "Function" ? SetUpFunction(is_up) : inp.Focus()
-    if curr_type == "Default" || curr_type == "Disabled" {
-        inp.Text := ""
-        inp.Visible := false
+    SendMessage(0x1501, true, StrPtr(placeholders[TYPES.%t.Text%]), v.Hwnd)
+    (t.Text == "Function") ? SetUpFunction(n) : v.Focus()
+    if t.Text == "Default" || t.Text == "Disabled" {
+        v.Text := ""
+        v.Visible := false
     } else {
-        inp.Visible := true
+        v.Visible := true
     }
-
-    if is_up && curr_type !== "Disabled" && !form["UpTypeDDL"].Visible {
-        ShowHideUpVals()
-    }
-
-    if is_up == 2 {
-        ChangeFormPlaceholder(unode, layers, save_type, 0, is_layer_editing)
-    }
+    prev_layer := layer
 }
 
 

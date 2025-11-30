@@ -6,8 +6,8 @@
         return
     }
 
+    _UnhighlightSelectedChord()
     if row {
-        _UnhighlightSelectedChord()
         selected_chord := ChordToStr(lv.GetText(row, 1))
         ToggleEnabled(1, UI.chs_toggles)
         for sc in StrSplit(selected_chord, "-") {
@@ -15,7 +15,6 @@
             UI[sc].Text .= ""
         }
     } else {
-        _UnhighlightSelectedChord()
         selected_chord := ""
         ToggleEnabled(0, UI.chs_toggles)
     }
