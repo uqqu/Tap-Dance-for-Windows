@@ -12,7 +12,8 @@ CONF := {
     GUI: [],
     Gestures: [],
     GestureDefaults: [],
-    Colors: []
+    Colors: [],
+    User: []
 }
 
 SYS_MODIFIERS := Map(
@@ -109,6 +110,9 @@ CheckConfig() {
             . "`n[Gestures]`n"
             . "`n[GestureDefaults]`n"
             . "`n[Colors]`n"
+            . "`n[User]`n"
+            . "OpenWeatherMapApi=`n"
+            . "GetGeoApi="
             , "config.ini"
         )
     }
@@ -270,6 +274,36 @@ CheckConfig() {
         }
         LANGS.Add(lang, "Layout: " . GetLayoutNameFromHKL(lang))
     }
+
+    CollectUserValues()
+}
+
+
+CollectUserValues() {
+    for cnf in CONF.User {
+        CONF.DeleteProp("user_" . cnf.ini_name)
+    }
+    CONF.User := []
+
+    user_values := IniRead("config.ini", "User", , false)
+    if user_values {
+        for line in StrSplit(user_values, "`n", "`r") {
+            if !line {
+                continue
+            }
+
+            p := InStr(line, "=")
+            if !p {
+                continue
+            }
+
+            key := SubStr(line, 1, p - 1)
+            val := SubStr(line, p + 1)
+            if key {
+                CONF.user_%key% := ConfValue("User", key, "user", "str", key, val)
+            }
+        }
+    }
 }
 
 
@@ -335,21 +369,24 @@ ShowSettings(*) {
     s_gui.OnEvent("Escape", CloseSettingsEvent)
     s_gui.SetFont("s9")
 
-    s_gui.Add("Button", "Center x270 y0 w60 h18 Default vCancel", "❌ Cancel")
+    s_gui.user_values := []
+
+    s_gui.Add("Button", "Center x299 y0 w60 h18 Default vCancel", "❌ Cancel")
         .OnEvent("Click", CloseSettingsEvent)
-    s_gui.Add("Button", "Center x335 y0 w60 h18 Default vApply", "✔ Accept")
+    s_gui.Add("Button", "Center x358 y0 w60 h18 Default vApply", "✔ Accept")
         .OnEvent("Click", SaveConfig)
 
-    tabs := s_gui.Add("Tab3", "x0 y0 w402 h666",
-        ["Main", "GUI", "Gestures", "Gesture defaults", "Colors"])
+    tabs := s_gui.Add("Tab3", "x0 y0 w422 h666",
+        ["Main", "GUI", "Gestures", "Gesture defaults", "Colors", "User"])
 
     tabs.UseTab("Main")
     for c in CONF.Main {
-        _AddElems(c.form_type, A_Index == 1 ? 40 : "",
-            [c.double_height, c.ini_name . (c.is_num ? " Number" : ""),
-            c.descr, c.v, c.extra_params*])
+        _AddElems(c.form_type, A_Index == 1 ? 40 : "", [
+            c.double_height, c.ini_name . (c.is_num ? " Number" : ""),
+            c.descr, c.v, c.extra_params*
+        ])
     }
-    s_gui.Add("Button", "Center x15 y+15 w370 h20", "Reread system layouts")
+    s_gui.Add("Button", "Center x15 y+15 w390 h20", "Reread system layouts")
         .OnEvent("Click", TrackLayouts)
 
     tabs.UseTab("GUI")
@@ -369,9 +406,9 @@ ShowSettings(*) {
     }
 
     tabs.UseTab("Gesture defaults")
-    s_gui.Add("Text", "x20 w360 y34 h34 Center",
+    s_gui.Add("Text", "x20 w380 y34 h34 Center",
         "Default gesture matching and color options`n(can be overridden in each assignment)")
-    s_gui.Add("Text", "x20 w360 y+8 h1 0x10")
+    s_gui.Add("Text", "x20 w380 y+8 h1 0x10")
 
     for c in CONF.GestureDefaults {
         if A_Index == 4 {
@@ -383,27 +420,27 @@ ShowSettings(*) {
         ])
     }
 
-    s_gui.Add("Text", "x110 w180 y+10 h1 0x10")
+    s_gui.Add("Text", "x85 w250 y+10 h1 0x10")
 
-    s_gui.Add("Button", "vToggleColors x15 y+10 h20 w121 Disabled", "General")
+    s_gui.Add("Button", "vToggleColors x15 y+10 h20 w131 Disabled", "General")
         .OnEvent("Click", _ToggleColors.Bind(1))
-    s_gui.Add("Button", "vToggleColorsEdges x135 yp0 h20 w121", "Edges")
+    s_gui.Add("Button", "vToggleColorsEdges x145 yp0 h20 w131", "Edges")
         .OnEvent("Click", _ToggleColors.Bind(2))
-    s_gui.Add("Button", "vToggleColorsCorners x255 yp0 h20 w120", "Corners")
+    s_gui.Add("Button", "vToggleColorsCorners x275 yp0 h20 w130", "Corners")
         .OnEvent("Click", _ToggleColors.Bind(3))
 
     for i, name in ["", "Edges", "Corners"] {
-        _AddElems("m_color", 215,
-            [1, "GestureColors" . name, "Gesture colors`n(more than one for gradient):",
-                CONF.gest_colors[i].v],
-        )
-        _AddElems("str",,
-            [0, "GradientLength" . name . " Number", "Full gradient cycle length (px):",
-                CONF.grad_len[i].v],
-        )
-        _AddElems("checkbox",,
-            [0, "GradientLoop" . name, "&Gradient cycling", CONF.grad_loop[i].v]
-        )
+        _AddElems("m_color", 215, [
+            1, "GestureColors" . name,
+            "Gesture colors`n(more than one for gradient):", CONF.gest_colors[i].v
+        ])
+        _AddElems("str",, [
+            0, "GradientLength" . name . " Number",
+            "Full gradient cycle length (px):", CONF.grad_len[i].v
+        ])
+        _AddElems("checkbox",, [
+            0, "GradientLoop" . name, "&Gradient cycling", CONF.grad_loop[i].v
+        ])
         if i > 1 {
             s_gui["GestureColors" . name].Visible := false
             s_gui["GradientLength" . name].Visible := false
@@ -412,24 +449,40 @@ ShowSettings(*) {
     }
 
     tabs.UseTab("Colors")
-    s_gui.Add("Text", "x20 w360 y30 h34 Center",
+    s_gui.Add("Text", "x20 w380 y30 h34 Center",
         "Button borders:")
     loop 7 {
         c := CONF.Colors[A_Index]
-        _AddElems(c.form_type, A_Index == 1 ? 55 : "",
-            [c.double_height, c.ini_name . (c.is_num ? " Number" : ""),
-            c.descr, c.v, c.extra_params*])
+        _AddElems(c.form_type, A_Index == 1 ? 55 : "", [
+            c.double_height, c.ini_name . (c.is_num ? " Number" : ""),
+            c.descr, c.v, c.extra_params*
+        ])
     }
-    s_gui.Add("Text", "x20 w360 y+8 h1 0x10")
-    s_gui.Add("Text", "x20 w360 y+10 h34 Center", "Indicators on buttons:")
+    s_gui.Add("Text", "x20 w380 y+8 h1 0x10")
+    s_gui.Add("Text", "x20 w380 y+10 h34 Center", "Indicators on buttons:")
     loop 7 {
         c := CONF.Colors[A_Index + 7]
-        _AddElems(c.form_type, A_Index == 1 ? 285 : "",
-            [c.double_height, c.ini_name . (c.is_num ? " Number" : ""),
-            c.descr, c.v, c.extra_params*])
+        _AddElems(c.form_type, A_Index == 1 ? 285 : "", [
+            c.double_height, c.ini_name . (c.is_num ? " Number" : ""),
+            c.descr, c.v, c.extra_params*
+        ])
     }
 
-    s_gui.Show("w400 h480")
+    tabs.UseTab("User")
+    s_gui.Add("Text", "x50 w320 y34 h20 Center",
+        "Here you can place values for your user functions, e.g. api keys.")
+    s_gui.Add("Button", "x+17 yp-2 w20 h20 Center", "+").OnEvent("Click",
+        _AddElems.Bind("user", false, [false, "", "", ""]))
+    s_gui.Add("Text", "x15 w390 y+5 h1 0x10")
+    for c in CONF.User {
+        _AddElems(c.form_type, A_Index == 1 ? 70 : "", [
+            c.double_height, c.ini_name . (c.is_num ? " Number" : ""),
+            c.descr, c.v, c.extra_params*
+        ])
+    }
+    _AddElems("user", , [false, "", "", ""])
+
+    s_gui.Show("w420 h480")
     DllCall("SetFocus", "ptr", s_gui["ExtraFRow"].Hwnd)
 }
 
@@ -450,69 +503,53 @@ _AddElems(elem_type, y:=false, data*) {
 
     cur_h := y || cur_h
 
-    switch elem_type {
-        case "ddl":
-            for arr in data {
-                h := arr[1] ? 40 : 20
-                s_gui.Add("Text", "x15 y" . cur_h . " h" . h . " w180", arr[3])
-                elem := s_gui.Add("DropDownList",
-                    "x+10 yp" . (arr[1] ? 8 : -2) . " w180 v" . arr[2], arr[5])
+    for arr in data {
+        if type(arr) !== "Array" {
+            continue
+        }
+        h := arr[1] ? 40 : 20
+        ysh := arr[1] ? 8 : -2
+        name := arr[2]
+        switch elem_type {
+            case "ddl":
+                s_gui.Add("Text", "x15 y" . cur_h . " h" . h . " w190", arr[3])
+                elem := s_gui.Add("DropDownList", "x+10 yp" . ysh . " w190 v" . name, arr[5])
                 if arr[6] {
                     elem.Text := arr[4]
                 } else {
                     elem.Value := arr[4]
                 }
-                cur_h += h + _shift
-            }
-        case "str":
-            for arr in data {
-                h := arr[1] ? 40 : 20
-                s_gui.Add("Text", "x15 y" . cur_h . " h" . h . " w190", arr[3])
-                s_gui.Add("Edit", "Center x+0 yp" . (arr[1] ? 8 : -2) . " h20 w180 v"
-                    . arr[2], arr[4])
-                cur_h += h + _shift
-            }
-        case "checkbox":
-            for arr in data {
-                h := arr[1] ? 40 : 20
-                s_gui.Add("CheckBox", "x15 y" . cur_h . " h" . h . " w360 v" . arr[2], arr[3])
+            case "str":
+                s_gui.Add("Text", "x15 y" . cur_h . " h" . h . " w200", arr[3])
+                s_gui.Add("Edit", "Center x+0 yp" . ysh . " h20 w190 v" . name, arr[4])
+            case "checkbox":
+                s_gui.Add("CheckBox", "x15 y" . cur_h . " h" . h . " w380 v" . name, arr[3])
                     .Value := arr[4]
-                cur_h += h + _shift
-            }
-        case "h_checkbox":
-            for arr in data {
-                h := arr[1] ? 40 : 20
+            case "h_checkbox":
                 fn := MsgBox.Bind(arr[5], arr[6], "IconI")
                 s_gui.Add("Button", "x11 y" . cur_h . " h20 w20", "?")
                     .OnEvent("Click", (*) => fn.Call())
-                s_gui.Add("CheckBox", "x+3 w330 yp+0 h20 v" . arr[2], arr[3]).Value := arr[4]
-                cur_h += h + _shift
-            }
-        case "color":
-            for arr in data {
-                h := arr[1] ? 40 : 20
-                name := arr[2]
-                s_gui.Add("Text", "x15 y" . cur_h . " h" . h . " w190", arr[3])
-                s_gui.Add("Edit", "Center x+0 yp" . (arr[1] ? 8 : -2) . " h20 w160 v"
-                    . name, arr[4])
-                s_gui.Add("Button", "x+3 yp+0 h20 w20 v" . name . "Pick", "🎨")
-                    .OnEvent("Click", (*)
-                        => (s_gui[name].Text := ColorPick(s_gui[name].Text) || s_gui[name].Text))
-                cur_h += h + _shift
-            }
-        case "m_color":
-            for arr in data {
-                h := arr[1] ? 40 : 20
-                name := arr[2]
-                s_gui.Add("Text", "x15 y" . cur_h . " h" . h . " w190", arr[3])
-                s_gui.Add("Edit", "Center x+0 yp" . (arr[1] ? 8 : -2) . " h20 w160 v"
-                    . name, arr[4])
-                s_gui.Add("Button", "x+3 yp+0 h20 w20 v" . name . "Pick", "🎨")
-                    .OnEvent("Click", (*)
-                        => (s_gui[name].Text .= (s_gui[name].Text ? "," : "")
-                            . ColorPick(s_gui[name].Text)))
-                cur_h += h + _shift
-            }
+                s_gui.Add("CheckBox", "x+3 w350 yp+0 h20 v" . name, arr[3]).Value := arr[4]
+            case "color":
+                s_gui.Add("Text", "x15 y" . cur_h . " h" . h . " w200", arr[3])
+                s_gui.Add("Edit", "Center x+0 yp" . ysh . " h20 w170 v" . name, arr[4])
+                s_gui.Add("Button", "x+3 yp+0 h20 w20 v" . name . "Pick", "🎨").OnEvent("Click",
+                    (*) => (s_gui[name].Text := ColorPick(s_gui[name].Text) || s_gui[name].Text))
+            case "m_color":
+                s_gui.Add("Text", "x15 y" . cur_h . " h" . h . " w200", arr[3])
+                s_gui.Add("Edit", "Center x+0 yp" . ysh . " h20 w170 v" . name, arr[4])
+                s_gui.Add("Button", "x+3 yp+0 h20 w20 v" . name . "Pick", "🎨").OnEvent("Click",
+                    (*) => (s_gui[name].Text .= (s_gui[name].Text ? "," : "")
+                        . ColorPick(s_gui[name].Text))
+                )
+            case "user":
+                n := s_gui.Add("Edit", "x15 y" . cur_h . " h" . h . " w190", arr[3])
+                s_gui.Add("Text", "Center x+0 yp+3 h20 w10", "=")
+                v := s_gui.Add("Edit", "Center x+0 yp-3 h20 w190", arr[4])
+                s_gui.user_values.Push([n, v])
+
+        }
+        cur_h += h + _shift
     }
 }
 
@@ -554,11 +591,21 @@ SaveConfig(*) {
 
         for name in ["Main", "GUI", "Gestures", "GestureDefaults", "Colors"] {
             for elem in CONF.%name% {
-                val := elem.form_type == "str" || elem.form_type == "ddl" && elem.val_type == "str"
-                    ? s_gui[elem.ini_name].Text : s_gui[elem.ini_name].Value
+                val := elem.form_type == "color" || elem.form_type == "m_color"
+                    || elem.form_type == "str"
+                    || elem.form_type == "ddl" && elem.val_type == "str"
+                        ? s_gui[elem.ini_name].Text : s_gui[elem.ini_name].Value
                 IniWrite(val, "config.ini", name, elem.ini_name)
                 elem.v := elem.val_type == "int" ? Integer(val)
                     : elem.val_type == "float" ? Round(Float(val), 2) : val
+            }
+        }
+        IniDelete("config.ini", "User")
+        for pair in s_gui.user_values {
+            key := pair[1].Text
+            value := pair[2].Text
+            if key {
+                IniWrite(value, "config.ini", "User", key)
             }
         }
     }
@@ -568,6 +615,8 @@ SaveConfig(*) {
     if b == 2 {
         Run(A_ScriptFullPath)  ; rerun with new keys
     } else if b {
+        CONF.T := "T" . CONF.MS_LP.v / 1000
+        CollectUserValues()
         DrawLayout()
     }
 }
@@ -576,15 +625,28 @@ SaveConfig(*) {
 CheckChanges(*) {
     for name in ["Main", "GUI", "Gestures", "GestureDefaults", "Colors"] {
         for elem in CONF.%name% {
-            if elem.form_type == "str" || elem.form_type == "ddl" && elem.val_type == "str" {
-                val := s_gui[elem.ini_name].Text
-            } else {
-                val := s_gui[elem.ini_name].Value
-            }
+            val := elem.form_type == "color" || elem.form_type == "m_color"
+                || elem.form_type == "str"
+                || elem.form_type == "ddl" && elem.val_type == "str"
+                    ? s_gui[elem.ini_name].Text : s_gui[elem.ini_name].Value
             if val != elem.v {
                 return true
             }
         }
+    }
+    cnt := 0
+    for pair in s_gui.user_values {
+        key := pair[1].Text
+        value := pair[2].Text
+        if key || value {
+            cnt += 1
+            if !CONF.HasOwnProp("user_" . key) || CONF.user_%key%.v != value {
+                return true
+            }
+        }
+    }
+    if cnt !== CONF.User.Length {
+        return true
     }
     return false
 }

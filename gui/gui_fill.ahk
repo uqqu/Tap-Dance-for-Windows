@@ -550,9 +550,10 @@ _FillOther() {
 
     ToggleEnabled(0, UI.layer_move_btns, UI.layer_ctrl_btns, UI.chs_toggles, UI.gest_toggles)
 
-    ToggleEnabled(saved_level && !buffer_view && selected_layer
+    ToggleEnabled(saved_level && !buffer_view && !temp_chord && selected_layer
         && (saved_level[1] !== 2 || current_path.Length), UI["BtnShowPasteMenu"])
-    ToggleEnabled(!buffer_view && selected_layer, UI["BtnShowCopyMenu"])
+    ToggleEnabled(!buffer_view && !temp_chord && selected_layer, UI["BtnShowCopyMenu"])
+    ToggleEnabled(!temp_chord, UI["BtnEnableDragMode"], UI["BtnShowBuffer"])
 
     if UI["TextHold"].Text !== "Hold" && current_path.Length {
         UI.copy_options_menu.Enable("3&")

@@ -98,7 +98,7 @@ OpenForm(save_type, _path:=false, _mod_val:=false, _entries:=false, *) {
         form.Add("Text", "x10 y+20 w320 Center",
             "System modifiers can only be assigned`nas custom modifiers on hold")
         form["Cancel"].OnEvent("Click", CloseForm)
-        form["Save"].OnEvent("Click", WriteValue.Bind(save_type))
+        form["Save"].OnEvent("Click", WriteValue.Bind(save_type, _current_path))
 
         SendMessage(0x1501, true, StrPtr("Modifier number"), form["ValInp"].Hwnd)
         SendMessage(0x1501, true, StrPtr("GUI shortname"), form["Shortname"].Hwnd)
@@ -223,7 +223,7 @@ OpenForm(save_type, _path:=false, _mod_val:=false, _entries:=false, *) {
         .OnEvent("Click", (save_type == 2
             ? (chord_as_base ? WriteChord.Bind(_current_path[-1][1]) : WriteChord.Bind(0))
             : save_type == 3 ? (gest_as_base ? WriteGesture.Bind(_current_path[-1][1])
-                : WriteGesture.Bind(0)) : WriteValue.Bind(save_type))
+                : WriteGesture.Bind(0)) : WriteValue.Bind(save_type, false))
         )
     if save_type == 3 {
         if !selected_gesture {
@@ -522,14 +522,12 @@ ChangeFormPlaceholder(unode, layers, save_type:=0, is_up:=0, is_layer_editing:=0
     if is_up {
         t := form["UpTypeDDL"]
         v := form["UpValInp"]
-        n := 1
     } else {
         t := form["TypeDDL"]
         v := form["ValInp"]
-        n := 0
     }
     SendMessage(0x1501, true, StrPtr(placeholders[TYPES.%t.Text%]), v.Hwnd)
-    (t.Text == "Function") ? SetUpFunction(n) : v.Focus()
+    (t.Text == "Function") ? SetUpFunction(is_up) : v.Focus()
     if t.Text == "Default" || t.Text == "Disabled" {
         v.Text := ""
         v.Visible := false
@@ -778,7 +776,7 @@ FuncFormClose(*) {
 }
 
 
-WriteValue(is_hold, *) {
+WriteValue(is_hold, custom_path:=false, *) {
     vals := Map()
     for name in [
         "LayersDDL", "TypeDDL", "ValInp", "UpTypeDDL", "UpValInp", "CustomLP", "CustomNK",
@@ -832,7 +830,7 @@ WriteValue(is_hold, *) {
         (vals["CustomLP"] != CONF.MS_LP.v ? vals["CustomLP"] : false),
         (vals["CustomNK"] != CONF.MS_NK.v ? vals["CustomNK"] : false),
         vals["ChildBehaviorDDL"], vals["Shortname"],
-        RTrim(gest_opts, ";")
+        RTrim(gest_opts, ";"), custom_path
     )
     CloseForm()
 }

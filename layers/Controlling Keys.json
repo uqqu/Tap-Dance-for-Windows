@@ -735,6 +735,56 @@
           {}
         ]
       },
+      "47": {
+        "9": [
+          5,
+          "ClipboardSwap",
+          1,
+          null,
+          0,
+          1,
+          0,
+          0,
+          4,
+          "ClipSwap",
+          null,
+          {},
+          {},
+          {}
+        ],
+        "10": [
+          5,
+          "PasteWithIncrDecr(1)",
+          1,
+          null,
+          0,
+          1,
+          0,
+          0,
+          4,
+          "PasteIncr",
+          null,
+          {},
+          {},
+          {}
+        ],
+        "11": [
+          5,
+          "PasteWithIncrDecr(-1)",
+          1,
+          null,
+          0,
+          1,
+          0,
+          0,
+          4,
+          "PasteDecr",
+          null,
+          {},
+          {},
+          {}
+        ]
+      },
       "50": {
         "2": [
           4,

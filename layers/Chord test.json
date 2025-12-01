@@ -3,24 +3,6 @@
   "0": [
     null,
     {
-      "1": {
-        "1": [
-          7,
-          null,
-          1,
-          null,
-          0,
-          0,
-          0,
-          0,
-          4,
-          null,
-          null,
-          {},
-          {},
-          {}
-        ]
-      },
       "2": {
         "1": [
           7,
@@ -247,24 +229,6 @@
       }
     },
     {
-      "30-31": {
-        "8": [
-          3,
-          "Not select all and save",
-          1,
-          null,
-          0,
-          0,
-          0,
-          0,
-          4,
-          null,
-          null,
-          {},
-          {},
-          {}
-        ]
-      },
       "2-3": {
         "0": [
           3,
@@ -631,6 +595,24 @@
         "2": [
           3,
           "This chord assignment was combined with hotkeys from \"Controlling Keys\" layer by Alt modifier as 1.",
+          1,
+          null,
+          0,
+          0,
+          0,
+          0,
+          4,
+          null,
+          null,
+          {},
+          {},
+          {}
+        ]
+      },
+      "30-31": {
+        "8": [
+          3,
+          "Not select all and save",
           1,
           null,
           0,

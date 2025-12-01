@@ -338,14 +338,14 @@ _Move(sc, is_hold) {
 SaveValue(
     is_hold, layer, down_type, down_val:="", up_type:=false, up_val:="",
     is_instant:=false, is_irrevocable:=false, custom_lp_time:=false, custom_nk_time:=false,
-    child_behavior:=false, shortname:="", gest_opts:=""
+    child_behavior:=false, shortname:="", gest_opts:="", custom_path:=false
 ) {
     json_root := DeserializeMap(layer)
 
     if !json_root.Has(gui_lang) {
         json_root[gui_lang] := ["", Map(), Map(), Map()]
     }
-    json_node := _WalkJson(json_root[gui_lang], current_path, is_hold)
+    json_node := _WalkJson(json_root[gui_lang], (custom_path || current_path), is_hold)
     json_node[1] := down_type
     json_node[2] := down_type == TYPES.Default || down_type == TYPES.Disabled ? "" : down_val . ""
     json_node[3] := up_type || TYPES.Disabled

@@ -3,7 +3,7 @@ outs := Map(
     "Output: SendText", (txt, _) => SendText(txt),
     "Output: Clipboard", (txt, _) => (A_Clipboard := txt, 0),
     "Ouptut: Tooltip", (txt, t) => (Tooltip(txt), SetTimer(() => Tooltip(), -t || -3000)),
-    "Output: MessageBox", (txt, _) => MsgBox(txt)
+    "Output: MessageBox", (txt, _) => MsgBox(txt, "Result")
 )
 
 inps := Map(
@@ -87,11 +87,16 @@ GetCustomDateTime(val, out:="Ouptut: Tooltip", t:=false) {
 
 
 GetWeather(city_name, out:="Ouptut: Tooltip", t:=false) {
-    static weather_key:=RegRead("HKEY_CURRENT_USER\Environment", "OPENWEATHERMAP", 0)
+    static weather_key:=RegRead("HKEY_CURRENT_USER\Environment", "OpenWeatherMapApi", 0)
 
     if !weather_key {
-        MsgBox("The api key was not found in the environment variables.",
-            "OPENWEATHERMAP", "IconX")
+        if !CONF.HasOwnProp("user_OpenWeatherMapApi") {
+            MsgBox("The api key was not found in the environment variables or in the config.",
+                "OpenWeatherMapApi", "IconX")
+            return
+        } else {
+            weather_key := CONF.user_OpenWeatherMapApi.v
+        }
     }
 
     if !city_name {
@@ -115,10 +120,16 @@ GetWeather(city_name, out:="Ouptut: Tooltip", t:=false) {
 
 
 ExchRates(from_currency, to_currency, out:="Ouptut: Tooltip", t:=false) {
-    static currency_key:=RegRead("HKEY_CURRENT_USER\Environment", "GETGEOAPI", 0)
+    static currency_key:=RegRead("HKEY_CURRENT_USER\Environment", "GetGeoApi", 0)
 
     if !currency_key {
-        MsgBox("The api key was not found in the environment variables.", "GETGEOAPI", "IconX")
+        if !CONF.HasOwnProp("user_GetGeoApi") {
+            MsgBox("The api key was not found in the environment variables or in the config.",
+                "GetGeoApi", "IconX")
+            return
+        } else {
+            currency_key := CONF.user_GetGeoApi.v
+        }
     }
 
     web_request := ComObject("WinHttp.WinHttpRequest.5.1")
@@ -314,53 +325,60 @@ _SortByLengthDesc(arr) {
 }
 
 
-IncrDecr(n:=1) {
-    saved := ClipboardAll()
-    A_Clipboard := ""
-    SendInput("^{SC02E}")
+IncrDecr(n:=1, inp:="Input: Selected", out:="Output: SendText") {
+    val := inps[inp]()
+    start := 1
+    last_pos := false
 
-    ClipWait(1)
-    if A_Clipboard == "" {
-        return
+    while (p := RegExMatch(val, "(-?\d+(?:\.\d+)?)", &m, start)) {
+        last_pos := p
+        last_text := m[0]
+        last_len := StrLen(last_text)
+        start := p + last_len
     }
 
-    val := A_Clipboard
-    try val := Integer(val)
+    if last_pos {
+        num := last_text
 
-    if val is Number {
-        if val is Float {
-            val := Round(val + 1*n, StrLen(val) - InStr(val, "."))
+        if InStr(num, ".") {
+            dec_places := 0
+            dot_pos := InStr(num, ".")
+            if dot_pos {
+                dec_places := StrLen(num) - dot_pos
+            }
+            num_val := Round(num + 1*n, dec_places)
+            new_num := num_val
         } else {
-            val := val + 1*n
+            num_val := num + 1*n
+            new_num := num_val
         }
-        new_value_len := StrLen(val)
-        Send(val . "{Left " . new_value_len . "}" . "+{Right " . new_value_len . "}")
-        Sleep(10)
-        A_Clipboard := saved
-        return
-    } else if StrLen(val) == 1 {
-        order := Ord(val) + 1*n
+
+        new_text := SubStr(val, 1, last_pos - 1) . new_num . SubStr(val, last_pos + last_len)
     } else {
-        order := Ord(SubStr(val, 0)) + 1*n
-        Send("{Right}+{Left}")
+        order := Ord(SubStr(val, -1)) + 1*n
+        if order == 31 {
+            order := 32
+        } else if order < 31 {
+            return
+        }
+
+        while RegExMatch(Chr(order), "\p{M}|\p{C}") || order == 6277 || order == 6278 {
+            order := order + 1*n
+        }
+        new_text := SubStr(val, 1, -1) . Chr(order)
     }
 
-    if order == 31 {
-        order := 32
-    } else if order < 31 {
-        Sleep(100)
-        A_Clipboard := saved
-        return
+    outs[out](new_text, 0)
+    if out == "Output: SendText" {
+        all_len := StrLen(new_text)
+        Send("{Left " . all_len . "}+{Right " . all_len . "}")
     }
+}
 
-    while RegExMatch(Chr(order), "\p{M}|\p{C}") || order == 6277 || order == 6278 {
-        order := order + 1*n
-    }
 
-    try SendEvent("{Text}" . Chr(order))
-    Send("{Left}")
-    Send("+{Right}")
-    A_Clipboard := saved
+PasteWithIncrDecr(n:=1) {
+    IncrDecr(n, "Input: Clipboard", "Output: Clipboard")
+    SendInput("^{SC02F}")
 }
 
 
@@ -400,7 +418,7 @@ ShortenURL(inp:="Input: InputBox", out:="Ouptut: Tooltip", t:=false) {
 ClipboardSwap() {
     new_text := _FromSelected()
     Sleep(50)
-    outs["Output: SendText"](A_Clipboard)
+    outs["Output: SendText"](A_Clipboard, 0)
     Sleep(50)
     A_Clipboard := new_text
 }
@@ -425,6 +443,7 @@ GenerateRandomPass(len:=12, extra_symbs:="", out:="Ouptut: Tooltip", t:=false) {
 
 ChangeDefaultHoldTime(new_val:=5) {
     CONF.MS_LP.v += Integer(new_val)
+    CONF.T := "T" . CONF.MS_LP.v / 1000
     IniWrite(CONF.MS_LP.v, "config.ini", "Main", "LongPressDuration")
 }
 
@@ -573,7 +592,9 @@ custom_funcs := Map(
     "SmartTranslit", ["Транслэйт фром зэ вронг скрипт. `nРаугли, бат андерстэндэйбл."
         . "`nI naoborot, konechno.", 1, 2
     ],
-    "IncrDecr", ["Increase/decrease number or symbol (by unicode table) under the cursor",
+    "IncrDecr", ["Increase/decrease string with number or last symbol (by unicode table)",
+        "Increase/decrease value (int). 1, -1, 42, … [1]", 1, 2],
+    "PasteWithIncrDecr", ["Increase value in clipboard and paste it.",
         "Increase/decrease value (int). 1, -1, 42, … [1]"],
     "CustomString", ["Just return custom text to chosen output.", "Text", 2],
     "RemoveTextFormatting", ["Removing formatting (italic, bold, etc.) from a given text", 1, 2],
@@ -586,7 +607,8 @@ custom_funcs := Map(
         "+5 / -20 / … [+5]"],
     "AutoScrollStart", ["Start smooth scrolling.",
         "Direction ('up'/'down'/'right'/'left') [down]",
-        "Speed of scrolling [100]", "Target ('active' window or under 'cursor') [cursor]", "Acceleration (0-2) [0]",
+        "Speed of scrolling [100]", "Target ('active' window or under 'cursor') [cursor]",
+        "Acceleration (0-2) [0]",
         "Stop on any press (0/1) [1]"],
     "AutoScrollStop", ["Pair to the previous function, in case you want to manually stop scrolling."],
 )
@@ -594,8 +616,9 @@ custom_funcs := Map(
 custom_func_keys := ["SetActiveLayers", "ToggleLayers", "TreatAsOtherNode", "ActivateApp",
     "ToggleMod", "GetDateTime", "GetCustomDateTime", "GetWeather", "ExchRates", "WikiSummary",
     "Reminder", "DelayedMediaPlayPause", "ChangeTextCase", "SmartTranslit", "IncrDecr",
-    "CustomString", "RemoveTextFormatting", "ShortenURL", "ClipboardSwap", "MinimizeWindows",
-    "GenerateRandomPass", "ChangeDefaultHoldTime", "AutoScrollStart", "AutoScrollStop"
+    "PasteWithIncrDecr", "ClipboardSwap", "CustomString", "RemoveTextFormatting", "ShortenURL",
+    "MinimizeWindows", "GenerateRandomPass", "ChangeDefaultHoldTime",
+    "AutoScrollStart", "AutoScrollStop"
 ]
 
 custom_func_ddls := [
