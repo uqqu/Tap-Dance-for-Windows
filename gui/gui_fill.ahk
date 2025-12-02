@@ -235,7 +235,7 @@ _AddIndicators(unode, btn, is_hold:=false, ignore_hold_count:=false) {
     y += 1
     w -= 2
     h -= 2
-    p := Integer(3 * CONF.gui_scale.v)
+    p := 3 * CONF.gui_scale.v
     node := _GetFirst(unode)
     if node.down_type == TYPES.Modifier {
         cnt := ignore_hold_count ? 0 : _CountChild("", 0, gui_mod_val + (1 << node.down_val),

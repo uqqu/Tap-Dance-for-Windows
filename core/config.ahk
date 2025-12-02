@@ -570,7 +570,7 @@ PasteSCToInput(sc) {
 
 
 SaveConfig(*) {
-    global s_gui
+    global s_gui, overlay
 
     CancelChordEditing(0, true)
 
@@ -616,7 +616,11 @@ SaveConfig(*) {
         Run(A_ScriptFullPath)  ; rerun with new keys
     } else if b {
         CONF.T := "T" . CONF.MS_LP.v / 1000
+        A_TrayMenu.Rename("1&", "+10ms hold threshold (to " . CONF.MS_LP.v + 10 . "ms)")
+        A_TrayMenu.Rename("2&", "-10ms hold threshold (to " . CONF.MS_LP.v - 10 . "ms)")
         CollectUserValues()
+        try overlay.Destroy()
+        overlay := false
         DrawLayout()
     }
 }

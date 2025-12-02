@@ -31,7 +31,7 @@ UpCheck(sc, *) {
         EndDraw()
         return true
     }
-    if init_obj && sc == "LButton" && UI.Hwnd && WinActive("A") == UI.Hwnd {
+    if init_obj && sc == "LButton" && WinActive("A") == UI.Hwnd {
         StopDragButtons()
         return true
     }
@@ -52,7 +52,7 @@ GuiCheck(sc, *) {
 
     ; if the focus is on the our GUI – process separately
     active := WinActive("A")
-    if UI.Hwnd && active == UI.Hwnd {
+    if active == UI.Hwnd {
         catched_gui_func := true  ; memorize for main func; cannot be performed now due to keywait
         return true
     } else if s_gui && s_gui.Hwnd && active == s_gui.Hwnd && PasteSCToInput(sc) {
@@ -67,7 +67,7 @@ CheckMouse(sc, *) {
     if init_drawing && sc == "RButton" {
         StartDraw()
         return true
-    } else if is_drag_mode && UI.Hwnd && active == UI.Hwnd {
+    } else if is_drag_mode && active == UI.Hwnd {
         if sc == "LButton" {
             MouseGetPos(,, &win_id, &ctrl_hwnd, 2)
             if win_id == UI.Hwnd && ctrl_hwnd {
@@ -87,7 +87,7 @@ CheckMouse(sc, *) {
         return false
     }
 
-    if UI.Hwnd && active == UI.Hwnd || s_gui && s_gui.Hwnd && active == s_gui.Hwnd {
+    if active == UI.Hwnd || s_gui && s_gui.Hwnd && active == s_gui.Hwnd {
         if gest_overlay && !gest_node {
             DestroyGestOverlay()
         }

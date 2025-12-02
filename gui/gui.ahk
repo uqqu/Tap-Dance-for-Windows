@@ -29,12 +29,35 @@ start_temp_chord := 0
 
 overlay := false
 
+A_TrayMenu.Delete()
+A_TrayMenu.Add("+10ms hold threshold (to " . CONF.MS_LP.v + 10 . "ms)",
+    (*) => ChangeDefaultHoldTime(+10))
+A_TrayMenu.Add("-10ms hold threshold (to " . CONF.MS_LP.v - 10 . "ms)",
+    (*) => ChangeDefaultHoldTime(-10))
+A_TrayMenu.Add()
+A_TrayMenu.Add("Show GUI", (*) => TrayClick())
+A_TrayMenu.Add("Settings", (*) => ShowSettings())
+A_TrayMenu.Add("Suspend hotkeys", (*) => TrayToggleSuspend())
+A_TrayMenu.Add("Reload", (*) => Run(A_ScriptFullPath))
+A_TrayMenu.Add("Exit", (*) => ExitApp())
+A_TrayMenu.Default := "Show GUI"
+
 A_TrayMenu.Click := TrayClick
-A_TrayMenu.Add("tdfw", TrayClick)
-A_TrayMenu.Default := "tdfw"
 A_TrayMenu.ClickCount := 1
 
 DrawLayout(true)
+
+
+TrayToggleSuspend() {
+    Suspend(-1)
+    if A_IsSuspended {
+        A_TrayMenu.Check("Suspend hotkeys")
+        TraySetIcon(A_ScriptDir . "\icon_suspend.ico", , true)
+    } else {
+        A_TrayMenu.Uncheck("Suspend hotkeys")
+        TraySetIcon(A_ScriptDir . "\icon.ico")
+    }
+}
 
 
 _GetFirst(node, certain_layer:="") {
@@ -457,27 +480,9 @@ ChangeLang(lang, *) {
 TrayClick(*) {
     if !DllCall("IsWindowVisible", "ptr", UI.Hwnd) {
         UI.Show()
-        ChangePath()
-        if !overlay {
-            _CreateOverlay()
-        }
-        overlay.Show()
-        SetTimer(UpdateOverlayPos, 100)
     } else {
         UI.Hide()
-        SetTimer(UpdateOverlayPos, 0)
-        if overlay {
-            overlay.Hide()
-        }
     }
-}
-
-
-CloseEvent(*) {
-    global overlay
-
-    SetTimer(UpdateOverlayPos, 0)
-    overlay.Hide()
 }
 
 
@@ -517,30 +522,6 @@ ToggleVisibility(state, arrs*) {
 }
 
 
-UpdateOverlayPos(*) {
-    global overlay, overlay_x, overlay_y
-
-    if !UI || !UI.Hwnd || !WinExist("ahk_id " . UI.Hwnd)
-        || WinActive("A") !== UI.Hwnd && WinActive("A") !== overlay.Hwnd {
-        overlay.Hide()
-        return
-    }
-
-    try {  ; TODO
-        pt := Buffer(8, 0)
-        DllCall("ClientToScreen", "ptr", UI.Hwnd, "ptr", pt)
-        x := NumGet(pt, 0, "int")
-        y := NumGet(pt, 4, "int")
-        if overlay_x !== x || overlay_y !== y
-            || !DllCall("IsWindowVisible", "Ptr", overlay.Hwnd) {
-            overlay.Show("x" . x . " y" . y)
-            overlay_x := x
-            overlay_y := y
-        }
-    }
-    WinActivate("ahk_id " . UI.Hwnd)
-}
-
 
 ColorPick(start_color:="") {
     static cust_colors := Buffer(16 * 4, 0)
@@ -554,7 +535,7 @@ ColorPick(start_color:="") {
         bgr := 0x00FFFFFF
     }
 
-    hwnd := s_gui && s_gui.Hwnd ? s_gui.Hwnd : UI && UI.Hwnd ? UI.Hwnd : 0
+    hwnd := s_gui && s_gui.Hwnd ? s_gui.Hwnd : UI.Hwnd
     is64 := A_PtrSize == 8
     rgb_res := is64 ? 24 : 12
 

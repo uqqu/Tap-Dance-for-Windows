@@ -444,6 +444,8 @@ GenerateRandomPass(len:=12, extra_symbs:="", out:="Ouptut: Tooltip", t:=false) {
 ChangeDefaultHoldTime(new_val:=5) {
     CONF.MS_LP.v += Integer(new_val)
     CONF.T := "T" . CONF.MS_LP.v / 1000
+    A_TrayMenu.Rename("1&", "+10ms hold threshold (to " . CONF.MS_LP.v + 10 . "ms)")
+    A_TrayMenu.Rename("2&", "-10ms hold threshold (to " . CONF.MS_LP.v - 10 . "ms)")
     IniWrite(CONF.MS_LP.v, "config.ini", "Main", "LongPressDuration")
 }
 

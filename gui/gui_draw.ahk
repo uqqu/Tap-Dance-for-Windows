@@ -18,13 +18,10 @@ Scale(x?, y?, w?, h?) {
 DrawLayout(init:=false) {
     global UI
 
-    SetTimer(UpdateOverlayPos, 0)
     try UI.Destroy()
 
     UI := Gui(, "TapDance for Windows")
     UI.Opt("-DPIScale")
-    UI.OnEvent("Close", CloseEvent)
-    UI.OnEvent("Size", UpdateOverlayPos)
     UI.Add("Edit", "x-999 y-999 w0 h0 vHidden")
     UI.path := []
     UI.current_values := []
@@ -342,27 +339,34 @@ _DrawHelp() {
 
 
 _CreateOverlay() {
-    global overlay, overlay_x, overlay_y
+    global overlay
 
-    if CONF.overlay_type.v == 1 || !UI.Hwnd
-        || !WinExist("ahk_id " . UI.Hwnd) || WinActive("A") !== UI.Hwnd {
+    if overlay {
+        _CleanOverlay()
         return
     }
 
-    try overlay.Destroy()
+    if CONF.overlay_type.v == 1 {
+        return
+    }
 
-    overlay_x := 0
-    overlay_y := 0
-
-    overlay := Gui("+AlwaysOnTop +E0x20 -Caption +ToolWindow")
-    WinSetTransColor("FFFFFF", overlay.Hwnd)
+    overlay := Gui("+AlwaysOnTop +E0x20 -Caption +ToolWindow +Parent" . UI.Hwnd)
+    overlay.elems := []
     overlay.Opt("-DPIScale")
     overlay.BackColor := "FFFFFF"
     overlay.SetFont("s" . 6 * CONF.font_scale.v . " cGreen")
-    overlay.Show(Scale(,, 1294, CONF.ref_height.v * 2))
+    WinSetTransColor("FFFFFF", overlay.Hwnd)
     DllCall("SetWindowLongPtr", "Ptr", overlay.Hwnd, "Int", -8, "Ptr", UI.Hwnd)
-    WinActivate("ahk_id " . UI.Hwnd)
-    SetTimer(UpdateOverlayPos, 100)
+    WinGetPos(,, &w, &h, "ahk_id " . UI.Hwnd)
+    overlay.Show("x0 y0 w" . w . " h" . h)
+}
+
+
+_CleanOverlay() {
+    for elem in overlay.elems {
+        try elem.Visible := false
+    }
+    overlay.elems := []
 }
 
 
@@ -376,6 +380,7 @@ _AddOverlayItem(x, y, colour, txt:="") {
     } else {
         elem := overlay.AddText("x" . x . " y" . y . " c" . colour, txt)
     }
+    overlay.elems.Push(elem)
     return elem
 }
 
