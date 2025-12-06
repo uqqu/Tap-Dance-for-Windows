@@ -2,9 +2,15 @@
     for lang, values in mp {
         _CleanMap(values)
     }
+
+    tags_str := ""
+    for tag in LayerTags[filename] {
+        tags_str .= tag . ", "
+    }
+
     json := Dump(mp, "", conv)
     try FileDelete("layers/" . filename . ".json")
-    FileAppend("// 0.71`n" . json, "layers/" . filename . ".json", "UTF-8")
+    FileAppend("// 0.71`n// " . SubStr(tags_str, 1, -2) . "`n" . json, "layers/" . filename . ".json", "UTF-8")
 }
 
 
@@ -55,6 +61,19 @@ GetLayerVersion(data) {
         return Number(m[1])
     }
     return 0.6
+}
+
+
+GetLayerTags(data) {
+    global AllTags
+
+    tags := []
+    for tag in StrSplit(SubStr(StrSplit(data, "`n",, 3)[2], 3), ",") {
+        tag := Trim(tag, "`r`n`t ")
+        tags.Push(tag)
+        AllTags[tag] := true
+    }
+    return tags
 }
 
 

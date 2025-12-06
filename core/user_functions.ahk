@@ -1,6 +1,6 @@
 ; TODO all :(
 outs := Map(
-    "Output: SendText", (txt, _) => SendText(txt),
+    "Output: SendText", (txt, _) => SendInput("{Raw}" . txt),
     "Output: Clipboard", (txt, _) => (A_Clipboard := txt, 0),
     "Ouptut: Tooltip", (txt, t) => (Tooltip(txt), SetTimer(() => Tooltip(), -t || -3000)),
     "Output: MessageBox", (txt, _) => MsgBox(txt, "Result")

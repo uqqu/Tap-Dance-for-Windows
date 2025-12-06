@@ -6,6 +6,7 @@ drag_map := Map()
 
 
 ShowSaveOptionsMenu(*) {
+    UI["Hidden"].Focus()
     UI.save_options_menu.Show()
 }
 
@@ -121,6 +122,25 @@ _ClearEquals(mp) {
 }
 
 
+_DeepClone(val) {
+    if val is Map {
+        m := Map()
+        for k, v in val {
+            m[k] := _DeepClone(v)
+        }
+        return m
+    } else if val is Array {
+        a := []
+        for v in val {
+            a.Push(_DeepClone(v))
+        }
+        return a
+    } else {
+        return val
+    }
+}
+
+
 _ApplyDragsToLayer(root, mp, all_mods:=false) {
     path := buffer_view ? buffer_path : current_path
     if path.Length {
@@ -131,67 +151,41 @@ _ApplyDragsToLayer(root, mp, all_mods:=false) {
     }
     scs_map := root[-3]
     chs_map := root[-2]
+    cloned_scs := _DeepClone(scs_map)
 
-    seen := Map()
     is_changed := false
     is_chord_changed := false
 
-    for a_sc, b_sc in mp {
-        if seen.Has(a_sc) {
-            continue
-        }
-        seen[b_sc] := true
-
-        a := scs_map.Get(a_sc, Map())
-        b := scs_map.Get(b_sc, Map())
+    for src_sc, trg_sc in mp {
+        src := cloned_scs.Get(src_sc, Map())
 
         if all_mods {
-            if !b.Count && !a.Count {
-                continue
+            if !src.Count {
+                if scs_map.Has(trg_sc) {
+                    scs_map.Delete(trg_sc)
+                    is_changed := true
+                }
+            } else {
+                scs_map[trg_sc] := src
+                is_changed := true
             }
-            scs_map[a_sc] := b
-            scs_map[b_sc] := a
-            is_changed := true
             continue
         }
 
-        a_base := a.Get(gui_mod_val, false)
-        a_hold := a.Get(gui_mod_val + 1, false)
-        b_base := b.Get(gui_mod_val, false)
-        b_hold := b.Get(gui_mod_val + 1, false)
-
-        if !a_base && !a_hold && !b_base && !b_hold {
-            continue
+        if !scs_map.Has(trg_sc) {
+            scs_map[trg_sc] := Map()
         }
 
-        is_changed := true
-
-        if !a.Count {
-            scs_map[a_sc] := Map()
-        }
-        if b_base {
-            scs_map[a_sc][gui_mod_val] := b_base
-        } else {
-            try scs_map[a_sc].Delete(gui_mod_val)
-        }
-        if b_hold {
-            scs_map[a_sc][gui_mod_val+1] := b_hold
-        } else {
-            try scs_map[a_sc].Delete(gui_mod_val+1)
-        }
-
-        if !b.Count {
-            scs_map[b_sc] := Map()
-        }
-        if a_base {
-            scs_map[b_sc][gui_mod_val] := a_base
-        } else {
-            try scs_map[b_sc].Delete(gui_mod_val)
-        }
-        if a_hold {
-            scs_map[b_sc][gui_mod_val+1] := a_hold
-        } else {
-            try scs_map[b_sc].Delete(gui_mod_val+1)
+        loop 2 {
+            i := gui_mod_val + A_Index - 1
+            val := src.Get(i, false)
+            if val {
+                scs_map[trg_sc][i] := val
+                is_changed := true
+            } else if scs_map[trg_sc].Has(i) {
+                scs_map[trg_sc].Delete(i)
+                is_changed := true
+            }
         }
     }
 
@@ -348,17 +342,19 @@ TrackDrag() {
     MouseGetPos(,, &win_id, &ctrl_hwnd, 2)
     if ctrl_hwnd && win_id == UI.Hwnd {
         obj := GuiCtrlFromHwnd(ctrl_hwnd)
-        is_btn := UI.buttons.Has(obj.Name)
-        try is_btn := UI.buttons.Has(Integer(obj.Name))
-        if is_btn && obj.Enabled && obj !== curr_obj {
-            if curr_obj {  ; return prev moved
-                _SwapButtons(curr_obj, init_obj)
-            }
-            if obj !== init_obj {
-                _SwapButtons(obj, init_obj)
-                curr_obj := obj
-            } else {
-                curr_obj := false
+        if obj {
+            is_btn := UI.buttons.Has(obj.Name)
+            try is_btn := UI.buttons.Has(Integer(obj.Name))
+            if is_btn && obj.Enabled && obj !== curr_obj {
+                if curr_obj {  ; return prev moved
+                    _SwapButtons(curr_obj, init_obj)
+                }
+                if obj !== init_obj {
+                    _SwapButtons(obj, init_obj)
+                    curr_obj := obj
+                } else {
+                    curr_obj := false
+                }
             }
         }
     }
@@ -429,6 +425,7 @@ ToggleFreeze(state:=2) {
 CopyLevel(_, copy_type, *) {
     global saved_level
 
+    UI["Hidden"].Focus()
     json_root := DeserializeMap(selected_layer)
 
     if !json_root.Has(gui_lang) {
@@ -559,6 +556,7 @@ CopyLevel(_, copy_type, *) {
 PasteLevel(_, paste_type, *) {
     global saved_level
 
+    UI["Hidden"].Focus()
     copy_type := saved_level[1]
     src := saved_level[2] || _GetDefaultJsonNode(gui_mod_val)
     src_h := saved_level[3] || _GetDefaultJsonNode(1)
@@ -715,6 +713,7 @@ _MergeMaps(a, b, i, is_append) {
 ShowBuffer(*) {
     global buffer_view, root_text
 
+    UI["Hidden"].Focus()
     if !ROOTS.Has("buffer") {
         ToolTip("Buffer is empty. First copy the desired level in the layer editing mode.")
         SetTimer(ToolTip, -3000)

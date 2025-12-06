@@ -1,13 +1,13 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
-TraySetIcon("icon.ico")
-#Include "core/serializing.ahk"
-#Include "core/structs.ahk"
-#Include "core/config.ahk"
-#Include "core/gesture_processing.ahk"
-#Include "core/gestures.ahk"
-#Include "gui/gui.ahk"
-#Include "core/user_functions.ahk"
+TraySetIcon("ico\icon.ico")
+#Include "core\serializing.ahk"
+#Include "core\structs.ahk"
+#Include "core\config.ahk"
+#Include "core\gesture_processing.ahk"
+#Include "core\gestures.ahk"
+#Include "gui\gui.ahk"
+#Include "core\user_functions.ahk"
 
 last_val := false  ; unsended value while we wait nested event (if the timer expires/interrupted)
 pending := false  ; tap value of assignment, while we wait if the hold will be confirmed
@@ -21,7 +21,7 @@ up_actions := Map()
 gest_node := false
 ResetModifiers()
 
-#Include "core/keys.ahk"
+#Include "core\keys.ahk"
 SetSysModHotkeys()
 
 

@@ -72,11 +72,13 @@ CheckMouse(sc, *) {
             MouseGetPos(,, &win_id, &ctrl_hwnd, 2)
             if win_id == UI.Hwnd && ctrl_hwnd {
                 obj := GuiCtrlFromHwnd(ctrl_hwnd)
-                is_btn := UI.buttons.Has(obj.Name)
-                try is_btn := UI.buttons.Has(Integer(obj.Name))
-                if is_btn {
-                    StartDragButtons(obj)
-                    return true
+                if obj {
+                    is_btn := UI.buttons.Has(obj.Name)
+                    try is_btn := UI.buttons.Has(Integer(obj.Name))
+                    if is_btn {
+                        StartDragButtons(obj)
+                        return true
+                    }
                 }
             }
         } else if sc == "RButton" {

@@ -336,13 +336,17 @@ _EqualNodes(f_node, s_node) {
 
 
 ReadLayers() {
-    global AllLayers, ActiveLayers
+    global AllLayers, ActiveLayers, LayerTags, AllTags
 
     AllLayers := OrderedMap()
     ActiveLayers := OrderedMap()
+    LayerTags := Map()
+    AllTags := Map()
 
-    loop Files, "layers\*.json" {
-        AllLayers.Add(SubStr(A_LoopFileName, 1, -5))
+    loop Files, "layers\*.json", "R" {
+        name := SubStr(A_LoopFilePath, 8, -5)
+        AllLayers.Add(name)
+        LayerTags[name] := GetLayerTags(FileRead(A_LoopFilePath))
     }
     if !AllLayers.Length {
         AllLayers.Add("default_layer")
@@ -352,16 +356,17 @@ ReadLayers() {
     conf_layers := IniRead("config.ini", "Main", "ActiveLayers")
     str_value := ""
     for layer in StrSplit(conf_layers, ",") {
+        layer := Trim(layer)
         if layer && FileExist("layers/" . layer . ".json") {
             ActiveLayers.Add(layer)
-            str_value .= layer . ","
+            str_value .= layer . ", "
         }
     }
 
     ; rewrite active layers w/o missing
-    str_value := SubStr(str_value, 1, -1)
+    str_value := SubStr(str_value, 1, -2)
     if str_value != conf_layers {
-        IniWrite(SubStr(str_value, 1, -1), "config.ini", "Main", "ActiveLayers")
+        IniWrite(str_value, "config.ini", "Main", "ActiveLayers")
     }
 }
 

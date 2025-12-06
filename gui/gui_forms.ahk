@@ -218,13 +218,14 @@ OpenForm(save_type, _path:=false, _mod_val:=false, _entries:=false, *) {
     }
 
     ; control
-    form.Add("Button", "x10 y+10 h20 w160 vCancel", "❌ Cancel").OnEvent("Click", CloseForm)
-    form.Add("Button", "x170 yp+0 h20 w160 Default vSave", "✔ Save")
-        .OnEvent("Click", (save_type == 2
+    fn := (save_type == 2
             ? (chord_as_base ? WriteChord.Bind(_current_path[-1][1]) : WriteChord.Bind(0))
             : save_type == 3 ? (gest_as_base ? WriteGesture.Bind(_current_path[-1][1])
                 : WriteGesture.Bind(0)) : WriteValue.Bind(save_type, false))
-        )
+    form.Add("Button", "x10 y+10 h20 w107 vCancel", "❌ Cancel").OnEvent("Click", CloseForm)
+    form.Add("Button", "x117 yp+0 h20 w107 Default vSave", "✔ Save").OnEvent("Click", fn)
+    form.Add("Button", "x224 yp+0 h20 w107 Default vSaveWithReturn", "💾 Save and back")
+        .OnEvent("Click", (*) => (fn(), ChangePath(current_path.Length - 1)))
     if save_type == 3 {
         if !selected_gesture {
             form["Save"].Opt("+Disabled")

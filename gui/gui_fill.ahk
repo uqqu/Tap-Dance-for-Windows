@@ -273,6 +273,10 @@ _AddIndicators(unode, btn, is_hold:=false, ignore_hold_count:=false) {
 _FillLayers() {
     UI["LV_layers"].Delete()
 
+    if layer_path.Length {
+        UI["LV_layers"].Add("Icon4", "", "", "[…]", "", "", "")
+    }
+
     temp_all_layers := Map()
     if layer_editing {
         for layer in AllLayers.map {
@@ -287,9 +291,92 @@ _FillLayers() {
         }
     }
 
+    has_red_tags := false
+    has_green_tags := false
+    for tag, v in CONF.tags {
+        if tag == "Active" || tag == "Inactive" {
+            continue
+        }
+        if v {
+            has_green_tags := true
+        } else {
+            has_red_tags := true
+        }
+        if has_green_tags && has_red_tags {
+            break
+        }
+    }
+
+    folder_name := ""
+
     for name, v in temp_all_layers {
+        if name !== selected_layer {
+            if !CONF.tags["Active"] && ActiveLayers.Has(name)
+            || !CONF.tags["Inactive"] && !ActiveLayers.Has(name) {
+                continue
+            }
+
+            allowed := true
+            if has_green_tags {
+                allowed := false
+                for tag in LayerTags[name] {
+                    if CONF.tags.Has(tag) {
+                        if CONF.tags[tag] {
+                            allowed := true
+                        } else {
+                            allowed := false
+                            break
+                        }
+                    }
+                }
+            } else if has_red_tags {
+                allowed := true
+                for tag in LayerTags[name] {
+                    if CONF.tags.Has(tag) {
+                        allowed := false
+                        break
+                    }
+                }
+            }
+
+            if !allowed {
+                continue
+            }
+        }
+
+        split := StrSplit(name, "\")
+
+        b := false
+        for folder in layer_path {
+            if folder != split[A_Index] {
+                b := true
+                break
+            }
+        }
+        if b {
+            continue
+        }
+
+        lvl := layer_path.Length + 1
+        if split.Length > lvl {
+            if !folder_name {
+                folder_name := split[lvl]
+            } else if split[lvl] !== folder_name {
+                UI["LV_layers"].Add("Icon3", , , folder_name)
+                folder_name := split[lvl]
+            }
+            continue
+        } else if split.Length < lvl {
+            continue
+        }
+
+        if folder_name {
+            UI["LV_layers"].Add("Icon3", , , folder_name)
+            folder_name := ""
+        }
+
         if CONF.ignore_inactive.v && !v {
-            UI["LV_layers"].Add("", "", "", name, "", "", "", "")
+            UI["LV_layers"].Add("Icon1", , , split[-1])
             continue
         }
         cnt := [0, 0]
@@ -297,11 +384,11 @@ _FillLayers() {
             for lang, val in AllLayers.map[name] {
                 cnt[2 - (lang == gui_lang)] += val
             }
-            for i, val in [UI["Langs"].Text, "", "Other roots", ""] {
-                UI["LV_layers"].ModifyCol(3+i, , val)
+            for i, val in [["Layer", 200], [UI["Langs"].Text, 80], ["", 0], ["Other roots", 80], ["", 0]] {
+                UI["LV_layers"].ModifyCol(2+i, val[2] * CONF.gui_scale.v, val[1])
             }
             UI["LV_layers"].Add(
-                v ? "Check" : "", "", v || "", name, cnt[1] || "", "", cnt[2] || "", ""
+                v ? "Icon2" : "Icon1", "", v || "", split[-1], cnt[1] || "", "", cnt[2] || "", ""
             )
             continue
         }
@@ -338,15 +425,19 @@ _FillLayers() {
                     txt[i] := "{C}"
             }
         }
-        for i, val in ["Base", "→", "Hold", "→"] {
-            UI["LV_layers"].ModifyCol(3+i, , val)
+        for i, val in [["Layer", 110], ["Base", 95], ["→", 30], ["Hold", 95], ["→", 30]] {
+            UI["LV_layers"].ModifyCol(2+i, val[2] * CONF.gui_scale.v, val[1])
         }
         UI["LV_layers"].Add(
-            v ? "Check" : "", "", v || "", name, txt[1], cnt[1] || "", txt[2], cnt[2] || ""
+            v ? "Icon2" : "Icon1", "", v || "", split[-1], txt[1], cnt[1] || "", txt[2], cnt[2] || ""
         )
     }
+
+    if folder_name {
+        UI["LV_layers"].Add("Icon3", , , folder_name)
+    }
+
     ToggleEnabled(0, UI.layer_move_btns, UI.layer_ctrl_btns)
-    UI["LV_layers"].ModifyCol(3, "Sort")
 }
 
 

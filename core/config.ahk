@@ -106,6 +106,7 @@ CheckConfig() {
             "[Main]`n"
             . "ActiveLayers=`n"
             . "UserLayouts=`n"
+            . "ChosenTags=Active, Inactive`n"
             . "`n[GUI]`n"
             . "`n[Gestures]`n"
             . "`n[GestureDefaults]`n"
@@ -249,7 +250,7 @@ CheckConfig() {
     CONF.changed_name_ind_color := ConfValue("Colors", "ChangedName", "color", "str",
         "With custom gui name:", "Silver")
     CONF.irrevocable_ind_color := ConfValue("Colors", "Irrevocable", "color", "str",
-        "Irrevocable:", "Gray")
+        "Irrevocable:", "E1E1E1")
     CONF.instant_ind_color := ConfValue("Colors", "Instant", "color", "str",
         "Instant:", "Teal")
     CONF.additional_up_ind_color := ConfValue("Colors", "AdditionalUp", "color", "str",
@@ -260,6 +261,18 @@ CheckConfig() {
         "Custom nested event waiting time:", "Fuchsia")
     CONF.nested_counter_ind_color := ConfValue("Colors", "NestedCounter", "color", "str",
         "Nested assignment counter:", "Green")
+
+    CONF.tags := Map()
+    for tag in StrSplit(IniRead("config.ini", "Main", "ChosenTags", "Active, Inactive"), ",") {
+        tag := Trim(tag)
+        if SubStr(tag, 1, 1) == "-" {
+            CONF.tags[SubStr(tag, 2)] := false
+        } else {
+            CONF.tags[tag] := true
+        }
+    }
+
+    CollectUserValues()
 
     if !IniRead("config.ini", "Main", "UserLayouts", "") {
         TrackLayouts()
@@ -274,8 +287,6 @@ CheckConfig() {
         }
         LANGS.Add(lang, "Layout: " . GetLayoutNameFromHKL(lang))
     }
-
-    CollectUserValues()
 }
 
 
@@ -308,7 +319,10 @@ CollectUserValues() {
 
 
 TrackLayouts(*) {
-    global start_hkl, last_hkl, layout_gui
+    global start_hkl, last_hkl, layout_gui, LANGS
+
+    LANGS := OrderedMap()
+    LANGS.Add(0, "Layout: global")
 
     layout_gui := Gui("+AlwaysOnTop -SysMenu", "Layout Detector")
     layout_gui.SetFont("s10")
@@ -350,10 +364,10 @@ StopTracking(*) {
     str_value := ""
     for lang in LANGS.map {
         if lang {
-            str_value .= lang . ","
+            str_value .= lang . ", "
         }
     }
-    IniWrite(SubStr(str_value, 1, -1), "config.ini", "Main", "UserLayouts")
+    IniWrite(SubStr(str_value, 1, -2), "config.ini", "Main", "UserLayouts")
     Sleep(1000)
     layout_gui.Destroy()
 }

@@ -18,6 +18,7 @@ selected_layer := ""
 last_selected_layer := ""
 selected_layer_priority := 0
 layer_editing := 0
+layer_path := []
 
 gui_mod_val := 0
 gui_sysmods := 0
@@ -52,10 +53,10 @@ TrayToggleSuspend() {
     Suspend(-1)
     if A_IsSuspended {
         A_TrayMenu.Check("Suspend hotkeys")
-        TraySetIcon(A_ScriptDir . "\icon_suspend.ico", , true)
+        TraySetIcon(A_ScriptDir . "\ico\icon_suspend.ico", , true)
     } else {
         A_TrayMenu.Uncheck("Suspend hotkeys")
-        TraySetIcon(A_ScriptDir . "\icon.ico")
+        TraySetIcon(A_ScriptDir . "\ico\icon.ico")
     }
 }
 
