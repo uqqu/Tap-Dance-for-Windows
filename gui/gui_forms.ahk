@@ -22,7 +22,8 @@ OpenForm(save_type, _path:=false, _mod_val:=false, _entries:=false, *) {
 
     if !CONF.hide_mouse_warnings.v && _current_path.Length
         && SubStr(_current_path[-1][1], 2) == "Button"
-        && MsgBox("This assignment will remove the corresponding drag-and-drop behavior!",
+        && _GetFirst(_GetUnholdEntries().ubase) == false
+        && MsgBox("This assignment will remove the native drag-and-drop behavior!",
             "Attention", "OKCancel Icon!") == "Cancel" {
             return
     }
@@ -75,7 +76,7 @@ OpenForm(save_type, _path:=false, _mod_val:=false, _entries:=false, *) {
     if layers.Length > 1 {
         form.Add("DropDownList", "x10 y+10 w320 vLayersDDL Choose1", layers)
         form["LayersDDL"].OnEvent("Change",
-            ChangeFormPlaceholder.Bind(unode, layers, save_type, 0, 1)
+            ChangeFormPlaceholder.Bind(unode, layers, save_type, 0, 1, 0)
         )
         try form["LayersDDL"].Text := prior_layer
     }
@@ -104,7 +105,7 @@ OpenForm(save_type, _path:=false, _mod_val:=false, _entries:=false, *) {
         SendMessage(0x1501, true, StrPtr("GUI shortname"), form["Shortname"].Hwnd)
 
         form.Show("w340")
-        ChangeFormPlaceholder(unode, layers, 1)
+        ChangeFormPlaceholder(unode, layers, 1, , , 1)
         form["ValInp"].Focus()
         return
     }
@@ -205,7 +206,7 @@ OpenForm(save_type, _path:=false, _mod_val:=false, _entries:=false, *) {
         }
 
         form["UpTypeDDL"]
-            .OnEvent("Change", ChangeFormPlaceholder.Bind(unode, layers, save_type, 1, 0))
+            .OnEvent("Change", ChangeFormPlaceholder.Bind(unode, layers, save_type, 1, 0, 0))
         form["UpTypeDDL"].Text := curr_val ? TYPES_R[curr_val.up_type] : "Disabled"
         form["UpToggle"].OnEvent("Click", ShowHideUpVals)
         if curr_val && curr_val.up_type !== TYPES.Disabled {
@@ -229,15 +230,16 @@ OpenForm(save_type, _path:=false, _mod_val:=false, _entries:=false, *) {
     if save_type == 3 {
         if !selected_gesture {
             form["Save"].Opt("+Disabled")
+            form["SaveWithReturn"].Opt("+Disabled")
         } else {
             from_prev := true
         }
     }
 
-    form["TypeDDL"].OnEvent("Change", ChangeFormPlaceholder.Bind(unode, layers, save_type, 0, 0))
+    form["TypeDDL"].OnEvent("Change", ChangeFormPlaceholder.Bind(unode, layers, save_type, 0, 0, 0))
     form["TypeDDL"].Text := curr_val ? TYPES_R[curr_val.down_type] : "Text"
     form.Show("w340")
-    ChangeFormPlaceholder(unode, layers, save_type)
+    ChangeFormPlaceholder(unode, layers, save_type, , , 1)
 }
 
 
@@ -315,6 +317,7 @@ SetGesture(*) {
     form["Phase"].Opt("Disabled")
     form["Phase"].Value := 1
     form["Save"].Opt("Disabled")
+    form["SaveWithReturn"].Opt("Disabled")
 }
 
 
@@ -334,8 +337,8 @@ WriteGesture(as_base:=false, *) {
     if !from_prev {
         gest_str := GestureToStr(points, rot, scal, dirs, phase)
     } else {
-        gest := gui_entries.ubase.GetBaseHoldMod(selected_gesture, gui_mod_val, false, true).ubase
-        vals := StrSplit(gest.fin.gesture_opts, ";")
+        gest := _GetFirst(gui_entries.ubase.GetBaseHoldMod(selected_gesture, gui_mod_val, false, true).ubase)
+        vals := StrSplit(gest.gesture_opts, ";")
         if scal != 0 && vals[-1] = 1 {
             MsgBox("To enable the scale impact, the gesture must be redrawn.",
                 "Old pattern", "Icon!")
@@ -389,8 +392,8 @@ WriteGesture(as_base:=false, *) {
     json_gestures[gest_str[1]][gui_mod_val] := [
         TYPES.%form["TypeDDL"].Text%, form["ValInp"].Text . "", TYPES.Disabled, "",
         Integer(form["CBInstant"].Value), Integer(form["CBIrrevocable"].Value),
-        0, Integer(form["CustomNK"].Text), Integer(form["ChildBehaviorDDL"].Value),
-        form["Shortname"].Text || form["ValInp"].Text,
+        0, (form["CustomNK"].Text != CONF.MS_NK.v ? Integer(form["CustomNK"].Text) : 0),
+        Integer(form["ChildBehaviorDDL"].Value), form["Shortname"].Text || form["ValInp"].Text,
         gest_str[2], sc_mp ?? Map(), ch_mp ?? Map(), Map(),
     ]
 
@@ -407,7 +410,7 @@ WriteGesture(as_base:=false, *) {
 }
 
 
-ChangeFormPlaceholder(unode, layers, save_type:=0, is_up:=0, is_layer_editing:=0, *) {
+ChangeFormPlaceholder(unode, layers, save_type:=0, is_up:=0, is_layer_editing:=0, fresh_start:=0, *) {
     static placeholders:=[
         "Disabled",
         "Default key value",
@@ -417,6 +420,10 @@ ChangeFormPlaceholder(unode, layers, save_type:=0, is_up:=0, is_layer_editing:=0
         "Modifier number"
     ]
     static prev_layer:=""
+
+    if fresh_start {
+        prev_layer := ""
+    }
 
     layer := layers.Length > 1 ? form["LayersDDL"].Text : layers[1]
     name := [" value ", " value ", " chord ", " gesture "][save_type + 1]

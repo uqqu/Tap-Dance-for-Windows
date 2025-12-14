@@ -1,5 +1,6 @@
 ﻿// 0.71
 // mouse, daily
+// Additional assignments for additional mouse keys (as modifiers, with combining them)
 {
   "0": [
     null,

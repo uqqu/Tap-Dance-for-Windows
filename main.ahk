@@ -350,6 +350,7 @@ OnKeyDown(sc) {
 
     current_presses[sc] := true  ; store current press for repetition and chord checks
 
+    EndDraw()
     if catched_entries.ubase && catched_entries.ubase.active_gestures.Count {
         CollectPool(catched_entries.ubase.active_gestures)
         if pool_gestures.Length {
@@ -438,6 +439,8 @@ GetDefaultSim(sc, extended:=false) {
 
 OnKeyUp(sc, extra_mod:=0) {
     global current_mod
+
+    EndDraw()
 
     if extra_mod {  ; separately count modifiers from hotkeys with system keys
         current_mod &= ~extra_mod

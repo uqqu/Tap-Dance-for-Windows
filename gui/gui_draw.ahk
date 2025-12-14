@@ -25,7 +25,6 @@ DrawLayout(init:=false) {
     UI.Add("Edit", "x-999 y-999 w0 h0 vHidden")
     UI.path := []
     UI.current_values := []
-    UI.help_texts := []
     UI.extra_tags := []
     UI.buttons := Map()
 
@@ -117,7 +116,6 @@ DrawLayout(init:=false) {
     _DrawLayersLV()
     _DrawGesturesLV()
     _DrawChordsLV()
-    _DrawHelp()
     _DrawCurrentValues()
 
     uncat := [UI["BtnAddNewLayer"], UI["BtnBackToRoot"]]
@@ -375,25 +373,6 @@ _DrawCurrentValues() {
     UI["SwapBufferView"].OnEvent("Click", SwapBufferView)
 
     ToggleVisibility(0, UI.current_values)
-}
-
-
-_DrawHelp() {
-    if !CONF.help_texts.v {
-        return
-    }
-    UI.SetFont("Norm Italic cGray")
-
-    UI.help_texts.Push(UI.Add("Text", Scale(11, 31),
-        "The arrows indicate the type of transition: ➤ – base, ▲ – hold, ▼ – chord, • – gesture; "
-        . "if it's with a number – the used modifier's designation."))
-    UI.help_texts[-1].OnEvent("DoubleClick", HideHelp)
-
-    UI.help_texts.Push(UI.Add("Text", "x+" . 30 / USER_DPI . " yp0",
-        "LMB – base next map, RMB – hold next map/activate mod."))
-    UI.help_texts[-1].OnEvent("DoubleClick", HideHelp)
-
-    UI.SetFont("Norm cBlack")
 }
 
 

@@ -15,15 +15,21 @@ LVGestureClick(lv, row) {
 
 
 LVGestureDoubleClick(lv, row, from_selected:=false) {
+    global gui_mod_val
+
     if !row {
         return
     }
 
     if lv.GetText(0, 1) == "Has nested gestures" {
+        t := StrSplit(lv.GetText(row, 6), ";")
+        if t.Length > 1 {
+            gui_mod_val := Integer(t[2])
+        }
         try {
-            HandleKeyPress(Integer(lv.GetText(row, 6)))
+            HandleKeyPress(Integer(t[1]))
         } catch {
-            HandleKeyPress(lv.GetText(row, 6))
+            HandleKeyPress(t[1])
         }
     } else {
         OneNodeDeeper(lv.GetText(row, 6), gui_mod_val, false, lv.GetText(row, 1))

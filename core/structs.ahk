@@ -247,8 +247,10 @@ __NodeToArray(node) {
 
 
 _BuildNode(raw_node, sc, md, down_type:=false) {
-    static default_opts:={pool: 5, rotate: 0, scaling: 0, dirs: 0, closed: 0, len: 1}  ; temp
-
+    default_opts:={
+        pool: 5, rotate: CONF.gest_rotate.v, scaling: CONF.scale_impact.v,
+        dirs: 0, closed: 0, len: 1
+    }
     b := raw_node.Length == 4  ; root
     node_obj := {sc: sc, md: md}
     for i, name in [
@@ -425,7 +427,7 @@ _MergeLayer(layer) {
             if !CONF.unfam_layouts.v {
                 continue
             }
-            LANGS.Add(lang, "Layout: " . GetLayoutNameFromHKL(lang))
+            LANGS.Add(lang, GetLayoutLangFromHKL(lang) . " (" . lang . ")")
             ROOTS[lang] := UnifiedNode()
         }
         ROOTS[lang].MergeNodeRecursive(root, 0, 0, layer)

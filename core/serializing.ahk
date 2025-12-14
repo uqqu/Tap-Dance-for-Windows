@@ -4,7 +4,7 @@
     }
 
     tags_str := ""
-    for tag in LayerTags[filename] {
+    for tag in LayerTags.Get(filename, []) {
         tags_str .= tag . ", "
     }
 
@@ -70,10 +70,21 @@ GetLayerTags(data) {
     tags := []
     for tag in StrSplit(SubStr(StrSplit(data, "`n",, 3)[2], 3), ",") {
         tag := Trim(tag, "`r`n`t ")
-        tags.Push(tag)
-        AllTags[tag] := true
+        if StrLen(tag) {
+            tags.Push(tag)
+            AllTags[tag] := true
+        }
     }
     return tags
+}
+
+
+GetLayerDescription(data) {
+    descr := StrSplit(data, "`n",, 4)[3]
+    if SubStr(descr, 1, 2) !== "//" {
+        return ""
+    }
+    return Trim(SubStr(descr, 3))
 }
 
 

@@ -227,7 +227,7 @@ _ScoreAtPhase(phase, gesture, pts, closed, opt) {
     temp_opt := opt
     temp_pts := PhaseShift(pts, phase)
 
-    _CacheAdd(true, 2, key, Centering, temp_pts)
+    _CacheAdd(true, 1, key, Centering, temp_pts)
     r := gesture.opts.rotate == 2
     _CacheAdd(gesture.opts.rotate, (r ? 2 : 4), key, Rotate, temp_pts, r)
     _CacheAdd(gesture.opts.scaling = 0, 8, key, Normalize, temp_pts)

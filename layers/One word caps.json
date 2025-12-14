@@ -1,5 +1,6 @@
 ﻿// 0.71
 // supportive
+// Called from other layers. Automatically toggle caps at the next space and turns itself off.
 {
   "0": [
     null,

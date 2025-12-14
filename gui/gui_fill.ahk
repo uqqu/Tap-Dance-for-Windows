@@ -34,7 +34,6 @@ _FillSetButtons() {
         return
     }
 
-
     if buffer_view {
         ToggleVisibility(0, UI.current_values)
         ToggleEnabled(0, UI["BtnBase"], UI["BtnHold"])
@@ -48,28 +47,28 @@ _FillSetButtons() {
         if saved_level[1] == 2 {
             UI["SwapBufferView"].Visible := true
         }
+        path := buffer_path
     } else {
         ToggleVisibility(1, UI.current_values)
-        ToggleEnabled(!SYS_MODIFIERS.Has(current_path[-1][1]),
-            UI["BtnBase"], UI["BtnBaseClear"], UI["BtnBaseClearNest"])
+        ToggleEnabled(1, UI["BtnBase"], UI["BtnBaseClear"])
         ToggleEnabled(current_path[-1][3] == false && current_path[-1][4] == false,
-            UI["BtnHold"], UI["BtnHoldClear"], UI["BtnHoldClearNest"])
+            UI["BtnHold"], UI["BtnHoldClear"])
+        path := current_path
     }
 
-    path := (buffer_view ? buffer_path : current_path).Clone()
-    hnode := _GetFirst(gui_entries.uhold)
+    entries := _GetUnholdEntries()
+    hnode := _GetFirst(entries.uhold)
     ignore_hold_count := buffer_view && !path.Length && hnode && hnode.down_type == TYPES.Modifier
 
     if !buffer_view || saved_level[1] || path.Length {
-        for arr in [["Base", gui_entries.ubase], ["Hold", gui_entries.uhold]] {
+        for arr in [["Base", entries.ubase], ["Hold", entries.uhold]] {
             txt := arr[1]
             curr_node := _GetFirst(arr[2])
             UI["Text" . txt].Text := txt
             UI["Btn" . txt].Text := ""
             if txt == "Hold" && path.Length && ONLY_BASE_SCS.Has(path[-1][1]) {
-                UI["Btn" . txt].Opt("+Disabled")
-                UI["Btn" . txt . "Clear"].Opt("+Disabled")
-                UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
+                ToggleEnabled(
+                    0, UI["Btn" . txt], UI["Btn" . txt . "Clear"], UI["Btn" . txt . "ClearNest"])
                 continue
             }
             if !curr_node {
@@ -82,9 +81,6 @@ _FillSetButtons() {
                 continue
             }
             _AddIndicators(arr[2], UI["Btn" . txt], false, ignore_hold_count)
-            if !arr[2].scancodes.Count && !arr[2].chords.Count && !arr[2].gestures.Count {
-                UI["Btn" . txt . "ClearNest"].Opt("+Disabled")
-            }
 
             UI["Text" . txt].Text .= " ("
                 . ["-", "D", "T", "S", "F", "M", "C"][curr_node.down_type]
@@ -174,7 +170,16 @@ _FillOneButton(sc, btn, d_sc) {
     }
 
     htxt := ""
-    if h_node {
+    if m_node {
+        v := 1 << m_node.down_val
+        if gui_mod_val && gui_mod_val & v == v {
+            backgr := CONF.active_modifier_color.v
+        } else {
+            _AddIndicators(res.umod, btn, true)
+            backgr := CONF.modifier_color.v
+        }
+        htxt := "`n" . (m_node.gui_shortname ? m_node.gui_shortname : m_node.down_val)
+    } else if h_node {
         _AddIndicators(res.uhold, btn, true)
         switch h_node.down_type {
             case TYPES.Default:
@@ -185,26 +190,12 @@ _FillOneButton(sc, btn, d_sc) {
                 htxt := "`n" . _GetKeyName(d_sc, false, false, h_node.down_val)
             case TYPES.Function:
                 htxt := "`n" . h_node.down_val
-            case TYPES.Modifier:
-                htxt := "`n" . h_node.down_val
-                v := 1 << h_node.down_val
-                b := gui_mod_val && gui_mod_val & v == v
-                backgr := b ? CONF.active_modifier_color.v : CONF.modifier_color.v
             case TYPES.Chord:
                 backgr := CONF.chord_part_color.v
         }
         if h_node.gui_shortname {
             htxt := "`n" . h_node.gui_shortname
         }
-    } else if m_node && m_node.down_type == TYPES.Modifier {
-        v := 1 << m_node.down_val
-        if gui_mod_val && gui_mod_val & v == v {
-            backgr := CONF.active_modifier_color.v
-        } else {
-            _AddIndicators(res.umod, btn, true)
-            backgr := CONF.modifier_color.v
-        }
-        htxt := "`n" . (m_node.gui_shortname ? m_node.gui_shortname : m_node.down_val)
     }
 
     if !b_node && !h_node && !m_node {
@@ -251,6 +242,7 @@ _AddIndicators(unode, btn, is_hold:=false, ignore_hold_count:=false) {
             : _AddOverlayItem(x + w - p, y + (is_hold ? h - p : 0), c)
         btn.indicators.Push(res)
     }
+    try UI[btn.Name . "ClearNest"].Opt((cnt ? "-" : "+") . "Disabled")
     if is_hold {
         y += h - p
     }
@@ -441,7 +433,7 @@ _FillLayers() {
 }
 
 
-_CountChild(layer, levels, mod_val, scs, chs, gsts) {
+_CountChild(layer, levels, mod_val, scs, chs, gsts, combined:=false) {
     cnt := 0
     if !layer && layer_editing && !buffer_view {
         layer := selected_layer
@@ -449,7 +441,7 @@ _CountChild(layer, levels, mod_val, scs, chs, gsts) {
     for scs in [scs, chs, gsts] {
         for sc, mods in scs {
             for md, unode in mods {
-                if mod_val && mod_val !== (md & ~1) {
+                if mod_val && (combined ? !(mod_val & md & ~1) : (mod_val !== (md & ~1))) {
                     continue
                 }
                 if layer && unode.layers.Has(layer) && _IsCounted(unode.layers[layer][0]) {
@@ -482,17 +474,19 @@ _IsCounted(node) {
 _FillGestures() {
     UI["LV_gestures"].Delete()
 
-    if !current_path.Length || current_path[-1][4] || current_path[-1][3]
-        || SYS_MODIFIERS.Has(current_path[-1][1]) {
+    path := buffer_view ? buffer_path : current_path
+
+    if !path.Length || path[-1][4] || path[-1][3] || path[-1][2] & 1 {
         ToggleEnabled(0, UI["BtnAddNewGesture"], UI.gest_toggles)
-        for i, val in ["Has nested gestures", "→", "", "", ""] {
-            UI["LV_gestures"].ModifyCol(i, , val)
+        for i, val in [["Has nested gestures", 220], ["→", 190], ["", 0], ["", 0], ["", 0]] {
+            UI["LV_gestures"].ModifyCol(i, val[2] * CONF.gui_scale.v, val[1])
         }
-        for sc, mods in gui_entries.ubase.active_scancodes {
+        mp := selected_layer ? gui_entries.ubase.scancodes : gui_entries.ubase.active_scancodes
+        for sc, mods in mp {
             for md, node in mods {
                 if selected_layer {
                     cnt := 0
-                    for _, g_mods in node.active_gestures {
+                    for _, g_mods in node.gestures {
                         for _, g_node in g_mods {
                             if g_node.layers.Has(selected_layer) {
                                 cnt += 1
@@ -503,12 +497,14 @@ _FillGestures() {
                     cnt := node.active_gestures.Count
                 }
                 if cnt {
+                    name := ""
+                    try name := node.fin.gui_shortname
                     UI["LV_gestures"].Add(
                         "",
-                        node.fin.gui_shortname || _GetKeyName(sc, true),
-                        cnt,
-                        md || "",
-                        "", "", sc
+                        (name || _GetKeyName(sc, true))
+                            . (md ? (" (mod " . _DecomposeMods(md, true) . ")") : ""),
+                        cnt, "", "", "",
+                        sc . ";" . md
                     )
                 }
             }
@@ -516,8 +512,9 @@ _FillGestures() {
         return
     }
 
-    for i, val in ["Gesture name", "Value", "Options", "→", "Layer", "roll it back"] {
-        UI["LV_gestures"].ModifyCol(i, , val)
+    for i, val in [["Gesture name", 110], ["Value", 110], ["Options", 95],
+        ["→", 30], ["Layer", 65], ["roll it back", 0]] {
+        UI["LV_gestures"].ModifyCol(i, val[2] * CONF.gui_scale.v, val[1])
     }
     ToggleEnabled(1, UI["BtnAddNewGesture"])
     checked_layers := layer_editing ? [selected_layer] : ActiveLayers.order

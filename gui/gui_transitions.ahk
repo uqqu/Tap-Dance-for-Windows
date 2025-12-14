@@ -100,7 +100,6 @@ SaveDrag(_, all_mods:=false, all_langs:=false, *) {
             _MergeLayer(selected_layer)
         }
         UpdLayers()
-        ChangePath(-1, false)
     } else {
         ToggleFreeze(0)
     }
@@ -256,12 +255,8 @@ _MapUnion(a, b) {
 CancelDrag(*) {
     _ClearEquals(drag_map)
 
-    if drag_map.Count {
-        if MsgBox("Do you want to undo the changes?", "Confirmation", "YesNo Icon?") == "No" {
-            return
-        } else {
-            ChangePath(-1, false)
-        }
+    if drag_map.Count && MsgBox("Do you want to undo the changes?", "Confirmation", "YesNo Icon?") == "No" {
+        return
     }
 
     _EndDragMode()
@@ -271,6 +266,7 @@ CancelDrag(*) {
 _EndDragMode() {
     global drag_map, is_drag_mode
 
+    ChangePath(-1, false)
     drag_map := Map()
     is_drag_mode := false
     UI.Title := "TapDance for Windows"

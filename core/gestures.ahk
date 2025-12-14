@@ -198,8 +198,8 @@ CollectPool(gestures) {
     pool := GetPool(x, y)
     pool_gestures := []
     for _, mod_mp in gestures {
-        if mod_mp.Has(current_mod) && mod_mp[current_mod].fin.opts.pool == pool {
-            pool_gestures.Push(mod_mp[current_mod])
+        if mod_mp.Has(0) && mod_mp[0].fin.opts.pool == pool {
+            pool_gestures.Push(mod_mp[0])
         }
     }
 }
@@ -282,6 +282,7 @@ EndDraw(*) {
     if init_drawing {
         init_drawing := false
         try form["Save"].Opt("-Disabled")
+        try form["SaveWithReturn"].Opt("-Disabled")
         try form["SetGesture"].Text := "Saved!"
         SetTimer(_ReturnButtonText, -2000)
 
@@ -419,16 +420,19 @@ BrushWidth(len) {
 
 LiveHint(pts, gestures) {
     global g_bits
-    static inited:=false, fam:=0, fnt:=0, fmt:=0,
+    static busy:=false, inited:=false, fam:=0, fnt:=0, fmt:=0,
         brush_bg:=0, brush_fg:=0, brush_shad:=0, brush_clear:=0,
         last_sig:="", lbbox:=0, lbx:=-1.0, lby:=-1.0, lbw:=-1.0, lbh:=-1.0, last_fs:=-1.0
 
-    if overlay_opts.live_hints == 4 {
+    if busy || overlay_opts.live_hints == 4 {
         return
     }
 
+    busy := true
+
     res := Recognize(pts, gestures)
 
+    txt := ""
     try {
         if res[1] < CONF.min_cos_similarity.v {
             txt := !CONF.live_hint_extended.v ? "" : ("Not recognized. Best match: '"
@@ -436,8 +440,6 @@ LiveHint(pts, gestures) {
         } else {
             txt := res[2].fin.gui_shortname
         }
-    } catch {
-        txt := ""  ; TODO
     }
 
     if !inited {
@@ -546,6 +548,7 @@ LiveHint(pts, gestures) {
     lbw := bw
     lbh := bh
     PresentOverlay()
+    busy := false
 }
 
 

@@ -38,11 +38,11 @@ LVLayerClick(lv, row) {
 LVLayerDoubleClick(lv, row, from_selected:=false) {
     global layer_editing, root_text, selected_layer, last_selected_layer, buffer_view, layer_path
 
-    if !row || temp_chord {
+    if (!row && !from_selected) || temp_chord {
         return
     }
 
-    i := _GetRowIconIndex(lv, row)
+    i := from_selected || _GetRowIconIndex(lv, row)
 
     if i == 3 {
         layer_path.Length -= 1
@@ -64,16 +64,15 @@ LVLayerDoubleClick(lv, row, from_selected:=false) {
     } else {
         buffer_view := 0
         layer_editing := true
-        layer_str := ""
-        for folder in layer_path {
-            layer_str .= folder . "\"
-        }
-        layer_str .= lv.GetText(row, 3)
         if !from_selected {
-            last_selected_layer := layer_str
-            selected_layer := layer_str
+            last_selected_layer := ""
+            for folder in layer_path {
+                last_selected_layer .= folder . "\"
+            }
+            last_selected_layer .= lv.GetText(row, 3)
         }
-        root_text := selected_layer
+        selected_layer := last_selected_layer
+        root_text := StrSplit(last_selected_layer, "\")[-1]
 
         ToggleVisibility(1, UI["BtnBackToRoot"])
         ToggleVisibility(0, UI.layer_move_btns, UI.layer_ctrl_btns, UI["BtnAddNewLayer"])
@@ -92,10 +91,7 @@ LVLayerCheck(lv, row) {
     if i > 1 {
         LVLayerDoubleClick(lv, row)
         return
-    }
-
-    if layer_editing {
-        lv.Modify(row, i ? "Icon1" : "Icon2")  ; NTT?
+    } else if layer_editing {
         return false
     }
 
@@ -132,8 +128,13 @@ _GetRowIconIndex(lv, row) {
 }
 
 
-_GetColumnAtCursor(lv) {
-    MouseGetPos(&mx, &my)
+_GetColumnAtCursor(lv, with_row:=false) {
+    MouseGetPos(&mx, &my, , &ctrl_hwnd)
+
+    row := 0
+    if SubStr(ctrl_hwnd, 1, 9) == "SysHeader" {
+        row := -1
+    }
 
     pt := Buffer(8, 0)
     NumPut("int", mx, pt, 0)
@@ -146,6 +147,10 @@ _GetColumnAtCursor(lv) {
 
     SendMessage(0x1039, 0, hti, lv)
 
+    if with_row {
+        row := row || (NumGet(hti, 12, "int") + 1)
+        return [NumGet(hti, 16, "int") + 1, row]
+    }
     return NumGet(hti, 16, "int") + 1
 }
 

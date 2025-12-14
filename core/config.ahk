@@ -4,6 +4,8 @@ version := 0
 s_gui := false
 is_updating := false
 
+static_lang_names:=Map(67699721, "qwerty en", 68748313, "йцукен ru")
+
 saved_level := false
 buffer_view := 0
 
@@ -61,7 +63,7 @@ for key in [
 }
 
 LANGS := OrderedMap()
-LANGS.Add(0, "Layout: global")
+LANGS.Add(0, "Layout: Global")
 
 first_start := CheckConfig()
 CurrentLayout := GetCurrentLayout()
@@ -70,7 +72,17 @@ FillRoots()
 UpdLayers()
 
 if first_start {
-    SetTimer(ShowSettings, -1000)
+    MsgBox("Before moving on to assignments, modify the settings.`nSpecify the correct keyboard "
+        . "format (ANSI/ISO), presence of additional rows of keys, and play with the GUI/font "
+        . "scale.`n`n–––`n`nTo move through the assignment events use LMB for Tap events and RMB "
+        . "for Hold events and toggling modifiers.`nYou can also use tap/hold with your physical "
+        . "keyboard keys for the same events.`n`n–––`n`nAlmost all elements in the main GUI have "
+        . "a hint text that is displayed when Alt is held down. Even if you know what an item does"
+        . ", there may be additional information there to help you better understand.`n`n–––`n`n"
+        . "Please report any bugs you find (there's still a lot of them ¯\_(ツ)_/¯), unclear "
+        . "aspects, or just suggestions for improvement on Github.`nIf you just want to write "
+        . "that you enjoyed it, that would be a pleasure to me.", "Welcome!")
+    SetTimer(ShowSettings, -666)
 }
 
 
@@ -175,10 +187,6 @@ CheckConfig() {
         "…'Set tap' action:", "nAdd")
     CONF.gui_set_hold_sc := ConfValue("GUI", "GuiSetHoldEdit", "str", "str",
         "…'Set hold' action:", "nEnter")
-    CONF.help_texts := ConfValue("GUI", "HelpTexts", "checkbox", "int",
-        "Show &help texts", 0)
-    CONF.gui_alt_ignore := ConfValue("GUI", "GuiAltIgnore", "checkbox", "int",
-        "Ignore physical &Alt presses on the GUI", 1)
     CONF.hide_mouse_warnings := ConfValue("GUI", "HideMouseWarnings", "checkbox", "int",
         "Hide warnings about disabling drag &behavior for LMB/RMB/MMB", 0)
 
@@ -188,7 +196,7 @@ CheckConfig() {
         "Use edge gestures:", 4, , ,
         [["No", "With edges", "With corners", "With edges and corners"], false])
     CONF.edge_size := ConfValue("Gestures", "EdgeSize", "str", "int",
-        "Edge definition width:", 100, true)
+        "Edge definition width:", 128, true)
     CONF.min_gesture_len := ConfValue("Gestures", "MinGestureLen", "str", "int",
         "Gesture min length:", 150, true)
     CONF.min_cos_similarity := ConfValue("Gestures", "MinCosSimilarity", "str", "float",
@@ -275,8 +283,7 @@ CheckConfig() {
     CollectUserValues()
 
     if !IniRead("config.ini", "Main", "UserLayouts", "") {
-        TrackLayouts()
-        WinWaitClose(layout_gui.Hwnd)
+        GetActiveHKLs()
         return true
     }
 
@@ -285,7 +292,7 @@ CheckConfig() {
         if LANGS.Has(lang) {
             continue
         }
-        LANGS.Add(lang, "Layout: " . GetLayoutNameFromHKL(lang))
+        LANGS.Add(lang, GetLayoutNameFromHKL(lang))
     }
 }
 
@@ -318,49 +325,24 @@ CollectUserValues() {
 }
 
 
-TrackLayouts(*) {
-    global start_hkl, last_hkl, layout_gui, LANGS
+GetActiveHKLs(*) {
+    global LANGS
+
+    n := DllCall("GetKeyboardLayoutList", "int", 0, "ptr", 0, "int")
+    if n <= 0 {
+        return []
+    }
+
+    buf := Buffer(A_PtrSize * n, 0)
+    DllCall("GetKeyboardLayoutList", "int", n, "ptr", buf.Ptr, "int")
 
     LANGS := OrderedMap()
-    LANGS.Add(0, "Layout: global")
+    LANGS.Add(0, "Layout: Global")
 
-    layout_gui := Gui("+AlwaysOnTop -SysMenu", "Layout Detector")
-    layout_gui.SetFont("s10")
-    layout_gui.Add(
-        "Text", "Center w400 h20", "Initial setup. Switch between all your language layouts."
-    )
-    layout_gui.Add("Text", "Center x100 w200 vCnt", "Found: 0")
-    layout_gui.Add("Button", "Center w100 x300 yp4 h20 vNext", "I only have one")
-        .OnEvent("Click", StopTracking)
-    layout_gui.Show("h60 w400")
-
-    start_hkl := GetCurrentLayout()
-    last_hkl := 0
-
-    SetTimer(Watch, 100)
-}
-
-
-Watch() {
-    global last_hkl
-
-    hkl := GetCurrentLayout()
-    if hkl == last_hkl {
-        return
+    loop n {
+        hkl := NumGet(buf, (A_Index - 1) * A_PtrSize, "uptr")
+        LANGS.Add(hkl, GetLayoutNameFromHKL(hkl))
     }
-    last_hkl := hkl
-    if !LANGS.Has(hkl) {
-        LANGS.Add(hkl, "Layout: " . GetLayoutNameFromHKL(hkl))
-        layout_gui["Cnt"].Text := "Found: " . LANGS.Length - 1
-    } else if hkl == start_hkl && LANGS.Length > 1 {
-        StopTracking()
-    }
-}
-
-
-StopTracking(*) {
-    layout_gui["Cnt"].Text := "Great! Enjoy using it."
-    SetTimer(Watch, 0)
     str_value := ""
     for lang in LANGS.map {
         if lang {
@@ -368,8 +350,6 @@ StopTracking(*) {
         }
     }
     IniWrite(SubStr(str_value, 1, -2), "config.ini", "Main", "UserLayouts")
-    Sleep(1000)
-    layout_gui.Destroy()
 }
 
 
@@ -401,7 +381,7 @@ ShowSettings(*) {
         ])
     }
     s_gui.Add("Button", "Center x15 y+15 w390 h20", "Reread system layouts")
-        .OnEvent("Click", TrackLayouts)
+        .OnEvent("Click", GetActiveHKLs)
 
     tabs.UseTab("GUI")
     for c in CONF.GUI {
@@ -691,8 +671,70 @@ GetCurrentLayout() {
 }
 
 
-GetLayoutNameFromHKL(hkl) {
+GetLayoutLangFromHKL(hkl) {
+    if static_lang_names.Has(hkl) {
+        return static_lang_names[hkl]
+    }
+
     buf := Buffer(9)
     DllCall("GetLocaleInfoW", "UInt", hkl & 0xFFFF, "UInt", 0x59, "Ptr", buf, "Int", 9)
     return StrGet(buf)
+}
+
+
+GetLayoutNameFromHKL(hkl) {
+    if static_lang_names.Has(hkl) {
+        return static_lang_names[hkl]
+    }
+
+    klid := GetKLIDFromHKL(hkl)
+    if !klid {
+        return ""
+    }
+
+    name := GetLayoutDisplayNameFromKLID(klid)
+    return name ? name : klid
+}
+
+
+GetKLIDFromHKL(hkl) {
+    cur := DllCall("GetKeyboardLayout", "uint", 0, "ptr")
+    DllCall("ActivateKeyboardLayout", "ptr", hkl, "uint", 0)
+    buf := Buffer(9 * 2, 0)
+    res := DllCall("GetKeyboardLayoutNameW", "ptr", buf, "int")
+    DllCall("ActivateKeyboardLayout", "ptr", cur, "uint", 0)
+    if !res {
+        return ""
+    }
+
+    return StrGet(buf, "UTF-16")
+}
+
+
+GetLayoutDisplayNameFromKLID(klid) {
+    base := "HKLM\SYSTEM\CurrentControlSet\Control\Keyboard Layouts\" . klid
+
+    disp := ""
+    try disp := RegRead(base, "Layout Display Name")
+
+    if disp {
+        resolved := ResolveIndirectString(disp)
+        if resolved {
+            return resolved
+        }
+    }
+
+    txt := ""
+    try txt := RegRead(base, "Layout Text")
+
+    return txt
+}
+
+
+ResolveIndirectString(s) {
+    buf := Buffer(2048 * 2, 0)
+    hr := DllCall(
+        "shlwapi\SHLoadIndirectString", "wstr", s, "ptr", buf, "uint", 2048, "ptr", 0, "int"
+    )
+    return !hr ? StrGet(buf, "UTF-16") : ""
 }
